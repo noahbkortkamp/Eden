@@ -7,7 +7,6 @@ import { ReviewProvider } from './review/context/ReviewContext';
 import { ThemeProvider, useTheme } from './theme/ThemeProvider';
 import { View, ActivityIndicator, Text, StyleSheet, Platform } from 'react-native';
 import { ErrorBoundary } from './components/ErrorBoundary';
-import { LanguageSwitcher } from './components/LanguageSwitcher';
 import { useTranslation } from 'react-i18next';
 import './i18n';
 
@@ -49,7 +48,6 @@ function AppContent() {
         />
       </Stack>
       <StatusBar style="auto" />
-      <LanguageSwitcher />
     </View>
   );
 }
