@@ -1,11 +1,15 @@
 import React, { useState } from 'react';
-import { View, Text, ScrollView, TouchableOpacity, StyleSheet, ActivityIndicator } from 'react-native';
+import { View, Text, ScrollView, TouchableOpacity, StyleSheet, ActivityIndicator, TextInput, InputAccessoryView, Keyboard, Platform } from 'react-native';
 import { Image } from 'expo-image';
 import { useTheme } from '../../theme/ThemeProvider';
 import { ReviewScreenProps, SentimentRating } from '../../types/review';
 import { format } from 'date-fns';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import * as ImagePicker from 'expo-image-picker';
+import { TagSelectionModal } from '../components/TagSelectionModal';
+import { Tag, TAGS_BY_CATEGORY } from '../constants/tags';
+import { ChevronRight } from 'lucide-react-native';
+import { FavoriteHolesModal, FavoriteHole } from '../components/FavoriteHolesModal';
 
 const SENTIMENT_ICONS = {
   liked: '✅',
@@ -23,10 +27,12 @@ export const ReviewScreen: React.FC<ReviewScreenProps> = ({
   const [rating, setRating] = useState<SentimentRating | null>(null);
   const [notes, setNotes] = useState('');
   const [tags, setTags] = useState<string[]>([]);
-  const [favoriteHoles, setFavoriteHoles] = useState<number[]>([]);
+  const [favoriteHoles, setFavoriteHoles] = useState<FavoriteHole[]>([]);
   const [photos, setPhotos] = useState<string[]>([]);
   const [datePlayed, setDatePlayed] = useState(new Date());
   const [showDatePicker, setShowDatePicker] = useState(false);
+  const [showTagsModal, setShowTagsModal] = useState(false);
+  const [showFavoriteHolesModal, setShowFavoriteHolesModal] = useState(false);
 
   const handlePhotoUpload = async () => {
     const result = await ImagePicker.launchImageLibraryAsync({
@@ -53,6 +59,27 @@ export const ReviewScreen: React.FC<ReviewScreenProps> = ({
       photos,
       date_played: datePlayed,
     });
+  };
+
+  const handleTagsSave = (selectedTags: Tag[]) => {
+    setTags(selectedTags.map(tag => tag.id));
+  };
+
+  const getSelectedTagNames = () => {
+    const allTags = Object.values(TAGS_BY_CATEGORY).flat();
+    return tags
+      .map(tagId => allTags.find(t => t.id === tagId)?.name)
+      .filter(Boolean)
+      .join(', ');
+  };
+
+  const getFavoriteHolesPreview = () => {
+    if (favoriteHoles.length === 0) return '';
+    const holeNumbers = favoriteHoles
+      .sort((a, b) => a.number - b.number)
+      .map(h => h.number)
+      .join(', ');
+    return `Holes ${holeNumbers}`;
   };
 
   const styles = StyleSheet.create({
@@ -158,7 +185,66 @@ export const ReviewScreen: React.FC<ReviewScreenProps> = ({
       textAlign: 'center',
       marginTop: theme.spacing.sm,
     },
+    notesInput: {
+      borderWidth: 1,
+      borderColor: theme.colors.border,
+      borderRadius: theme.borderRadius.sm,
+      padding: theme.spacing.sm,
+      minHeight: 100,
+      color: theme.colors.text,
+      backgroundColor: theme.colors.surface,
+      ...theme.typography.body,
+    },
+    keyboardAccessory: {
+      backgroundColor: theme.colors.surface,
+      padding: theme.spacing.sm,
+      borderTopWidth: 1,
+      borderTopColor: theme.colors.border,
+      flexDirection: 'row',
+      justifyContent: 'flex-end',
+    },
+    doneButton: {
+      padding: theme.spacing.sm,
+    },
+    doneButtonText: {
+      color: theme.colors.primary,
+      fontWeight: '600',
+      fontSize: 16,
+    },
+    tagsPreview: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+    },
+    tagsText: {
+      ...theme.typography.body,
+      color: theme.colors.text,
+      flex: 1,
+      marginRight: theme.spacing.sm,
+    },
+    tagsPlaceholder: {
+      ...theme.typography.body,
+      color: theme.colors.textSecondary,
+    },
+    favoriteHolesPreview: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+    },
+    favoriteHolesText: {
+      ...theme.typography.body,
+      color: theme.colors.text,
+      flex: 1,
+      marginRight: theme.spacing.sm,
+    },
+    favoriteHolesPlaceholder: {
+      ...theme.typography.body,
+      color: theme.colors.textSecondary,
+    },
   });
+
+  // Generate a unique ID for the input accessory view
+  const inputAccessoryViewID = 'notesInput';
 
   return (
     <ScrollView style={styles.container}>
@@ -188,6 +274,66 @@ export const ReviewScreen: React.FC<ReviewScreenProps> = ({
           ))}
         </View>
       </View>
+
+      {/* Tags Section */}
+      <TouchableOpacity 
+        style={styles.section}
+        onPress={() => setShowTagsModal(true)}
+        disabled={isSubmitting}
+      >
+        <Text style={styles.sectionTitle}>Tags</Text>
+        <View style={styles.tagsPreview}>
+          <Text style={tags.length > 0 ? styles.tagsText : styles.tagsPlaceholder}>
+            {tags.length > 0 ? getSelectedTagNames() : 'Select course tags'}
+          </Text>
+          <ChevronRight size={20} color={theme.colors.textSecondary} />
+        </View>
+      </TouchableOpacity>
+
+      {/* Favorite Holes Section */}
+      <TouchableOpacity 
+        style={styles.section}
+        onPress={() => setShowFavoriteHolesModal(true)}
+        disabled={isSubmitting}
+      >
+        <Text style={styles.sectionTitle}>Favorite Holes</Text>
+        <View style={styles.favoriteHolesPreview}>
+          <Text style={favoriteHoles.length > 0 ? styles.favoriteHolesText : styles.favoriteHolesPlaceholder}>
+            {favoriteHoles.length > 0 ? getFavoriteHolesPreview() : 'Select your favorite holes'}
+          </Text>
+          <ChevronRight size={20} color={theme.colors.textSecondary} />
+        </View>
+      </TouchableOpacity>
+
+      {/* Notes Section */}
+      <View style={styles.section}>
+        <Text style={styles.sectionTitle}>Notes</Text>
+        <TextInput
+          style={styles.notesInput}
+          placeholder="Write about your experience..."
+          placeholderTextColor={theme.colors.textSecondary}
+          value={notes}
+          onChangeText={setNotes}
+          multiline
+          numberOfLines={4}
+          textAlignVertical="top"
+          editable={!isSubmitting}
+          inputAccessoryViewID={inputAccessoryViewID}
+        />
+      </View>
+
+      {Platform.OS === 'ios' && (
+        <InputAccessoryView nativeID={inputAccessoryViewID}>
+          <View style={styles.keyboardAccessory}>
+            <TouchableOpacity
+              style={styles.doneButton}
+              onPress={() => Keyboard.dismiss()}
+            >
+              <Text style={styles.doneButtonText}>Done</Text>
+            </TouchableOpacity>
+          </View>
+        </InputAccessoryView>
+      )}
 
       {/* Date Played */}
       <TouchableOpacity
@@ -254,6 +400,24 @@ export const ReviewScreen: React.FC<ReviewScreenProps> = ({
         <Text style={styles.submitButtonText}>Submit Review</Text>
         {isSubmitting && <ActivityIndicator color={theme.colors.background} />}
       </TouchableOpacity>
+
+      <TagSelectionModal
+        visible={showTagsModal}
+        onClose={() => setShowTagsModal(false)}
+        onSave={handleTagsSave}
+        selectedTags={tags.map(tagId => {
+          const allTags = Object.values(TAGS_BY_CATEGORY).flat();
+          return allTags.find(t => t.id === tagId)!;
+        }).filter(Boolean)}
+      />
+
+      <FavoriteHolesModal
+        visible={showFavoriteHolesModal}
+        onClose={() => setShowFavoriteHolesModal(false)}
+        onSave={setFavoriteHoles}
+        selectedHoles={favoriteHoles}
+        totalHoles={course.total_holes || 18}
+      />
     </ScrollView>
   );
 }; 
