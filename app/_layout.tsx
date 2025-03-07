@@ -3,6 +3,8 @@ import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { SearchProvider } from './context/SearchContext';
 import { AuthProvider } from './context/auth';
+import { ReviewProvider } from './review/context/ReviewContext';
+import { ThemeProvider, useTheme } from './theme/ThemeProvider';
 import { View, ActivityIndicator, Text, StyleSheet, Platform } from 'react-native';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { LanguageSwitcher } from './components/LanguageSwitcher';
@@ -13,6 +15,43 @@ declare global {
   interface Window {
     frameworkReady?: () => void | Promise<void>;
   }
+}
+
+function AppContent() {
+  const theme = useTheme();
+  return (
+    <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
+      <Stack>
+        <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+        <Stack.Screen
+          name="(modals)/review"
+          options={{
+            presentation: 'modal',
+            headerShown: true,
+            title: 'Review Course',
+            headerStyle: {
+              backgroundColor: theme.colors.background,
+            },
+            headerTintColor: theme.colors.text,
+          }}
+        />
+        <Stack.Screen
+          name="(modals)/comparison"
+          options={{
+            presentation: 'modal',
+            headerShown: true,
+            title: 'Compare Courses',
+            headerStyle: {
+              backgroundColor: theme.colors.background,
+            },
+            headerTintColor: theme.colors.text,
+          }}
+        />
+      </Stack>
+      <StatusBar style="auto" />
+      <LanguageSwitcher />
+    </View>
+  );
 }
 
 function LoadingScreen() {
@@ -44,13 +83,12 @@ export default function RootLayout() {
   useEffect(() => {
     const initializeFramework = async () => {
       try {
-        // Only check for frameworkReady on web platform
         if (Platform.OS === 'web' && window.frameworkReady) {
           await window.frameworkReady();
         }
+        setIsLoading(false);
       } catch (err) {
-        setError(err instanceof Error ? err : new Error('Failed to initialize framework'));
-      } finally {
+        setError(err instanceof Error ? err : new Error('Failed to initialize'));
         setIsLoading(false);
       }
     };
@@ -58,29 +96,25 @@ export default function RootLayout() {
     initializeFramework();
   }, []);
 
-  if (error) {
-    return <ErrorScreen error={error} />;
-  }
-
   if (isLoading) {
     return <LoadingScreen />;
   }
 
+  if (error) {
+    return <ErrorScreen error={error} />;
+  }
+
   return (
     <ErrorBoundary>
-      <AuthProvider>
-        <SearchProvider>
-          <View style={styles.container}>
-            <View style={styles.header}>
-              <LanguageSwitcher />
-            </View>
-            <Stack screenOptions={{ headerShown: false }}>
-              <Stack.Screen name="+not-found" />
-            </Stack>
-            <StatusBar style="auto" />
-          </View>
-        </SearchProvider>
-      </AuthProvider>
+      <ThemeProvider>
+        <AuthProvider>
+          <SearchProvider>
+            <ReviewProvider>
+              <AppContent />
+            </ReviewProvider>
+          </SearchProvider>
+        </AuthProvider>
+      </ThemeProvider>
     </ErrorBoundary>
   );
 }
@@ -88,13 +122,5 @@ export default function RootLayout() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-  },
-  header: {
-    flexDirection: 'row',
-    justifyContent: 'flex-end',
-    padding: 16,
-    backgroundColor: '#fff',
-    borderBottomWidth: 1,
-    borderBottomColor: '#e2e8f0',
   },
 });

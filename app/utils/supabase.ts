@@ -6,11 +6,27 @@ import { createClient } from '@supabase/supabase-js';
 const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL || '';
 const supabaseAnonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY || '';
 
-export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+// Mock Supabase client for development
+export const supabase = {
   auth: {
-    storage: AsyncStorage,
-    autoRefreshToken: true,
-    persistSession: true,
-    detectSessionInUrl: false,
+    getSession: async () => ({ data: { session: null } }),
+    onAuthStateChange: () => ({ data: { subscription: { unsubscribe: () => {} } } }),
+    signInWithPassword: async () => ({ data: { session: null }, error: null }),
+    signUp: async () => ({ data: { session: null }, error: null }),
+    signOut: async () => ({ error: null }),
   },
-}); 
+  from: (table: string) => ({
+    select: () => ({
+      eq: () => ({
+        single: async () => ({ data: null, error: null }),
+        data: [],
+        error: null,
+      }),
+      data: [],
+      error: null,
+    }),
+    insert: () => ({ data: null, error: null }),
+    update: () => ({ data: null, error: null }),
+    delete: () => ({ data: null, error: null }),
+  }),
+}; 

@@ -1,0 +1,41 @@
+{
+  "expo": {
+    "name": "Beli",
+    "slug": "beli",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "light",
+    "assetBundlePatterns": [
+      "**/*"
+    ],
+    "ios": {
+      "supportsTablet": true,
+      "infoPlist": {
+        "NSCameraUsageDescription": "We need access to your camera to take profile pictures.",
+        "NSPhotoLibraryUsageDescription": "We need access to your photo library to select profile pictures."
+      },
+      "bundleIdentifier": "com.anonymous.beli"
+    },
+    "android": {
+      "permissions": [
+        "android.permission.CAMERA",
+        "android.permission.READ_EXTERNAL_STORAGE",
+        "android.permission.WRITE_EXTERNAL_STORAGE",
+        "android.permission.RECORD_AUDIO"
+      ],
+      "package": "com.anonymous.beli"
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
+    },
+    "plugins": [
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Allow Beli to access your photos to set your profile picture.",
+          "cameraPermission": "Allow Beli to access your camera to take profile pictures."
+        }
+      ]
+    ]
+  }
+}

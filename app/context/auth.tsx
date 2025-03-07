@@ -1,9 +1,7 @@
-import { createContext, useContext, useEffect, useState } from 'react';
-import { Session } from '@supabase/supabase-js';
-import { supabase } from '../utils/supabase';
+import { createContext, useContext, useState } from 'react';
 
 type AuthContextType = {
-  session: Session | null;
+  session: { user: { id: string; email: string } } | null;
   loading: boolean;
   signIn: (email: string, password: string) => Promise<void>;
   signUp: (email: string, password: string) => Promise<void>;
@@ -13,43 +11,21 @@ type AuthContextType = {
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const [session, setSession] = useState<Session | null>(null);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    // Get initial session
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session);
-      setLoading(false);
-    });
-
-    // Listen for auth changes
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      setSession(session);
-    });
-
-    return () => subscription.unsubscribe();
-  }, []);
+  const [session, setSession] = useState<{ user: { id: string; email: string } } | null>({
+    user: { id: 'mock-user-id', email: 'mock@example.com' }
+  });
+  const [loading] = useState(false);
 
   const signIn = async (email: string, password: string) => {
-    const { error } = await supabase.auth.signInWithPassword({
-      email,
-      password,
-    });
-    if (error) throw error;
+    setSession({ user: { id: 'mock-user-id', email } });
   };
 
   const signUp = async (email: string, password: string) => {
-    const { error } = await supabase.auth.signUp({
-      email,
-      password,
-    });
-    if (error) throw error;
+    setSession({ user: { id: 'mock-user-id', email } });
   };
 
   const signOut = async () => {
-    const { error } = await supabase.auth.signOut();
-    if (error) throw error;
+    setSession(null);
   };
 
   return (

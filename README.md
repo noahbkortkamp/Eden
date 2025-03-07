@@ -1,37 +1,38 @@
-# Golf Course Discovery App
+# Golf Course Review App
 
-A React Native/Expo application for discovering and reviewing golf courses.
+A mobile application for reviewing and comparing golf courses, built with React Native and Expo.
 
 ## Features
 
-- Search and filter golf courses by various criteria
-- View detailed course information
-- User profiles and ratings
-- Course reviews and recommendations
-- Location-based course discovery
+- Search and browse golf courses
+- Submit detailed course reviews
+- Interactive "This or That" comparison system
+- Dark/Light theme support
+- Mock data for development
 
 ## Tech Stack
 
-- React Native with Expo
+- React Native
+- Expo Router
 - TypeScript
-- Supabase for backend
-- Expo Router for navigation
+- React Context for state management
+- Supabase (prepared for backend integration)
 
 ## Getting Started
 
 ### Prerequisites
 
-- Node.js (v14 or higher)
+- Node.js (v14 or newer)
 - npm or yarn
 - Expo CLI
-- iOS Simulator (for Mac) or Android Studio (for Android development)
+- iOS Simulator (for iOS) or Android Emulator (for Android)
 
 ### Installation
 
 1. Clone the repository:
 ```bash
-git clone <repository-url>
-cd golf-course-discovery
+git clone [your-repo-url]
+cd [your-repo-name]
 ```
 
 2. Install dependencies:
@@ -41,78 +42,41 @@ npm install
 yarn install
 ```
 
-3. Set up environment variables:
+3. Start the development server:
 ```bash
-cp .env.example .env
-```
-Edit `.env` with your Supabase credentials and other required environment variables.
-
-4. Start the development server:
-```bash
-npm start
-# or
-yarn start
+npx expo start
 ```
 
-5. Run on your preferred platform:
-```bash
-# iOS
-npm run ios
-# Android
-npm run android
-```
+4. Press 'i' for iOS simulator or 'a' for Android emulator
 
 ## Project Structure
 
-```
-app/
-├── components/     # Reusable UI components
-├── config/        # Configuration files
-├── context/       # React Context providers
-├── services/      # Business logic and API calls
-├── types/         # TypeScript type definitions
-├── utils/         # Utility functions
-└── (tabs)/        # Tab-based navigation screens
-```
+- `/app` - Main application code
+  - `/(tabs)` - Tab-based navigation screens
+  - `/(modals)` - Modal screens
+  - `/components` - Reusable components
+  - `/context` - React Context providers
+  - `/theme` - Theme configuration
+  - `/utils` - Utility functions
+  - `/types` - TypeScript type definitions
 
-## Development Guidelines
+## Development
 
-### Code Style
+The app currently uses mock data for development. To connect to a real backend:
 
-- Follow TypeScript best practices
-- Use functional components with hooks
-- Implement proper error handling
-- Add JSDoc comments for documentation
-- Follow the existing code formatting rules
-
-### Performance
-
-- Use React.memo for expensive components
-- Implement proper loading states
-- Optimize images and assets
-- Use proper list virtualization
-
-### Testing
-
-- Write unit tests for components
-- Add integration tests for critical flows
-- Implement end-to-end tests
-
-### Accessibility
-
-- Add proper accessibility labels
-- Support screen readers
-- Implement keyboard navigation
-- Follow WCAG guidelines
+1. Set up a Supabase project
+2. Configure environment variables
+3. Update the Supabase client configuration
+4. Remove mock data implementations
 
 ## Contributing
 
-1. Create a feature branch
-2. Make your changes
-3. Add tests if applicable
-4. Update documentation
-5. Submit a pull request
+1. Fork the repository
+2. Create your feature branch (`git checkout -b feature/amazing-feature`)
+3. Commit your changes (`git commit -m 'Add some amazing feature'`)
+4. Push to the branch (`git push origin feature/amazing-feature`)
+5. Open a Pull Request
 
 ## License
 
-This project is licensed under the MIT License - see the LICENSE file for details. 
+This project is licensed under the MIT License - see the LICENSE file for details 

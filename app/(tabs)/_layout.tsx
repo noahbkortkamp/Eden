@@ -1,19 +1,19 @@
 import { Tabs } from 'expo-router';
-import { useColorScheme } from 'react-native';
+import { useTheme } from '../theme/ThemeProvider';
 import { Home, List, Search, Trophy, User } from 'lucide-react-native';
 
 export default function TabLayout() {
-  const colorScheme = useColorScheme();
+  const theme = useTheme();
 
   return (
     <Tabs
       screenOptions={{
-        tabBarActiveTintColor: '#2563eb',
-        tabBarInactiveTintColor: '#64748b',
+        tabBarActiveTintColor: theme.colors.primary,
+        tabBarInactiveTintColor: theme.colors.textSecondary,
         tabBarStyle: {
-          backgroundColor: '#fff',
+          backgroundColor: theme.colors.background,
           borderTopWidth: 1,
-          borderTopColor: '#e2e8f0',
+          borderTopColor: theme.colors.border,
         },
       }}>
       <Tabs.Screen
@@ -21,6 +21,10 @@ export default function TabLayout() {
         options={{
           title: 'Feed',
           tabBarIcon: ({ color }) => <Home size={24} color={color} />,
+          headerStyle: {
+            backgroundColor: theme.colors.background,
+          },
+          headerTintColor: theme.colors.text,
         }}
       />
       <Tabs.Screen
@@ -28,6 +32,10 @@ export default function TabLayout() {
         options={{
           title: 'Your Lists',
           tabBarIcon: ({ color }) => <List size={24} color={color} />,
+          headerStyle: {
+            backgroundColor: theme.colors.background,
+          },
+          headerTintColor: theme.colors.text,
         }}
       />
       <Tabs.Screen
@@ -35,6 +43,10 @@ export default function TabLayout() {
         options={{
           title: 'Search',
           tabBarIcon: ({ color }) => <Search size={24} color={color} />,
+          headerStyle: {
+            backgroundColor: theme.colors.background,
+          },
+          headerTintColor: theme.colors.text,
         }}
       />
       <Tabs.Screen
@@ -42,6 +54,10 @@ export default function TabLayout() {
         options={{
           title: 'Leaderboard',
           tabBarIcon: ({ color }) => <Trophy size={24} color={color} />,
+          headerStyle: {
+            backgroundColor: theme.colors.background,
+          },
+          headerTintColor: theme.colors.text,
         }}
       />
       <Tabs.Screen
@@ -49,6 +65,10 @@ export default function TabLayout() {
         options={{
           title: 'Profile',
           tabBarIcon: ({ color }) => <User size={24} color={color} />,
+          headerStyle: {
+            backgroundColor: theme.colors.background,
+          },
+          headerTintColor: theme.colors.text,
         }}
       />
     </Tabs>
