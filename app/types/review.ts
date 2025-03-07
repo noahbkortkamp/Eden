@@ -40,6 +40,6 @@ export interface ReviewScreenProps {
 export interface CourseComparisonProps {
   courseA: Course;
   courseB: Course;
-  onSelect: (preferred: Course['course_id']) => void;
-  onSkip: () => void;
+  onSelect: (preferredCourseId: string, otherCourseId: string) => void;
+  onSkip: (courseAId: string, courseBId: string) => void;
 } 

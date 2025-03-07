@@ -2,6 +2,7 @@ import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, Dimensions } from 'react-native';
 import { Image } from 'expo-image';
 import { CourseComparisonProps } from '../../types/review';
+import { useRouter } from 'expo-router';
 
 const { width } = Dimensions.get('window');
 
@@ -11,6 +12,14 @@ export const CourseComparisonScreen: React.FC<CourseComparisonProps> = ({
   onSelect,
   onSkip,
 }) => {
+  const router = useRouter();
+
+  // If there are no courses to compare with, just close
+  if (!courseA || !courseB) {
+    router.back();
+    return null;
+  }
+
   return (
     <View style={styles.container}>
       <Text style={styles.title}>Which course do you prefer?</Text>
@@ -19,7 +28,7 @@ export const CourseComparisonScreen: React.FC<CourseComparisonProps> = ({
         {/* Course A */}
         <TouchableOpacity
           style={styles.courseCard}
-          onPress={() => onSelect(courseA.course_id)}
+          onPress={() => onSelect(courseA.course_id, courseB.course_id)}
         >
           <Image
             source={{ uri: `https://api.example.com/courses/${courseA.course_id}/image` }}
@@ -45,7 +54,7 @@ export const CourseComparisonScreen: React.FC<CourseComparisonProps> = ({
         {/* Course B */}
         <TouchableOpacity
           style={styles.courseCard}
-          onPress={() => onSelect(courseB.course_id)}
+          onPress={() => onSelect(courseB.course_id, courseA.course_id)}
         >
           <Image
             source={{ uri: `https://api.example.com/courses/${courseB.course_id}/image` }}
@@ -67,7 +76,10 @@ export const CourseComparisonScreen: React.FC<CourseComparisonProps> = ({
         </TouchableOpacity>
       </View>
 
-      <TouchableOpacity style={styles.skipButton} onPress={onSkip}>
+      <TouchableOpacity 
+        style={styles.skipButton} 
+        onPress={() => onSkip(courseA.course_id, courseB.course_id)}
+      >
         <Text style={styles.skipButtonText}>Too tough to choose</Text>
       </TouchableOpacity>
     </View>
