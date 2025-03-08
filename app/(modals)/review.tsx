@@ -38,10 +38,16 @@ export default function ReviewModal() {
 
   const handleSubmit = async (review: Parameters<typeof submitReview>[0]) => {
     try {
+      console.log('Submitting review:', review);
       await submitReview(review);
       // Navigation will be handled in the ReviewContext after successful submission
     } catch (error) {
       console.error('Failed to submit review:', error);
+      if (error instanceof Error) {
+        console.error('Error details:', error.message);
+        // You might want to show this error message to the user
+        // through your error state management
+      }
     }
   };
 

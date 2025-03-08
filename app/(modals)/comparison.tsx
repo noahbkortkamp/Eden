@@ -31,11 +31,12 @@ export default function ComparisonModal() {
     setIsLoading(false);
   }, [courseAId, courseBId]);
 
-  // If no courses are found, just close the modal
-  if (!isLoading && (!courseA || !courseB)) {
-    router.back();
-    return null;
-  }
+  // Use useEffect to handle navigation when no courses are found
+  useEffect(() => {
+    if (!isLoading && (!courseA || !courseB)) {
+      router.back();
+    }
+  }, [isLoading, courseA, courseB, router]);
 
   if (isLoading) {
     return (
@@ -43,6 +44,11 @@ export default function ComparisonModal() {
         <ActivityIndicator size="large" color={theme.colors.primary} />
       </View>
     );
+  }
+
+  // Don't render anything if courses aren't found
+  if (!courseA || !courseB) {
+    return null;
   }
 
   return (

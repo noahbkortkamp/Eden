@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, Dimensions } from 'react-native';
 import { Image } from 'expo-image';
 import { CourseComparisonProps } from '../../types/review';
@@ -14,9 +14,15 @@ export const CourseComparisonScreen: React.FC<CourseComparisonProps> = ({
 }) => {
   const router = useRouter();
 
-  // If there are no courses to compare with, just close
+  // Use useEffect to handle navigation when no courses are found
+  useEffect(() => {
+    if (!courseA || !courseB) {
+      router.back();
+    }
+  }, [courseA, courseB, router]);
+
+  // Don't render anything if courses aren't found
   if (!courseA || !courseB) {
-    router.back();
     return null;
   }
 

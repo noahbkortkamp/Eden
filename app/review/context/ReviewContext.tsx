@@ -3,6 +3,7 @@ import { CourseReview, Course, SentimentRating } from '../../types/review';
 import { useRouter } from 'expo-router';
 import { useAuth } from '../../context/AuthContext';
 import { createReview, getReviewsForUser, getAllTags } from '../../utils/reviews';
+import { format } from 'date-fns';
 
 interface ReviewContextType {
   submitReview: (review: Omit<CourseReview, 'review_id' | 'user_id' | 'created_at' | 'updated_at'>) => Promise<void>;
@@ -36,6 +37,17 @@ export const ReviewProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     setError(null);
 
     try {
+      // Check for existing review on the same date
+      const userReviews = await getReviewsForUser(user.id);
+      const existingReview = userReviews.find(r => 
+        r.course_id === review.course_id && 
+        format(new Date(r.date_played), 'yyyy-MM-dd') === format(new Date(review.date_played), 'yyyy-MM-dd')
+      );
+
+      if (existingReview) {
+        throw new Error(`You've already reviewed this course for ${format(new Date(review.date_played), 'MMMM d, yyyy')}. Please choose a different date.`);
+      }
+
       // Get all available tags to map frontend IDs to database UUIDs
       const allTags = await getAllTags();
       const tagMap = new Map(allTags.map(tag => [tag.name, tag.id]));
@@ -70,8 +82,7 @@ export const ReviewProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       // Reset comparisons count for new review
       setComparisonsRemaining(MAX_COMPARISONS);
 
-      // Get user's reviewed courses with matching sentiment for comparison
-      const userReviews = await getReviewsForUser(user.id);
+      // Use the existing userReviews for finding courses with matching sentiment
       const reviewedCoursesWithSentiment = userReviews.filter(r => 
         r.course_id !== review.course_id && 
         r.rating === review.rating
