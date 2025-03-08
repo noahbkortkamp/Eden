@@ -6,11 +6,19 @@ import { useRouter } from 'expo-router';
 import { getReviewsForUser } from '../utils/reviews';
 import { CourseReview } from '../types/review';
 import { format } from 'date-fns';
+import { getCourse } from '../utils/courses';
+import type { Database } from '../utils/database.types';
+
+type Course = Database['public']['Tables']['courses']['Row'];
+
+interface ReviewWithCourse extends CourseReview {
+  course?: Course;
+}
 
 export default function ProfileScreen() {
   const { user, signOut } = useAuth();
   const router = useRouter();
-  const [reviews, setReviews] = useState<CourseReview[]>([]);
+  const [reviews, setReviews] = useState<ReviewWithCourse[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
@@ -18,7 +26,28 @@ export default function ProfileScreen() {
     if (!user) return;
     try {
       const userReviews = await getReviewsForUser(user.id);
-      setReviews(userReviews);
+      
+      // Fetch course details for each review
+      const reviewsWithCourses = await Promise.all(
+        userReviews.map(async (review) => {
+          try {
+            const course = await getCourse(review.course_id);
+            return { ...review, course };
+          } catch (error) {
+            console.error(`Error loading course ${review.course_id}:`, error);
+            return review;
+          }
+        })
+      );
+      
+      // Sort reviews by date_played in descending order
+      const sortedReviews = reviewsWithCourses.sort((a, b) => {
+        const dateA = new Date(a.date_played).getTime();
+        const dateB = new Date(b.date_played).getTime();
+        return dateB - dateA;
+      });
+      
+      setReviews(sortedReviews);
     } catch (error) {
       console.error('Error loading reviews:', error);
     } finally {
@@ -87,7 +116,13 @@ export default function ProfileScreen() {
           reviews.map((review) => (
             <Card key={review.id} style={styles.reviewCard}>
               <Card.Content>
-                <Text variant="titleMedium">{review.course_id}</Text>
+                <Text variant="titleMedium">{review.course?.name || 'Unknown Course'}</Text>
+                <Text variant="bodyMedium" style={styles.location}>
+                  {review.course?.location || 'Location unknown'}
+                </Text>
+                <Text variant="bodyMedium" style={styles.date}>
+                  Played on {format(new Date(review.date_played), 'MMM d, yyyy')}
+                </Text>
                 <Text variant="bodyMedium" style={styles.rating}>
                   Rating: {review.rating}
                 </Text>
@@ -96,7 +131,7 @@ export default function ProfileScreen() {
                     {review.notes}
                   </Text>
                 )}
-                <Text variant="bodySmall" style={styles.date}>
+                <Text variant="bodySmall" style={styles.reviewDate}>
                   Reviewed on {format(new Date(review.created_at), 'MMM d, yyyy')}
                 </Text>
               </Card.Content>
@@ -142,6 +177,14 @@ const styles = StyleSheet.create({
   reviewCard: {
     marginBottom: 12,
   },
+  location: {
+    marginTop: 4,
+    color: '#666',
+  },
+  date: {
+    marginTop: 4,
+    color: '#666',
+  },
   rating: {
     marginTop: 4,
     color: '#666',
@@ -149,7 +192,7 @@ const styles = StyleSheet.create({
   notes: {
     marginTop: 8,
   },
-  date: {
+  reviewDate: {
     marginTop: 8,
     color: '#999',
   },
