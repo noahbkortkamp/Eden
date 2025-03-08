@@ -1,4 +1,13 @@
-export type SentimentRating = 'liked' | 'fine' | 'disliked';
+import type { Database } from './database.types';
+
+export type Course = Database['public']['Tables']['courses']['Row'];
+
+export type SentimentRating = 'liked' | 'fine' | 'didnt_like';
+
+export interface FavoriteHole {
+  number: number;
+  notes?: string;
+}
 
 export interface CourseTag {
   id: string;
@@ -20,26 +29,24 @@ export interface CourseReview {
   updated_at: Date;
 }
 
-export interface Course {
-  course_id: string;
-  name: string;
-  location: string;
-  address: string;
-  latitude: number;
-  longitude: number;
-  total_holes: number;
-  average_rating: number;
-  total_reviews: number;
-}
-
 export interface ReviewScreenProps {
   course: Course;
-  onSubmit: (review: Omit<CourseReview, 'review_id' | 'user_id' | 'created_at' | 'updated_at'>) => Promise<void>;
+  onSubmit: (review: {
+    course_id: string;
+    rating: SentimentRating;
+    notes: string;
+    favorite_holes: FavoriteHole[];
+    photos: string[];
+    date_played: Date;
+    tags: string[];
+  }) => Promise<void>;
+  isSubmitting: boolean;
+  error?: string;
 }
 
 export interface CourseComparisonProps {
   courseA: Course;
   courseB: Course;
-  onSelect: (preferredCourseId: string, otherCourseId: string) => void;
+  onSelect: (selectedId: string, notSelectedId: string) => void;
   onSkip: (courseAId: string, courseBId: string) => void;
 } 

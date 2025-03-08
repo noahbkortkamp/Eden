@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   View,
   Text,
@@ -7,24 +7,55 @@ import {
   TouchableOpacity,
   StyleSheet,
   useWindowDimensions,
+  ActivityIndicator,
 } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { mockCourses } from '../api/mockData';
 import { useTheme } from '../theme/ThemeProvider';
 import { MapPin, Star, Users, X } from 'lucide-react-native';
+import { getCourse } from '../utils/courses';
+import type { Database } from '../utils/database.types';
+
+type Course = Database['public']['Tables']['courses']['Row'];
 
 export default function CourseDetailsScreen() {
   const { courseId } = useLocalSearchParams();
   const router = useRouter();
   const theme = useTheme();
   const { width } = useWindowDimensions();
+  const [course, setCourse] = useState<Course | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-  const course = mockCourses.find(c => c.course_id === courseId);
+  useEffect(() => {
+    async function loadCourse() {
+      try {
+        if (!courseId) throw new Error('No course ID provided');
+        const data = await getCourse(courseId as string);
+        setCourse(data);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Failed to load course');
+      } finally {
+        setLoading(false);
+      }
+    }
 
-  if (!course) {
+    loadCourse();
+  }, [courseId]);
+
+  if (loading) {
     return (
       <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
-        <Text style={[styles.errorText, { color: theme.colors.error }]}>Course not found</Text>
+        <ActivityIndicator size="large" color={theme.colors.primary} />
+      </View>
+    );
+  }
+
+  if (error || !course) {
+    return (
+      <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
+        <Text style={[styles.errorText, { color: theme.colors.error }]}>
+          {error || 'Course not found'}
+        </Text>
       </View>
     );
   }
@@ -32,7 +63,7 @@ export default function CourseDetailsScreen() {
   const handleReviewPress = () => {
     router.push({
       pathname: '/(modals)/review',
-      params: { courseId: course.course_id }
+      params: { courseId: course.id }
     });
   };
 
@@ -41,11 +72,15 @@ export default function CourseDetailsScreen() {
       <ScrollView>
         {/* Header Image */}
         <View style={styles.imageContainer}>
-          <Image
-            source={{ uri: course.image_url }}
-            style={[styles.headerImage, { width }]}
-            resizeMode="cover"
-          />
+          {course.photos && course.photos.length > 0 ? (
+            <Image
+              source={{ uri: course.photos[0] }}
+              style={[styles.headerImage, { width }]}
+              resizeMode="cover"
+            />
+          ) : (
+            <View style={[styles.headerImage, { width, backgroundColor: theme.colors.surface }]} />
+          )}
           <TouchableOpacity
             style={[styles.closeButton, { backgroundColor: theme.colors.surface }]}
             onPress={() => router.back()}
@@ -72,7 +107,7 @@ export default function CourseDetailsScreen() {
             <View style={styles.statItem}>
               <Star size={20} color={theme.colors.primary} />
               <Text style={[styles.statValue, { color: theme.colors.text }]}>
-                {course.average_rating.toFixed(1)}
+                {(course.rating ?? 0).toFixed(1)}
               </Text>
               <Text style={[styles.statLabel, { color: theme.colors.textSecondary }]}>
                 Rating
@@ -84,7 +119,7 @@ export default function CourseDetailsScreen() {
             <View style={styles.statItem}>
               <Users size={20} color={theme.colors.primary} />
               <Text style={[styles.statValue, { color: theme.colors.text }]}>
-                {course.total_reviews}
+                {course.total_ratings ?? 0}
               </Text>
               <Text style={[styles.statLabel, { color: theme.colors.textSecondary }]}>
                 Reviews
@@ -92,11 +127,28 @@ export default function CourseDetailsScreen() {
             </View>
           </View>
 
-          {/* Description */}
-          <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>About</Text>
-          <Text style={[styles.description, { color: theme.colors.textSecondary }]}>
-            {course.description}
-          </Text>
+          {/* Course Details */}
+          <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>Details</Text>
+          <View style={[styles.detailsContainer, { backgroundColor: theme.colors.surface }]}>
+            <View style={styles.detailRow}>
+              <Text style={[styles.detailLabel, { color: theme.colors.textSecondary }]}>Type</Text>
+              <Text style={[styles.detailValue, { color: theme.colors.text }]}>{course.type ?? 'N/A'}</Text>
+            </View>
+            <View style={styles.detailRow}>
+              <Text style={[styles.detailLabel, { color: theme.colors.textSecondary }]}>Par</Text>
+              <Text style={[styles.detailValue, { color: theme.colors.text }]}>{course.par ?? 'N/A'}</Text>
+            </View>
+            <View style={styles.detailRow}>
+              <Text style={[styles.detailLabel, { color: theme.colors.textSecondary }]}>Yardage</Text>
+              <Text style={[styles.detailValue, { color: theme.colors.text }]}>{course.yardage ? `${course.yardage} yards` : 'N/A'}</Text>
+            </View>
+            <View style={styles.detailRow}>
+              <Text style={[styles.detailLabel, { color: theme.colors.textSecondary }]}>Price Level</Text>
+              <Text style={[styles.detailValue, { color: theme.colors.text }]}>
+                {course.price_level ? '$'.repeat(course.price_level) : 'N/A'}
+              </Text>
+            </View>
+          </View>
         </View>
       </ScrollView>
 
@@ -180,9 +232,23 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     marginBottom: 8,
   },
-  description: {
+  detailsContainer: {
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 24,
+  },
+  detailRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 8,
+  },
+  detailLabel: {
     fontSize: 16,
-    lineHeight: 24,
+  },
+  detailValue: {
+    fontSize: 16,
+    fontWeight: '500',
   },
   footer: {
     padding: 16,

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useCallback } from 'react';
 import {
   View,
   Text,
@@ -6,25 +6,51 @@ import {
   TouchableOpacity,
   ScrollView,
   StyleSheet,
+  ActivityIndicator,
 } from 'react-native';
 import {
   Search as SearchIcon,
   MapPin,
   SlidersHorizontal,
 } from 'lucide-react-native';
-import { mockCourses } from '../api/mockData';
 import { useRouter } from 'expo-router';
 import { useTheme } from '../theme/ThemeProvider';
+import { searchCourses } from '../utils/courses';
+import { useDebouncedCallback } from 'use-debounce';
+import type { Course } from '../types';
 
 export default function SearchScreen() {
   const router = useRouter();
   const theme = useTheme();
   const [searchQuery, setSearchQuery] = useState('');
+  const [courses, setCourses] = useState<Course[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  const filteredCourses = mockCourses.filter(course =>
-    course.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    course.location.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  // Debounce the search to prevent too many API calls
+  const debouncedSearch = useDebouncedCallback(async (query: string) => {
+    if (!query.trim()) {
+      setCourses([]);
+      return;
+    }
+
+    try {
+      setLoading(true);
+      setError(null);
+      const results = await searchCourses(query);
+      setCourses(results);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'An error occurred while searching');
+      setCourses([]);
+    } finally {
+      setLoading(false);
+    }
+  }, 300); // Wait 300ms after the user stops typing before searching
+
+  const handleSearchChange = useCallback((text: string) => {
+    setSearchQuery(text);
+    debouncedSearch(text);
+  }, [debouncedSearch]);
 
   const handleCoursePress = (courseId: string) => {
     router.push({
@@ -44,8 +70,11 @@ export default function SearchScreen() {
             placeholder="Search courses..."
             placeholderTextColor={theme.colors.textSecondary}
             value={searchQuery}
-            onChangeText={setSearchQuery}
+            onChangeText={handleSearchChange}
+            autoCapitalize="none"
+            autoCorrect={false}
           />
+          {loading && <ActivityIndicator size="small" color={theme.colors.primary} style={styles.loader} />}
         </View>
         <TouchableOpacity 
           style={[styles.filterButton, { backgroundColor: theme.colors.surface }]}
@@ -56,31 +85,42 @@ export default function SearchScreen() {
 
       {/* Results */}
       <ScrollView style={styles.results}>
-        {filteredCourses.map(course => (
-          <TouchableOpacity
-            key={course.course_id}
-            style={[styles.courseItem, { borderBottomColor: theme.colors.border }]}
-            onPress={() => handleCoursePress(course.course_id)}
-          >
-            <Text style={[styles.courseName, { color: theme.colors.text }]}>
-              {course.name}
-            </Text>
-            <View style={styles.locationContainer}>
-              <MapPin size={16} color={theme.colors.textSecondary} />
-              <Text style={[styles.location, { color: theme.colors.textSecondary }]}>
-                {course.location}
+        {error ? (
+          <Text style={[styles.errorText, { color: theme.colors.error }]}>{error}</Text>
+        ) : courses.length > 0 ? (
+          courses.map(course => (
+            <TouchableOpacity
+              key={course.id}
+              style={[styles.courseItem, { borderBottomColor: theme.colors.border }]}
+              onPress={() => handleCoursePress(course.id)}
+            >
+              <Text style={[styles.courseName, { color: theme.colors.text }]}>
+                {course.name}
               </Text>
-            </View>
-            <View style={styles.statsRow}>
-              <Text style={[styles.stat, { color: theme.colors.textSecondary }]}>
-                ⭐️ {course.average_rating.toFixed(1)}
-              </Text>
-              <Text style={[styles.stat, { color: theme.colors.textSecondary }]}>
-                📝 {course.total_reviews} reviews
-              </Text>
-            </View>
-          </TouchableOpacity>
-        ))}
+              <View style={styles.locationContainer}>
+                <MapPin size={16} color={theme.colors.textSecondary} />
+                <Text style={[styles.location, { color: theme.colors.textSecondary }]}>
+                  {course.location}
+                </Text>
+              </View>
+              <View style={styles.statsRow}>
+                <Text style={[styles.stat, { color: theme.colors.textSecondary }]}>
+                  Par {course.par}
+                </Text>
+                <Text style={[styles.stat, { color: theme.colors.textSecondary }]}>
+                  {course.yardage} yards
+                </Text>
+                <Text style={[styles.stat, { color: theme.colors.textSecondary }]}>
+                  {course.type}
+                </Text>
+              </View>
+            </TouchableOpacity>
+          ))
+        ) : searchQuery ? (
+          <Text style={[styles.noResults, { color: theme.colors.textSecondary }]}>
+            No courses found
+          </Text>
+        ) : null}
       </ScrollView>
     </View>
   );
@@ -111,6 +151,9 @@ const styles = StyleSheet.create({
     flex: 1,
     height: 40,
     fontSize: 16,
+  },
+  loader: {
+    marginLeft: 8,
   },
   filterButton: {
     width: 40,
@@ -146,5 +189,14 @@ const styles = StyleSheet.create({
   },
   stat: {
     fontSize: 14,
+  },
+  errorText: {
+    padding: 16,
+    textAlign: 'center',
+  },
+  noResults: {
+    padding: 16,
+    textAlign: 'center',
+    fontSize: 16,
   },
 }); 

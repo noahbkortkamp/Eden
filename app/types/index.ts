@@ -84,4 +84,20 @@ export interface LocationData {
   state: string;
   /** Country name */
   country: string;
+}
+
+export interface Course {
+  id: string;
+  name: string;
+  location: string;
+  par: number;
+  yardage: number;
+  price_level: number;
+  type: 'public' | 'private' | 'resort' | 'semi-private';
+  latitude: number | null;
+  longitude: number | null;
+  website: string | null;
+  phone: string | null;
+  created_at: string;
+  updated_at: string;
 } 

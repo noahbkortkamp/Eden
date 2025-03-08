@@ -5,23 +5,10 @@ import { useFonts, Inter_400Regular, Inter_600SemiBold, Inter_700Bold } from '@e
 import { LinearGradient } from 'expo-linear-gradient';
 import { useState, useEffect } from 'react';
 import * as Location from 'expo-location';
-import { searchGolfCourses, getNearbyCourses, formatCourseData } from '../utils/places';
+import { searchCourses, getNearbyCoursesWithinRadius } from '../utils/courses';
+import { Database } from '../utils/database.types';
 
-interface Course {
-  id: string;
-  name: string;
-  location: string;
-  coordinates: {
-    latitude: number;
-    longitude: number;
-  };
-  rating: number;
-  totalRatings: number;
-  photos: string[];
-  isOpen?: boolean;
-  website?: string;
-  phone?: string;
-}
+type Course = Database['public']['Tables']['courses']['Row'];
 
 export default function HomeScreen() {
   const router = useRouter();
@@ -52,12 +39,13 @@ export default function HomeScreen() {
       }
 
       const location = await Location.getCurrentPositionAsync({});
-      const nearbyCourses = await getNearbyCourses({
-        lat: location.coords.latitude,
-        lng: location.coords.longitude,
-      });
+      const nearbyCourses = await getNearbyCoursesWithinRadius(
+        location.coords.latitude,
+        location.coords.longitude,
+        50 // 50 mile radius
+      );
 
-      setCourses(nearbyCourses.map(formatCourseData));
+      setCourses(nearbyCourses);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load courses');
     } finally {
@@ -75,8 +63,8 @@ export default function HomeScreen() {
       setLoading(true);
       setError(null);
       
-      const searchResults = await searchGolfCourses(searchQuery);
-      setCourses(searchResults.map(formatCourseData));
+      const searchResults = await searchCourses(searchQuery);
+      setCourses(searchResults);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Search failed');
     } finally {
@@ -187,13 +175,16 @@ export default function HomeScreen() {
                 <Pressable 
                   key={course.id} 
                   style={styles.courseItem}
-                  onPress={() => router.push(`/review/${course.id}`)}>
+                  onPress={() => router.push({
+                    pathname: '/(modals)/course-details',
+                    params: { courseId: course.id }
+                  })}>
                   <View style={styles.courseInfo}>
                     <Text style={styles.courseName}>{course.name}</Text>
                     <Text style={styles.courseLocation}>{course.location}</Text>
                   </View>
                   <View style={styles.ratingBadge}>
-                    <Text style={styles.ratingText}>{course.rating.toFixed(1)}</Text>
+                    <Text style={styles.ratingText}>{(course.rating ?? 0).toFixed(1)}</Text>
                   </View>
                 </Pressable>
               ))}

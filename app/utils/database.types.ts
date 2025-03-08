@@ -124,6 +124,8 @@ export interface Database {
           id: string
           name: string
           location: string
+          par: number
+          yardage: number
           price_level: number
           type: string
           latitude: number
@@ -140,6 +142,8 @@ export interface Database {
           id: string
           name: string
           location: string
+          par: number
+          yardage: number
           price_level: number
           type: string
           latitude: number
@@ -156,6 +160,8 @@ export interface Database {
           id?: string
           name?: string
           location?: string
+          par?: number
+          yardage?: number
           price_level?: number
           type?: string
           latitude?: number
@@ -167,6 +173,81 @@ export interface Database {
           phone?: string | null
           created_at?: string
           updated_at?: string
+        }
+      }
+      reviews: {
+        Row: {
+          id: string
+          user_id: string
+          course_id: string
+          rating: 'liked' | 'fine' | 'didnt_like'
+          notes: string | null
+          favorite_holes: number[]
+          photos: string[]
+          date_played: string
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          course_id: string
+          rating: 'liked' | 'fine' | 'didnt_like'
+          notes?: string | null
+          favorite_holes?: number[]
+          photos?: string[]
+          date_played: string
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          course_id?: string
+          rating?: 'liked' | 'fine' | 'didnt_like'
+          notes?: string | null
+          favorite_holes?: number[]
+          photos?: string[]
+          date_played?: string
+          created_at?: string
+          updated_at?: string
+        }
+      }
+      tags: {
+        Row: {
+          id: string
+          name: string
+          category: string
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          name: string
+          category: string
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          name?: string
+          category?: string
+          created_at?: string
+        }
+      }
+      review_tags: {
+        Row: {
+          review_id: string
+          tag_id: string
+          created_at: string
+        }
+        Insert: {
+          review_id: string
+          tag_id: string
+          created_at?: string
+        }
+        Update: {
+          review_id?: string
+          tag_id?: string
+          created_at?: string
         }
       }
     }

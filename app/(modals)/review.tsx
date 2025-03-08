@@ -2,10 +2,12 @@ import React, { useEffect, useState } from 'react';
 import { View, StyleSheet, ActivityIndicator, Text } from 'react-native';
 import { useLocalSearchParams, Stack } from 'expo-router';
 import { ReviewScreen } from '../review/screens/ReviewScreen';
-import { Course } from '../types/review';
-import { mockCourses } from '../api/mockData';
 import { useReview } from '../review/context/ReviewContext';
 import { useTheme } from '../theme/ThemeProvider';
+import { getCourse } from '../utils/courses';
+import type { Database } from '../utils/database.types';
+
+type Course = Database['public']['Tables']['courses']['Row'];
 
 export default function ReviewModal() {
   const { courseId, fromRound } = useLocalSearchParams<{
@@ -16,14 +18,22 @@ export default function ReviewModal() {
   const { submitReview, isSubmitting, error } = useReview();
   const [course, setCourse] = useState<Course | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   useEffect(() => {
-    // For testing, we'll use mock data instead of an API call
-    const selectedCourse = mockCourses.find(c => c.course_id === courseId);
-    if (selectedCourse) {
-      setCourse(selectedCourse);
+    async function loadCourse() {
+      try {
+        if (!courseId) throw new Error('No course ID provided');
+        const data = await getCourse(courseId as string);
+        setCourse(data);
+      } catch (err) {
+        setLoadError(err instanceof Error ? err.message : 'Failed to load course');
+      } finally {
+        setIsLoading(false);
+      }
     }
-    setIsLoading(false);
+
+    loadCourse();
   }, [courseId]);
 
   const handleSubmit = async (review: Parameters<typeof submitReview>[0]) => {
@@ -43,11 +53,11 @@ export default function ReviewModal() {
     );
   }
 
-  if (!course) {
+  if (loadError || !course) {
     return (
       <View style={[styles.container, styles.centered]}>
         <Text style={[styles.errorText, { color: theme.colors.error }]}>
-          Course not found
+          {loadError || 'Course not found'}
         </Text>
       </View>
     );

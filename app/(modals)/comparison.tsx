@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { View, StyleSheet, ActivityIndicator } from 'react-native';
-import { useLocalSearchParams, Stack } from 'expo-router';
+import { useLocalSearchParams, Stack, useRouter } from 'expo-router';
 import { CourseComparisonScreen } from '../review/screens/CourseComparisonScreen';
 import { Course } from '../types/review';
 import { mockCourses } from '../api/mockData';
@@ -14,6 +14,7 @@ export default function ComparisonModal() {
     remainingComparisons: string;
   }>();
   const theme = useTheme();
+  const router = useRouter();
   const { handleComparison, skipComparison } = useReview();
   const [courseA, setCourseA] = useState<Course | null>(null);
   const [courseB, setCourseB] = useState<Course | null>(null);
@@ -30,16 +31,18 @@ export default function ComparisonModal() {
     setIsLoading(false);
   }, [courseAId, courseBId]);
 
+  // If no courses are found, just close the modal
+  if (!isLoading && (!courseA || !courseB)) {
+    router.back();
+    return null;
+  }
+
   if (isLoading) {
     return (
       <View style={[styles.container, styles.centered]}>
         <ActivityIndicator size="large" color={theme.colors.primary} />
       </View>
     );
-  }
-
-  if (!courseA || !courseB) {
-    return null;
   }
 
   return (

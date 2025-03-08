@@ -51,7 +51,7 @@ export const ReviewScreen: React.FC<ReviewScreenProps> = ({
     if (!rating || isSubmitting) return;
 
     await onSubmit({
-      course_id: course.course_id,
+      course_id: course.id,
       rating,
       tags,
       notes,
@@ -416,7 +416,7 @@ export const ReviewScreen: React.FC<ReviewScreenProps> = ({
         onClose={() => setShowFavoriteHolesModal(false)}
         onSave={setFavoriteHoles}
         selectedHoles={favoriteHoles}
-        totalHoles={course.total_holes || 18}
+        totalHoles={18}
       />
     </ScrollView>
   );
