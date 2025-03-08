@@ -16,17 +16,17 @@ export interface CourseTag {
 }
 
 export interface CourseReview {
-  review_id: string;
+  id: string;
   user_id: string;
   course_id: string;
   rating: SentimentRating;
-  tags: string[];
-  notes: string;
+  notes: string | null;
   favorite_holes: number[];
   photos: string[];
-  date_played: Date;
-  created_at: Date;
-  updated_at: Date;
+  date_played: string;
+  created_at: string;
+  updated_at: string;
+  tags?: string[];
 }
 
 export interface ReviewScreenProps {
@@ -35,7 +35,7 @@ export interface ReviewScreenProps {
     course_id: string;
     rating: SentimentRating;
     notes: string;
-    favorite_holes: FavoriteHole[];
+    favorite_holes: number[];
     photos: string[];
     date_played: Date;
     tags: string[];

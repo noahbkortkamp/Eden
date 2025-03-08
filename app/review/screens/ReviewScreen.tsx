@@ -62,15 +62,11 @@ export const ReviewScreen: React.FC<ReviewScreenProps> = ({
   };
 
   const handleTagsSave = (selectedTags: Tag[]) => {
-    setTags(selectedTags.map(tag => tag.id));
+    setTags(selectedTags.map(tag => tag.name));
   };
 
   const getSelectedTagNames = () => {
-    const allTags = Object.values(TAGS_BY_CATEGORY).flat();
-    return tags
-      .map(tagId => allTags.find(t => t.id === tagId)?.name)
-      .filter(Boolean)
-      .join(', ');
+    return tags.join(', ');
   };
 
   const getFavoriteHolesPreview = () => {
@@ -405,9 +401,9 @@ export const ReviewScreen: React.FC<ReviewScreenProps> = ({
         visible={showTagsModal}
         onClose={() => setShowTagsModal(false)}
         onSave={handleTagsSave}
-        selectedTags={tags.map(tagId => {
+        selectedTags={tags.map(tagName => {
           const allTags = Object.values(TAGS_BY_CATEGORY).flat();
-          return allTags.find(t => t.id === tagId)!;
+          return allTags.find(t => t.name === tagName)!;
         }).filter(Boolean)}
       />
 

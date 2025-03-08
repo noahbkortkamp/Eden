@@ -1,7 +1,8 @@
 import React, { createContext, useContext, useState, useCallback } from 'react';
 import { CourseReview, Course, SentimentRating } from '../../types/review';
-import { mockCourses } from '../../api/mockData';
 import { useRouter } from 'expo-router';
+import { useAuth } from '../../context/AuthContext';
+import { createReview, getReviewsForUser, getAllTags } from '../../utils/reviews';
 
 interface ReviewContextType {
   submitReview: (review: Omit<CourseReview, 'review_id' | 'user_id' | 'created_at' | 'updated_at'>) => Promise<void>;
@@ -14,62 +15,73 @@ interface ReviewContextType {
 
 const MAX_COMPARISONS = 3;
 
-// Mock user's reviewed courses (replace with actual API call in production)
-const MOCK_USER_REVIEWS = [
-  { course_id: 'course1', rating: 'liked' },
-  { course_id: 'course2', rating: 'liked' },
-  { course_id: 'course3', rating: 'disliked' },
-  { course_id: 'course4', rating: 'disliked' },
-];
-
 const ReviewContext = createContext<ReviewContextType | undefined>(undefined);
 
 export const ReviewProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const router = useRouter();
+  const { user } = useAuth();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [comparisonsRemaining, setComparisonsRemaining] = useState(MAX_COMPARISONS);
 
-  // Helper function to get reviewed courses with matching sentiment
-  const getReviewedCoursesWithSentiment = (
-    currentCourseId: string,
-    sentiment: SentimentRating,
-    excludeCourseIds: string[] = []
-  ) => {
-    return mockCourses.filter(c => 
-      c.course_id !== currentCourseId && 
-      !excludeCourseIds.includes(c.course_id) &&
-      MOCK_USER_REVIEWS.some(r => r.course_id === c.course_id && r.rating === sentiment)
-    );
-  };
-
   const submitReview = useCallback(async (
     review: Omit<CourseReview, 'review_id' | 'user_id' | 'created_at' | 'updated_at'>
   ) => {
+    if (!user) {
+      router.push('/auth/login');
+      return;
+    }
+
     setIsSubmitting(true);
     setError(null);
 
     try {
-      // Mock review submission
-      console.log('Submitting review:', review);
+      // Get all available tags to map frontend IDs to database UUIDs
+      const allTags = await getAllTags();
+      const tagMap = new Map(allTags.map(tag => [tag.name, tag.id]));
       
-      // Simulate API delay
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      // Map frontend tag IDs to database UUIDs
+      const tagUuids = review.tags
+        ?.map(tagId => {
+          // The frontend now uses the exact tag names as IDs
+          return tagMap.get(tagId);
+        })
+        .filter((uuid): uuid is string => uuid !== undefined) || [];
+
+      console.log('Mapped tag UUIDs:', tagUuids);
+
+      // Format favorite holes to be just numbers
+      const favoriteHoleNumbers = review.favorite_holes.map(hole => 
+        typeof hole === 'number' ? hole : hole.number
+      );
+
+      // Submit review with user ID
+      await createReview(
+        user.id,
+        review.course_id,
+        review.rating,
+        review.notes,
+        favoriteHoleNumbers,
+        review.photos,
+        review.date_played.toISOString(),
+        tagUuids
+      );
 
       // Reset comparisons count for new review
       setComparisonsRemaining(MAX_COMPARISONS);
 
-      // Get reviewed courses with matching sentiment for comparison
-      const reviewedCourses = getReviewedCoursesWithSentiment(
-        review.course_id,
-        review.rating
+      // Get user's reviewed courses with matching sentiment for comparison
+      const userReviews = await getReviewsForUser(user.id);
+      const reviewedCoursesWithSentiment = userReviews.filter(r => 
+        r.course_id !== review.course_id && 
+        r.rating === review.rating
       );
       
-      if (reviewedCourses.length >= 2) {
+      if (reviewedCoursesWithSentiment.length >= 2) {
         // Close the review modal first
         router.back();
         
-        const randomCourses = reviewedCourses
+        const randomCourses = reviewedCoursesWithSentiment
           .sort(() => Math.random() - 0.5)
           .slice(0, 2);
 
@@ -87,19 +99,26 @@ export const ReviewProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         router.replace('/(tabs)');
       }
     } catch (err) {
+      console.error('Detailed submission error:', err);
       setError(err instanceof Error ? err.message : 'Failed to submit review');
     } finally {
       setIsSubmitting(false);
     }
-  }, [router]);
+  }, [router, user]);
 
   const startComparisons = useCallback(async (rating: SentimentRating) => {
+    if (!user) {
+      router.push('/auth/login');
+      return;
+    }
+
     try {
-      // Get reviewed courses with matching sentiment for comparison
-      const reviewedCourses = getReviewedCoursesWithSentiment('', rating);
+      // Get user's reviewed courses with matching sentiment for comparison
+      const userReviews = await getReviewsForUser(user.id);
+      const reviewedCoursesWithSentiment = userReviews.filter(r => r.rating === rating);
       
-      if (reviewedCourses.length >= 2) {
-        const randomCourses = reviewedCourses
+      if (reviewedCoursesWithSentiment.length >= 2) {
+        const randomCourses = reviewedCoursesWithSentiment
           .sort(() => Math.random() - 0.5)
           .slice(0, 2);
 
@@ -118,37 +137,82 @@ export const ReviewProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to start comparisons');
     }
-  }, [comparisonsRemaining, router]);
+  }, [comparisonsRemaining, router, user]);
 
   const handleComparison = useCallback(async (
     preferredCourseId: string,
     otherCourseId: string
   ) => {
+    if (!user) {
+      router.push('/auth/login');
+      return;
+    }
+
     try {
-      // Mock comparison submission
-      console.log('Submitting comparison:', { preferredCourseId, otherCourseId });
+      // Get user's reviewed courses
+      const userReviews = await getReviewsForUser(user.id);
+      const preferredCourseReview = userReviews.find(r => r.course_id === preferredCourseId);
       
-      // Simulate API delay
-      await new Promise(resolve => setTimeout(resolve, 500));
+      if (preferredCourseReview) {
+        const newComparisonsRemaining = comparisonsRemaining - 1;
+        setComparisonsRemaining(newComparisonsRemaining);
 
-      const newComparisonsRemaining = comparisonsRemaining - 1;
-      setComparisonsRemaining(newComparisonsRemaining);
-
-      if (newComparisonsRemaining > 0) {
-        // Get next pair of reviewed courses with matching sentiment
-        // We need to find the sentiment of the current comparison
-        const currentCourse = mockCourses.find(c => c.course_id === preferredCourseId);
-        const currentReview = currentCourse && MOCK_USER_REVIEWS.find(r => r.course_id === currentCourse.course_id);
-        
-        if (currentReview) {
-          const availableCourses = getReviewedCoursesWithSentiment(
-            preferredCourseId,
-            currentReview.rating as SentimentRating,
-            [preferredCourseId, otherCourseId]
+        if (newComparisonsRemaining > 0) {
+          const reviewedCoursesWithSentiment = userReviews.filter(r => 
+            r.course_id !== preferredCourseId && 
+            r.course_id !== otherCourseId && 
+            r.rating === preferredCourseReview.rating
           );
           
-          if (availableCourses.length >= 2) {
-            const randomCourses = availableCourses
+          if (reviewedCoursesWithSentiment.length >= 2) {
+            const randomCourses = reviewedCoursesWithSentiment
+              .sort(() => Math.random() - 0.5)
+              .slice(0, 2);
+
+            router.push({
+              pathname: '/(modals)/comparison',
+              params: {
+                courseAId: randomCourses[0].course_id,
+                courseBId: randomCourses[1].course_id,
+                remainingComparisons: newComparisonsRemaining,
+              },
+            });
+            return;
+          }
+        }
+      }
+      
+      // If we can't find matching sentiment courses or reached max comparisons,
+      // end the flow and go to feed
+      router.replace('/(tabs)');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to submit comparison');
+    }
+  }, [comparisonsRemaining, router, user]);
+
+  const skipComparison = useCallback((courseAId: string, courseBId: string) => {
+    if (!user) {
+      router.push('/auth/login');
+      return;
+    }
+
+    const newComparisonsRemaining = comparisonsRemaining - 1;
+    setComparisonsRemaining(newComparisonsRemaining);
+    
+    if (newComparisonsRemaining > 0) {
+      // Get next pair of reviewed courses with matching sentiment
+      getReviewsForUser(user.id).then(userReviews => {
+        const courseAReview = userReviews.find(r => r.course_id === courseAId);
+        
+        if (courseAReview) {
+          const reviewedCoursesWithSentiment = userReviews.filter(r => 
+            r.course_id !== courseAId && 
+            r.course_id !== courseBId && 
+            r.rating === courseAReview.rating
+          );
+          
+          if (reviewedCoursesWithSentiment.length >= 2) {
+            const randomCourses = reviewedCoursesWithSentiment
               .sort(() => Math.random() - 0.5)
               .slice(0, 2);
 
@@ -167,56 +231,15 @@ export const ReviewProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         // If we can't find matching sentiment courses or something went wrong,
         // end the flow and go to feed
         router.replace('/(tabs)');
-      } else {
-        // End of comparison flow, go to feed
+      }).catch(err => {
+        setError(err instanceof Error ? err.message : 'Failed to get user reviews');
         router.replace('/(tabs)');
-      }
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to submit comparison');
-    }
-  }, [comparisonsRemaining, router]);
-
-  const skipComparison = useCallback((courseAId: string, courseBId: string) => {
-    const newComparisonsRemaining = comparisonsRemaining - 1;
-    setComparisonsRemaining(newComparisonsRemaining);
-    
-    if (newComparisonsRemaining > 0) {
-      // Get next pair of reviewed courses with matching sentiment
-      const currentCourse = mockCourses.find(c => c.course_id === courseAId);
-      const currentReview = currentCourse && MOCK_USER_REVIEWS.find(r => r.course_id === currentCourse.course_id);
-      
-      if (currentReview) {
-        const reviewedCourses = getReviewedCoursesWithSentiment(
-          courseAId,
-          currentReview.rating as SentimentRating,
-          [courseAId, courseBId]
-        );
-        
-        if (reviewedCourses.length >= 2) {
-          const randomCourses = reviewedCourses
-            .sort(() => Math.random() - 0.5)
-            .slice(0, 2);
-
-          router.push({
-            pathname: '/(modals)/comparison',
-            params: {
-              courseAId: randomCourses[0].course_id,
-              courseBId: randomCourses[1].course_id,
-              remainingComparisons: newComparisonsRemaining,
-            },
-          });
-          return;
-        }
-      }
-      
-      // If we can't find matching sentiment courses or something went wrong,
-      // end the flow and go to feed
-      router.replace('/(tabs)');
+      });
     } else {
       // End of comparison flow, go to feed
       router.replace('/(tabs)');
     }
-  }, [comparisonsRemaining, router]);
+  }, [comparisonsRemaining, router, user]);
 
   const value = {
     submitReview,

@@ -5,35 +5,30 @@ export interface Tag {
 }
 
 export const TAGS_BY_CATEGORY = {
-  'Course Style & Design': [
-    { id: 'links', name: 'Links', category: 'Course Style & Design' },
-    { id: 'parkland', name: 'Parkland', category: 'Course Style & Design' },
-    { id: 'desert', name: 'Desert', category: 'Course Style & Design' },
-    { id: 'heathland', name: 'Heathland', category: 'Course Style & Design' },
-    { id: 'interesting_layout', name: 'Interesting Layout', category: 'Course Style & Design' },
-    { id: 'historic', name: 'Historic Course', category: 'Course Style & Design' },
+  'Course Design': [
+    { id: 'Links', name: 'Links', category: 'Course Type' },
+    { id: 'Interesting Layout', name: 'Interesting Layout', category: 'Course Design' },
+    { id: 'Historic', name: 'Historic', category: 'Course Type' },
   ],
   'Course Conditions': [
-    { id: 'fast_greens', name: 'Fast Greens', category: 'Course Conditions' },
-    { id: 'slow_greens', name: 'Slow Greens', category: 'Course Conditions' },
-    { id: 'wide_fairways', name: 'Wide Fairways', category: 'Course Conditions' },
-    { id: 'narrow_fairways', name: 'Narrow Fairways', category: 'Course Conditions' },
-    { id: 'nice_bunkers', name: 'Nice Bunkers', category: 'Course Conditions' },
-    { id: 'well_maintained_tees', name: 'Well-Maintained Tee Boxes', category: 'Course Conditions' },
+    { id: 'Fast Greens', name: 'Fast Greens', category: 'Course Conditions' },
+    { id: 'Slow Greens', name: 'Slow Greens', category: 'Course Conditions' },
+    { id: 'Well Maintained', name: 'Well Maintained', category: 'Course Conditions' },
+    { id: 'Needs Work', name: 'Needs Work', category: 'Course Conditions' },
   ],
-  'Amenities & Experience': [
-    { id: 'food_drink', name: 'Food & Drink', category: 'Amenities & Experience' },
-    { id: 'staff', name: 'The Staff', category: 'Amenities & Experience' },
-    { id: 'clubhouse', name: 'The Clubhouse', category: 'Amenities & Experience' },
-    { id: 'water_coolers', name: 'Water Coolers on Course', category: 'Amenities & Experience' },
-    { id: 'cart_service', name: 'Cart Girl Service', category: 'Amenities & Experience' },
-    { id: 'turn_shack', name: 'Turn Shack for Snacks', category: 'Amenities & Experience' },
-    { id: 'nice_carts', name: 'Nice Carts', category: 'Amenities & Experience' },
+  'Difficulty': [
+    { id: 'Beginner Friendly', name: 'Beginner Friendly', category: 'Difficulty' },
+    { id: 'Challenging', name: 'Challenging', category: 'Difficulty' },
+    { id: 'Tournament Ready', name: 'Tournament Ready', category: 'Difficulty' },
   ],
-  'Playability & Value': [
-    { id: 'walkable', name: 'Walkable', category: 'Playability & Value' },
-    { id: 'pace_of_play', name: 'Pace of Play', category: 'Playability & Value' },
-    { id: 'value', name: 'Value for the Money', category: 'Playability & Value' },
-    { id: 'municipal', name: 'Municipal Golf Course', category: 'Playability & Value' },
+  'Facilities': [
+    { id: 'Clean Facilities', name: 'Clean Facilities', category: 'Facilities' },
+    { id: 'Friendly Staff', name: 'Friendly Staff', category: 'Facilities' },
+    { id: 'Modern Clubhouse', name: 'Modern Clubhouse', category: 'Facilities' },
+  ],
+  'Value': [
+    { id: 'Great Value', name: 'Great Value', category: 'Value' },
+    { id: 'Hidden Gem', name: 'Hidden Gem', category: 'Value' },
+    { id: 'Overpriced', name: 'Overpriced', category: 'Value' },
   ],
 } as const; 

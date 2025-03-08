@@ -9,41 +9,68 @@ export async function createReview(
   courseId: string,
   rating: 'liked' | 'fine' | 'didnt_like',
   notes: string | null,
-  favoriteHoles: number[],
+  favoriteHoles: number[] | { number: number; reason: string }[],
   photos: string[],
   datePlayed: string,
   tagIds: string[]
 ): Promise<Review> {
-  const { data: review, error: reviewError } = await supabase
-    .from('reviews')
-    .insert({
-      user_id: userId,
-      course_id: courseId,
-      rating,
-      notes,
-      favorite_holes: favoriteHoles,
-      photos,
-      date_played: datePlayed,
-    })
-    .select()
-    .single();
+  // Format favorite holes to be just an array of numbers
+  const formattedFavoriteHoles = Array.isArray(favoriteHoles) 
+    ? favoriteHoles.map(hole => typeof hole === 'number' ? hole : hole.number)
+    : [];
 
-  if (reviewError) throw reviewError;
+  console.log('Creating review with data:', {
+    userId,
+    courseId,
+    rating,
+    notes,
+    favoriteHoles: formattedFavoriteHoles,
+    photos: photos.length + ' photos',
+    datePlayed,
+    tagIds,
+  });
 
-  if (tagIds.length > 0) {
-    const reviewTags = tagIds.map(tagId => ({
-      review_id: review.id,
-      tag_id: tagId,
-    }));
+  try {
+    const { data: review, error: reviewError } = await supabase
+      .from('reviews')
+      .insert({
+        user_id: userId,
+        course_id: courseId,
+        rating,
+        notes,
+        favorite_holes: formattedFavoriteHoles,
+        photos,
+        date_played: datePlayed,
+      })
+      .select()
+      .single();
 
-    const { error: tagError } = await supabase
-      .from('review_tags')
-      .insert(reviewTags);
+    if (reviewError) {
+      console.error('Failed to create review:', reviewError);
+      throw reviewError;
+    }
 
-    if (tagError) throw tagError;
+    if (tagIds.length > 0) {
+      const reviewTags = tagIds.map(tagId => ({
+        review_id: review.id,
+        tag_id: tagId,
+      }));
+
+      const { error: tagError } = await supabase
+        .from('review_tags')
+        .insert(reviewTags);
+
+      if (tagError) {
+        console.error('Failed to add review tags:', tagError);
+        throw tagError;
+      }
+    }
+
+    return review;
+  } catch (error) {
+    console.error('Detailed error:', error);
+    throw error;
   }
-
-  return review;
 }
 
 export async function updateReview(
