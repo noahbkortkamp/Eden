@@ -1,10 +1,11 @@
 {
   "expo": {
-    "name": "Beli",
-    "slug": "beli",
+    "name": "golf-course-review",
+    "slug": "golf-course-review",
     "version": "1.0.0",
     "orientation": "portrait",
     "userInterfaceStyle": "light",
+    "scheme": "golfcoursereview",
     "assetBundlePatterns": [
       "**/*"
     ],
@@ -14,7 +15,10 @@
         "NSCameraUsageDescription": "We need access to your camera to take profile pictures.",
         "NSPhotoLibraryUsageDescription": "We need access to your photo library to select profile pictures."
       },
-      "bundleIdentifier": "com.anonymous.beli"
+      "bundleIdentifier": "com.anonymous.golfcoursereview",
+      "associatedDomains": [
+        "applinks:golfcoursereview.app"
+      ]
     },
     "android": {
       "permissions": [
@@ -23,7 +27,20 @@
         "android.permission.WRITE_EXTERNAL_STORAGE",
         "android.permission.RECORD_AUDIO"
       ],
-      "package": "com.anonymous.beli"
+      "package": "com.anonymous.golfcoursereview",
+      "intentFilters": [
+        {
+          "action": "VIEW",
+          "autoVerify": true,
+          "data": [
+            {
+              "scheme": "golfcoursereview",
+              "host": "*"
+            }
+          ],
+          "category": ["BROWSABLE", "DEFAULT"]
+        }
+      ]
     },
     "web": {
       "favicon": "./assets/favicon.png"
@@ -32,10 +49,16 @@
       [
         "expo-image-picker",
         {
-          "photosPermission": "Allow Beli to access your photos to set your profile picture.",
-          "cameraPermission": "Allow Beli to access your camera to take profile pictures."
+          "photosPermission": "Allow Golf Course Review to access your photos to set your profile picture.",
+          "cameraPermission": "Allow Golf Course Review to access your camera to take profile pictures."
         }
       ]
-    ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "your-project-id"
+      }
+    },
+    "newArchEnabled": true
   }
 }

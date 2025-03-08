@@ -2,12 +2,13 @@ import { useEffect, useState } from 'react';
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { SearchProvider } from './context/SearchContext';
-import { AuthProvider } from './context/auth';
+import { AuthProvider } from './context/AuthContext';
 import { ReviewProvider } from './review/context/ReviewContext';
 import { ThemeProvider, useTheme } from './theme/ThemeProvider';
 import { View, ActivityIndicator, Text, StyleSheet, Platform } from 'react-native';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { useTranslation } from 'react-i18next';
+import { initializeAuthDeepLinks } from './services/auth';
 import './i18n';
 
 declare global {
@@ -22,6 +23,30 @@ function AppContent() {
     <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
       <Stack>
         <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+        <Stack.Screen
+          name="auth/login"
+          options={{
+            presentation: 'modal',
+            headerShown: true,
+            title: 'Log In',
+            headerStyle: {
+              backgroundColor: theme.colors.background,
+            },
+            headerTintColor: theme.colors.text,
+          }}
+        />
+        <Stack.Screen
+          name="auth/signup"
+          options={{
+            presentation: 'modal',
+            headerShown: true,
+            title: 'Sign Up',
+            headerStyle: {
+              backgroundColor: theme.colors.background,
+            },
+            headerTintColor: theme.colors.text,
+          }}
+        />
         <Stack.Screen
           name="(modals)/review"
           options={{
@@ -84,6 +109,8 @@ export default function RootLayout() {
         if (Platform.OS === 'web' && window.frameworkReady) {
           await window.frameworkReady();
         }
+        // Initialize deep linking for auth
+        initializeAuthDeepLinks();
         setIsLoading(false);
       } catch (err) {
         setError(err instanceof Error ? err : new Error('Failed to initialize'));
