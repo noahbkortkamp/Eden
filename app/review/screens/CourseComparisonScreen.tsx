@@ -1,8 +1,8 @@
-import React, { useEffect } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, Dimensions } from 'react-native';
+import React from 'react';
+import { View, Text, TouchableOpacity, StyleSheet, Dimensions, ActivityIndicator } from 'react-native';
 import { Image } from 'expo-image';
 import { CourseComparisonProps } from '../../types/review';
-import { useRouter } from 'expo-router';
+import { useTheme } from '../../theme/ThemeProvider';
 
 const { width } = Dimensions.get('window');
 
@@ -12,70 +12,106 @@ export const CourseComparisonScreen: React.FC<CourseComparisonProps> = ({
   onSelect,
   onSkip,
 }) => {
-  const router = useRouter();
+  const theme = useTheme();
 
-  // Use useEffect to handle navigation when no courses are found
-  useEffect(() => {
-    if (!courseA || !courseB) {
-      router.back();
-    }
-  }, [courseA, courseB, router]);
-
-  // Don't render anything if courses aren't found
   if (!courseA || !courseB) {
-    return null;
+    return (
+      <View style={[styles.container, styles.centered]}>
+        <ActivityIndicator size="large" color={theme.colors.primary} />
+      </View>
+    );
   }
 
+  const handleSelect = async (selectedId: string, notSelectedId: string) => {
+    try {
+      console.log('Selecting course:', {
+        selectedId,
+        notSelectedId,
+        selectedCourse: courseA?.name,
+        notSelectedCourse: courseB?.name
+      });
+      await onSelect(selectedId, notSelectedId);
+    } catch (error) {
+      console.error('Failed to submit comparison:', error);
+    }
+  };
+
+  const handleSkip = async () => {
+    try {
+      console.log('Skipping comparison:', {
+        courseAId: courseA?.id,
+        courseBId: courseB?.id,
+        courseAName: courseA?.name,
+        courseBName: courseB?.name
+      });
+      await onSkip(courseA.id, courseB.id);
+    } catch (error) {
+      console.error('Failed to skip comparison:', error);
+    }
+  };
+
+  // Add debug logging for course data
+  console.log('Course data:', {
+    courseA: {
+      id: courseA?.id,
+      name: courseA?.name
+    },
+    courseB: {
+      id: courseB?.id,
+      name: courseB?.name
+    }
+  });
+
   return (
-    <View style={styles.container}>
-      <Text style={styles.title}>Which course do you prefer?</Text>
+    <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
+      <Text style={[styles.title, { color: theme.colors.text }]}>
+        Which course do you prefer?
+      </Text>
       
       <View style={styles.coursesContainer}>
         {/* Course A */}
         <TouchableOpacity
-          style={styles.courseCard}
-          onPress={() => onSelect(courseA.course_id, courseB.course_id)}
+          style={[styles.courseCard, { backgroundColor: theme.colors.surface }]}
+          onPress={() => handleSelect(courseA.id, courseB.id)}
         >
-          <Image
-            source={{ uri: `https://api.example.com/courses/${courseA.course_id}/image` }}
-            style={styles.courseImage}
-            contentFit="cover"
-          />
           <View style={styles.courseInfo}>
-            <Text style={styles.courseName}>{courseA.name}</Text>
-            <Text style={styles.courseLocation}>{courseA.location}</Text>
+            <Text style={[styles.courseName, { color: theme.colors.text }]}>
+              {courseA.name}
+            </Text>
+            <Text style={[styles.courseLocation, { color: theme.colors.textSecondary }]}>
+              {courseA.location}
+            </Text>
             <View style={styles.statsContainer}>
-              <Text style={styles.statText}>
-                ⭐️ {courseA.average_rating.toFixed(1)}
+              <Text style={[styles.statText, { color: theme.colors.textSecondary }]}>
+                ⭐️ {courseA.average_rating?.toFixed(1) || 'N/A'}
               </Text>
-              <Text style={styles.statText}>
-                📝 {courseA.total_reviews} reviews
+              <Text style={[styles.statText, { color: theme.colors.textSecondary }]}>
+                📝 {courseA.total_reviews || 0} reviews
               </Text>
             </View>
           </View>
         </TouchableOpacity>
 
-        <Text style={styles.vsText}>VS</Text>
+        <Text style={[styles.vsText, { color: theme.colors.textSecondary }]}>VS</Text>
 
         {/* Course B */}
         <TouchableOpacity
-          style={styles.courseCard}
-          onPress={() => onSelect(courseB.course_id, courseA.course_id)}
+          style={[styles.courseCard, { backgroundColor: theme.colors.surface }]}
+          onPress={() => handleSelect(courseB.id, courseA.id)}
         >
-          <Image
-            source={{ uri: `https://api.example.com/courses/${courseB.course_id}/image` }}
-            style={styles.courseImage}
-            contentFit="cover"
-          />
           <View style={styles.courseInfo}>
-            <Text style={styles.courseName}>{courseB.name}</Text>
-            <Text style={styles.courseLocation}>{courseB.location}</Text>
+            <Text style={[styles.courseName, { color: theme.colors.text }]}>
+              {courseB.name}
+            </Text>
+            <Text style={[styles.courseLocation, { color: theme.colors.textSecondary }]}>
+              {courseB.location}
+            </Text>
             <View style={styles.statsContainer}>
-              <Text style={styles.statText}>
-                ⭐️ {courseB.average_rating.toFixed(1)}
+              <Text style={[styles.statText, { color: theme.colors.textSecondary }]}>
+                ⭐️ {courseB.average_rating?.toFixed(1) || 'N/A'}
               </Text>
-              <Text style={styles.statText}>
-                📝 {courseB.total_reviews} reviews
+              <Text style={[styles.statText, { color: theme.colors.textSecondary }]}>
+                📝 {courseB.total_reviews || 0} reviews
               </Text>
             </View>
           </View>
@@ -83,10 +119,12 @@ export const CourseComparisonScreen: React.FC<CourseComparisonProps> = ({
       </View>
 
       <TouchableOpacity 
-        style={styles.skipButton} 
-        onPress={() => onSkip(courseA.course_id, courseB.course_id)}
+        style={[styles.skipButton, { backgroundColor: theme.colors.surface }]} 
+        onPress={() => onSkip(courseA.id, courseB.id)}
       >
-        <Text style={styles.skipButtonText}>Too tough to choose</Text>
+        <Text style={[styles.skipButtonText, { color: theme.colors.textSecondary }]}>
+          Too tough to choose
+        </Text>
       </TouchableOpacity>
     </View>
   );
@@ -95,74 +133,66 @@ export const CourseComparisonScreen: React.FC<CourseComparisonProps> = ({
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#fff',
-    padding: 20,
+    padding: 16,
+  },
+  centered: {
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   title: {
-    fontSize: 24,
-    fontWeight: 'bold',
+    fontSize: 28,
+    fontWeight: '600',
     textAlign: 'center',
-    marginBottom: 20,
+    marginBottom: 32,
   },
   coursesContainer: {
-    flexDirection: 'row',
+    flex: 1,
     alignItems: 'center',
-    justifyContent: 'space-between',
+    justifyContent: 'flex-start',
+    gap: 16,
   },
   courseCard: {
-    width: width * 0.4,
-    backgroundColor: '#fff',
-    borderRadius: 12,
+    width: width - 32,
+    borderRadius: 16,
+    padding: 20,
+    elevation: 2,
     shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
+    shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 4,
-    elevation: 3,
-  },
-  courseImage: {
-    width: '100%',
-    height: width * 0.3,
-    borderTopLeftRadius: 12,
-    borderTopRightRadius: 12,
   },
   courseInfo: {
-    padding: 12,
+    gap: 4,
   },
   courseName: {
-    fontSize: 16,
+    fontSize: 24,
     fontWeight: '600',
-    marginBottom: 4,
   },
   courseLocation: {
-    fontSize: 14,
-    color: '#6c757d',
+    fontSize: 16,
     marginBottom: 8,
   },
   statsContainer: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
+    gap: 16,
+    marginTop: 4,
   },
   statText: {
-    fontSize: 12,
-    color: '#495057',
+    fontSize: 14,
   },
   vsText: {
     fontSize: 20,
-    fontWeight: 'bold',
-    color: '#6c757d',
+    fontWeight: '600',
   },
   skipButton: {
-    marginTop: 40,
-    padding: 16,
-    backgroundColor: '#f8f9fa',
-    borderRadius: 8,
-    alignItems: 'center',
+    paddingVertical: 16,
+    paddingHorizontal: 24,
+    borderRadius: 12,
+    alignSelf: 'center',
+    marginTop: 'auto',
+    marginBottom: 16,
   },
   skipButtonText: {
-    color: '#6c757d',
     fontSize: 16,
     fontWeight: '500',
   },

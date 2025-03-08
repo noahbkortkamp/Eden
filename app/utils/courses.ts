@@ -3,15 +3,59 @@ import { Database } from './database.types';
 
 type Course = Database['public']['Tables']['courses']['Row'];
 
-export async function getCourse(courseId: string): Promise<Course> {
-  const { data, error } = await supabase
-    .from('courses')
-    .select('*')
-    .eq('id', courseId)
-    .single();
+const MAX_RETRIES = 3;
+const RETRY_DELAY = 1000; // 1 second
+const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
 
-  if (error) throw error;
-  return data;
+// Simple in-memory cache
+const courseCache = new Map<string, { data: Course; timestamp: number }>();
+
+async function delay(ms: number) {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+export async function getCourse(courseId: string, retryCount = 0): Promise<Course> {
+  // Check cache first
+  const cached = courseCache.get(courseId);
+  if (cached && Date.now() - cached.timestamp < CACHE_DURATION) {
+    console.log(`Using cached data for course: ${cached.data.name}`);
+    return cached.data;
+  }
+
+  console.log(`Fetching course with ID: ${courseId} (attempt ${retryCount + 1}/${MAX_RETRIES})`);
+  
+  try {
+    const { data, error } = await supabase
+      .from('courses')
+      .select('*')
+      .eq('id', courseId)
+      .single();
+
+    if (error) {
+      console.error('Supabase error fetching course:', error);
+      throw error;
+    }
+
+    if (!data) {
+      console.error('No course found with ID:', courseId);
+      throw new Error(`Course not found: ${courseId}`);
+    }
+
+    // Cache the result
+    courseCache.set(courseId, { data, timestamp: Date.now() });
+    console.log(`Successfully fetched course: ${data.name}`);
+    return data;
+  } catch (err) {
+    console.error(`Attempt ${retryCount + 1} failed:`, err);
+    
+    if (retryCount < MAX_RETRIES - 1 && err instanceof Error && err.message.includes('Network request failed')) {
+      console.log(`Retrying in ${RETRY_DELAY}ms...`);
+      await delay(RETRY_DELAY);
+      return getCourse(courseId, retryCount + 1);
+    }
+    
+    throw err;
+  }
 }
 
 export async function getAllCourses(): Promise<Course[]> {

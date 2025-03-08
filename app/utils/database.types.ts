@@ -250,6 +250,29 @@ export interface Database {
           created_at?: string
         }
       }
+      course_comparisons: {
+        Row: {
+          id: string
+          user_id: string
+          preferred_course_id: string
+          other_course_id: string
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          preferred_course_id: string
+          other_course_id: string
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          preferred_course_id?: string
+          other_course_id?: string
+          created_at?: string
+        }
+      }
     }
     Views: {
       [_ in never]: never
