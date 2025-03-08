@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import {
   View,
   Text,
@@ -7,15 +7,18 @@ import {
   ScrollView,
   StyleSheet,
   ActivityIndicator,
+  Keyboard,
+  TouchableWithoutFeedback,
 } from 'react-native';
 import {
   Search as SearchIcon,
   MapPin,
   SlidersHorizontal,
+  X as XIcon,
 } from 'lucide-react-native';
 import { useRouter } from 'expo-router';
 import { useTheme } from '../theme/ThemeProvider';
-import { searchCourses } from '../utils/courses';
+import { searchCourses, getAllCourses } from '../utils/courses';
 import { useDebouncedCallback } from 'use-debounce';
 import type { Course } from '../types';
 
@@ -26,11 +29,30 @@ export default function SearchScreen() {
   const [courses, setCourses] = useState<Course[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [isSearchFocused, setIsSearchFocused] = useState(false);
+
+  const loadCourses = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      const allCourses = await getAllCourses();
+      setCourses(allCourses as Course[]);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to load courses');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Load courses when component mounts
+  useEffect(() => {
+    loadCourses();
+  }, []);
 
   // Debounce the search to prevent too many API calls
   const debouncedSearch = useDebouncedCallback(async (query: string) => {
     if (!query.trim()) {
-      setCourses([]);
+      loadCourses();
       return;
     }
 
@@ -38,7 +60,7 @@ export default function SearchScreen() {
       setLoading(true);
       setError(null);
       const results = await searchCourses(query);
-      setCourses(results);
+      setCourses(results as Course[]);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'An error occurred while searching');
       setCourses([]);
@@ -59,70 +81,105 @@ export default function SearchScreen() {
     });
   };
 
-  return (
-    <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
-      {/* Search Header */}
-      <View style={[styles.header, { borderBottomColor: theme.colors.border }]}>
-        <View style={[styles.searchContainer, { backgroundColor: theme.colors.surface }]}>
-          <SearchIcon size={20} color={theme.colors.textSecondary} style={styles.searchIcon} />
-          <TextInput
-            style={[styles.searchInput, { color: theme.colors.text }]}
-            placeholder="Search courses..."
-            placeholderTextColor={theme.colors.textSecondary}
-            value={searchQuery}
-            onChangeText={handleSearchChange}
-            autoCapitalize="none"
-            autoCorrect={false}
-          />
-          {loading && <ActivityIndicator size="small" color={theme.colors.primary} style={styles.loader} />}
-        </View>
-        <TouchableOpacity 
-          style={[styles.filterButton, { backgroundColor: theme.colors.surface }]}
-        >
-          <SlidersHorizontal size={20} color={theme.colors.textSecondary} />
-        </TouchableOpacity>
-      </View>
+  const handleCancelPress = () => {
+    setSearchQuery('');
+    setIsSearchFocused(false);
+    Keyboard.dismiss();
+    loadCourses();
+  };
 
-      {/* Results */}
-      <ScrollView style={styles.results}>
-        {error ? (
-          <Text style={[styles.errorText, { color: theme.colors.error }]}>{error}</Text>
-        ) : courses.length > 0 ? (
-          courses.map(course => (
-            <TouchableOpacity
-              key={course.id}
-              style={[styles.courseItem, { borderBottomColor: theme.colors.border }]}
-              onPress={() => handleCoursePress(course.id)}
-            >
-              <Text style={[styles.courseName, { color: theme.colors.text }]}>
-                {course.name}
+  return (
+    <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
+      <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
+        {/* Search Header */}
+        <View style={[styles.header, { borderBottomColor: theme.colors.border }]}>
+          <View style={[styles.searchContainer, { backgroundColor: theme.colors.surface }]}>
+            <SearchIcon size={20} color={theme.colors.textSecondary} style={styles.searchIcon} />
+            <TextInput
+              style={[styles.searchInput, { color: theme.colors.text }]}
+              placeholder="Search courses..."
+              placeholderTextColor={theme.colors.textSecondary}
+              value={searchQuery}
+              onChangeText={handleSearchChange}
+              onFocus={() => setIsSearchFocused(true)}
+              autoCapitalize="none"
+              autoCorrect={false}
+            />
+            {searchQuery.length > 0 && (
+              <TouchableOpacity onPress={() => handleSearchChange('')}>
+                <XIcon size={20} color={theme.colors.textSecondary} />
+              </TouchableOpacity>
+            )}
+            {loading && <ActivityIndicator size="small" color={theme.colors.primary} style={styles.loader} />}
+          </View>
+          {isSearchFocused ? (
+            <TouchableOpacity onPress={handleCancelPress}>
+              <Text style={[styles.cancelButton, { color: theme.colors.primary }]}>
+                Cancel
               </Text>
-              <View style={styles.locationContainer}>
-                <MapPin size={16} color={theme.colors.textSecondary} />
-                <Text style={[styles.location, { color: theme.colors.textSecondary }]}>
-                  {course.location}
-                </Text>
-              </View>
-              <View style={styles.statsRow}>
-                <Text style={[styles.stat, { color: theme.colors.textSecondary }]}>
-                  Par {course.par}
-                </Text>
-                <Text style={[styles.stat, { color: theme.colors.textSecondary }]}>
-                  {course.yardage} yards
-                </Text>
-                <Text style={[styles.stat, { color: theme.colors.textSecondary }]}>
-                  {course.type}
-                </Text>
-              </View>
             </TouchableOpacity>
-          ))
-        ) : searchQuery ? (
-          <Text style={[styles.noResults, { color: theme.colors.textSecondary }]}>
-            No courses found
-          </Text>
-        ) : null}
-      </ScrollView>
-    </View>
+          ) : (
+            <TouchableOpacity 
+              style={[styles.filterButton, { backgroundColor: theme.colors.surface }]}
+            >
+              <SlidersHorizontal size={20} color={theme.colors.textSecondary} />
+            </TouchableOpacity>
+          )}
+        </View>
+
+        {/* Results */}
+        <ScrollView 
+          style={styles.results}
+          keyboardShouldPersistTaps="handled"
+        >
+          {error ? (
+            <Text style={[styles.errorText, { color: theme.colors.error }]}>{error}</Text>
+          ) : courses.length > 0 ? (
+            <>
+              <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>
+                {searchQuery ? 'Search Results' : 'All Courses'}
+              </Text>
+              {courses.map(course => (
+                <TouchableOpacity
+                  key={course.id}
+                  style={[styles.courseItem, { borderBottomColor: theme.colors.border }]}
+                  onPress={() => handleCoursePress(course.id)}
+                >
+                  <Text style={[styles.courseName, { color: theme.colors.text }]}>
+                    {course.name}
+                  </Text>
+                  <View style={styles.locationContainer}>
+                    <MapPin size={16} color={theme.colors.textSecondary} />
+                    <Text style={[styles.location, { color: theme.colors.textSecondary }]}>
+                      {course.location}
+                    </Text>
+                  </View>
+                  <View style={styles.statsRow}>
+                    <Text style={[styles.stat, { color: theme.colors.textSecondary }]}>
+                      Par {course.par}
+                    </Text>
+                    <Text style={[styles.stat, { color: theme.colors.textSecondary }]}>
+                      {course.yardage} yards
+                    </Text>
+                    <Text style={[styles.stat, { color: theme.colors.textSecondary }]}>
+                      {course.type}
+                    </Text>
+                  </View>
+                </TouchableOpacity>
+              ))}
+            </>
+          ) : searchQuery ? (
+            <Text style={[styles.noResults, { color: theme.colors.textSecondary }]}>
+              No courses found
+            </Text>
+          ) : (
+            <Text style={[styles.noResults, { color: theme.colors.textSecondary }]}>
+              Loading courses...
+            </Text>
+          )}
+        </ScrollView>
+      </View>
+    </TouchableWithoutFeedback>
   );
 }
 
@@ -162,8 +219,19 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     borderRadius: 8,
   },
+  cancelButton: {
+    fontSize: 16,
+    paddingVertical: 8,
+    paddingHorizontal: 4,
+  },
   results: {
     flex: 1,
+  },
+  sectionTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
   },
   courseItem: {
     padding: 16,
