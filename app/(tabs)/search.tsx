@@ -15,21 +15,36 @@ import {
   MapPin,
   SlidersHorizontal,
   X as XIcon,
+  CheckCircle,
 } from 'lucide-react-native';
 import { useRouter } from 'expo-router';
 import { useTheme } from '../theme/ThemeProvider';
 import { searchCourses, getAllCourses } from '../utils/courses';
 import { useDebouncedCallback } from 'use-debounce';
 import type { Course } from '../types';
+import { useAuth } from '../context/AuthContext';
+import { getReviewsForUser } from '../utils/reviews';
 
 export default function SearchScreen() {
   const router = useRouter();
   const theme = useTheme();
+  const { user } = useAuth();
   const [searchQuery, setSearchQuery] = useState('');
   const [courses, setCourses] = useState<Course[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isSearchFocused, setIsSearchFocused] = useState(false);
+  const [reviewedCourseIds, setReviewedCourseIds] = useState<Set<string>>(new Set());
+
+  const loadReviewedCourses = async () => {
+    if (!user) return;
+    try {
+      const reviews = await getReviewsForUser(user.id);
+      setReviewedCourseIds(new Set(reviews.map(review => review.course_id)));
+    } catch (err) {
+      console.error('Failed to load reviewed courses:', err);
+    }
+  };
 
   const loadCourses = async () => {
     try {
@@ -44,10 +59,11 @@ export default function SearchScreen() {
     }
   };
 
-  // Load courses when component mounts
+  // Load courses and reviews when component mounts
   useEffect(() => {
     loadCourses();
-  }, []);
+    loadReviewedCourses();
+  }, [user]);
 
   // Debounce the search to prevent too many API calls
   const debouncedSearch = useDebouncedCallback(async (query: string) => {
@@ -145,9 +161,14 @@ export default function SearchScreen() {
                   style={[styles.courseItem, { borderBottomColor: theme.colors.border }]}
                   onPress={() => handleCoursePress(course.id)}
                 >
-                  <Text style={[styles.courseName, { color: theme.colors.text }]}>
-                    {course.name}
-                  </Text>
+                  <View style={styles.courseHeader}>
+                    <Text style={[styles.courseName, { color: theme.colors.text }]}>
+                      {course.name}
+                    </Text>
+                    {reviewedCourseIds.has(course.id) && (
+                      <CheckCircle size={20} color={theme.colors.primary} />
+                    )}
+                  </View>
                   <View style={styles.locationContainer}>
                     <MapPin size={16} color={theme.colors.textSecondary} />
                     <Text style={[styles.location, { color: theme.colors.textSecondary }]}>
@@ -266,5 +287,11 @@ const styles = StyleSheet.create({
     padding: 16,
     textAlign: 'center',
     fontSize: 16,
+  },
+  courseHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 4,
   },
 }); 
