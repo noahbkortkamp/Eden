@@ -85,7 +85,11 @@ export const ReviewProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         setOriginalReviewedCourseId(review.course_id);
         setComparisonResults([]);
         
-        // Get a random course for comparison
+        // Reset comparisons remaining to either MAX_COMPARISONS or the number of available courses
+        const totalComparisons = Math.min(otherCoursesWithSentiment.length, MAX_COMPARISONS);
+        setComparisonsRemaining(totalComparisons);
+
+        // Get a random course for the first comparison
         const randomCourse = otherCoursesWithSentiment[
           Math.floor(Math.random() * otherCoursesWithSentiment.length)
         ];
@@ -96,7 +100,7 @@ export const ReviewProvider: React.FC<{ children: React.ReactNode }> = ({ childr
           params: {
             courseAId: review.course_id,
             courseBId: randomCourse.course_id,
-            remainingComparisons: MAX_COMPARISONS,
+            remainingComparisons: totalComparisons,
           },
         });
       } else {
@@ -165,7 +169,30 @@ export const ReviewProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       const originalReview = userReviews.find(r => r.course_id === originalReviewedCourseId);
       
       if (originalReview) {
-        // Update rankings based on comparison
+        // Get current rankings and ensure both courses have rankings
+        const rankings = await rankingService.getUserRankings(user.id, originalReview.rating);
+        const preferredCourseRanking = rankings.find(r => r.course_id === preferredCourseId);
+        const otherCourseRanking = rankings.find(r => r.course_id === otherCourseId);
+
+        // If either course doesn't have a ranking, add them
+        if (!preferredCourseRanking) {
+          await rankingService.addCourseRanking(
+            user.id,
+            preferredCourseId,
+            originalReview.rating,
+            rankings.length + 1
+          );
+        }
+        if (!otherCourseRanking) {
+          await rankingService.addCourseRanking(
+            user.id,
+            otherCourseId,
+            originalReview.rating,
+            rankings.length + (preferredCourseRanking ? 1 : 2)
+          );
+        }
+
+        // Now that we're sure both courses have rankings, update them
         await rankingService.updateRankingsAfterComparison(
           user.id,
           preferredCourseId,
@@ -177,20 +204,22 @@ export const ReviewProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         setComparisonsRemaining(newComparisonsRemaining);
 
         if (newComparisonsRemaining > 0) {
-          // Get other courses with the same sentiment for comparison, excluding already compared courses
+          // Get all previously compared courses
           const comparedCourseIds = new Set([
             ...comparisonResults.map(r => r.preferredId),
             ...comparisonResults.map(r => r.otherId),
             preferredCourseId,
-            otherCourseId
+            otherCourseId,
+            originalReviewedCourseId // Add the original course to exclude it
           ]);
           
+          // Get other courses with the same sentiment for comparison, excluding already compared courses
           const otherCoursesWithSentiment = userReviews.filter(r => 
             !comparedCourseIds.has(r.course_id) &&
             r.rating === originalReview.rating
           );
 
-          if (otherCoursesWithSentiment.length >= 1) {
+          if (otherCoursesWithSentiment.length > 0) {
             // Get a random course for the next comparison
             const randomCourse = otherCoursesWithSentiment[
               Math.floor(Math.random() * otherCoursesWithSentiment.length)
