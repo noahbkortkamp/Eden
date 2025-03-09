@@ -5,6 +5,7 @@ import { useAuth } from '../../context/AuthContext';
 import { createReview, getReviewsForUser, getAllTags } from '../../utils/reviews';
 import { format } from 'date-fns';
 import { reviewService } from '../../services/reviewService';
+import { rankingService } from '../../services/rankingService';
 
 interface ReviewContextType {
   submitReview: (review: Omit<CourseReview, 'review_id' | 'user_id' | 'created_at' | 'updated_at'>) => Promise<void>;
@@ -26,6 +27,7 @@ export const ReviewProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const [error, setError] = useState<string | null>(null);
   const [comparisonsRemaining, setComparisonsRemaining] = useState(MAX_COMPARISONS);
   const [originalReviewedCourseId, setOriginalReviewedCourseId] = useState<string | null>(null);
+  const [comparisonResults, setComparisonResults] = useState<Array<{ preferredId: string, otherId: string }>>([]);
 
   const submitReview = useCallback(async (
     review: Omit<CourseReview, 'review_id' | 'user_id' | 'created_at' | 'updated_at'>
@@ -39,75 +41,61 @@ export const ReviewProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     setError(null);
 
     try {
-      // Check for existing review on the same date
-      const userReviews = await getReviewsForUser(user.id);
-      const existingReview = userReviews.find(r => 
-        r.course_id === review.course_id && 
-        format(new Date(r.date_played), 'yyyy-MM-dd') === format(new Date(review.date_played), 'yyyy-MM-dd')
-      );
-
-      if (existingReview) {
-        throw new Error(`You've already reviewed this course for ${format(new Date(review.date_played), 'MMMM d, yyyy')}. Please choose a different date.`);
-      }
-
-      // Get all available tags to map frontend IDs to database UUIDs
-      const allTags = await getAllTags();
-      const tagMap = new Map(allTags.map(tag => [tag.name, tag.id]));
-      
-      // Map frontend tag IDs to database UUIDs
-      const tagUuids = review.tags
-        ?.map(tagId => {
-          // The frontend now uses the exact tag names as IDs
-          return tagMap.get(tagId);
-        })
-        .filter((uuid): uuid is string => uuid !== undefined) || [];
-
-      // Format favorite holes to be just numbers
-      const favoriteHoleNumbers = review.favorite_holes.map(hole => 
-        typeof hole === 'number' ? hole : hole.number
-      );
-
-      // Submit review with user ID
-      await createReview(
+      // Create the review
+      const createdReview = await createReview(
         user.id,
         review.course_id,
         review.rating,
         review.notes,
-        favoriteHoleNumbers,
+        review.favorite_holes,
         review.photos,
         review.date_played.toISOString(),
-        tagUuids
+        review.tags || []
       );
 
-      // Reset comparisons count for new review
-      setComparisonsRemaining(MAX_COMPARISONS);
+      // Get user's reviewed courses with matching sentiment for comparison
+      const userReviews = await getReviewsForUser(user.id);
+      const reviewedCoursesWithSentiment = userReviews.filter(r => r.rating === review.rating);
 
-      // Get updated reviews including the one just submitted
-      const updatedReviews = await getReviewsForUser(user.id);
-      
-      // Find other courses with the same rating
-      const reviewedCoursesWithSentiment = updatedReviews.filter(r => 
-        r.course_id !== review.course_id && 
-        r.rating === review.rating
+      // Add initial ranking for the new course
+      const initialRankPosition = reviewedCoursesWithSentiment.length + 1;
+      await rankingService.addCourseRanking(
+        user.id,
+        review.course_id,
+        review.rating,
+        initialRankPosition
       );
-      
+
       if (reviewedCoursesWithSentiment.length >= 1) {
         // Close the review modal first
         router.back();
         
-        // Store the original reviewed course ID
+        // Store the original reviewed course ID and reset comparison results
         setOriginalReviewedCourseId(review.course_id);
+        setComparisonResults([]);
         
         // Get a random course to compare with the just-reviewed course
         const randomCourse = reviewedCoursesWithSentiment[
           Math.floor(Math.random() * reviewedCoursesWithSentiment.length)
         ];
 
+        // Add initial ranking for the comparison course if it doesn't exist
+        const rankings = await rankingService.getUserRankings(user.id, review.rating);
+        const randomCourseRanking = rankings.find(r => r.course_id === randomCourse.course_id);
+        if (!randomCourseRanking) {
+          await rankingService.addCourseRanking(
+            user.id,
+            randomCourse.course_id,
+            review.rating,
+            initialRankPosition + 1
+          );
+        }
+
         // Then open the comparison modal with the just-reviewed course and a random match
         router.push({
           pathname: '/(modals)/comparison',
           params: {
-            courseAId: review.course_id, // Always show the just-reviewed course first
+            courseAId: review.course_id,
             courseBId: randomCourse.course_id,
             remainingComparisons: MAX_COMPARISONS,
           },
@@ -167,35 +155,53 @@ export const ReviewProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     }
 
     try {
-      console.log('Starting comparison submission:', {
-        userId: user.id,
-        preferredCourseId,
-        otherCourseId,
-        originalReviewedCourseId
-      });
+      // Store the comparison result
+      setComparisonResults(prev => [
+        ...prev,
+        { preferredId: preferredCourseId, otherId: otherCourseId }
+      ]);
 
-      // Validate input parameters
-      if (!preferredCourseId || !otherCourseId) {
-        throw new Error('Missing course IDs');
-      }
-
-      if (preferredCourseId === otherCourseId) {
-        throw new Error('Cannot compare a course with itself');
-      }
-
-      // Save the comparison to the database
-      await reviewService.submitComparison(user.id, preferredCourseId, otherCourseId);
-
-      // Get user's reviewed courses
+      // Get the original review to know the sentiment category
       const userReviews = await getReviewsForUser(user.id);
       const originalReview = userReviews.find(r => r.course_id === originalReviewedCourseId);
       
       if (originalReview) {
+        // Ensure both courses have rankings before comparison
+        const rankings = await rankingService.getUserRankings(user.id, originalReview.rating);
+        const preferredCourseRanking = rankings.find(r => r.course_id === preferredCourseId);
+        const otherCourseRanking = rankings.find(r => r.course_id === otherCourseId);
+
+        // Add or update rankings
+        if (!preferredCourseRanking) {
+          await rankingService.addCourseRanking(
+            user.id,
+            preferredCourseId,
+            originalReview.rating,
+            rankings.length + 1
+          );
+        }
+        if (!otherCourseRanking) {
+          await rankingService.addCourseRanking(
+            user.id,
+            otherCourseId,
+            originalReview.rating,
+            rankings.length + (preferredCourseRanking ? 1 : 2)
+          );
+        }
+
+        // Update rankings based on comparison
+        await rankingService.updateRankingsAfterComparison(
+          user.id,
+          preferredCourseId,
+          otherCourseId,
+          originalReview.rating
+        );
+
         const newComparisonsRemaining = comparisonsRemaining - 1;
         setComparisonsRemaining(newComparisonsRemaining);
 
         if (newComparisonsRemaining > 0) {
-          // Get other courses with the same sentiment, excluding the ones we just compared
+          // Get other courses with the same sentiment for comparison
           const otherCoursesWithSentiment = userReviews.filter(r => 
             r.course_id !== preferredCourseId && 
             r.course_id !== otherCourseId && 
@@ -204,7 +210,7 @@ export const ReviewProvider: React.FC<{ children: React.ReactNode }> = ({ childr
           );
 
           if (otherCoursesWithSentiment.length >= 1) {
-            // Get a random course to compare with the original reviewed course
+            // Get a random course for the next comparison
             const randomCourse = otherCoursesWithSentiment[
               Math.floor(Math.random() * otherCoursesWithSentiment.length)
             ];
@@ -212,7 +218,7 @@ export const ReviewProvider: React.FC<{ children: React.ReactNode }> = ({ childr
             router.push({
               pathname: '/(modals)/comparison',
               params: {
-                courseAId: originalReviewedCourseId, // Always show the original reviewed course
+                courseAId: originalReviewedCourseId,
                 courseBId: randomCourse.course_id,
                 remainingComparisons: newComparisonsRemaining,
               },
@@ -220,26 +226,43 @@ export const ReviewProvider: React.FC<{ children: React.ReactNode }> = ({ childr
             return;
           }
         }
+
+        // If we've completed all comparisons, update the final ranking
+        const finalPosition = await rankingService.findRankPosition(
+          user.id,
+          originalReviewedCourseId,
+          originalReview.rating,
+          comparisonResults
+        );
+
+        // Get a course to compare with that's in the desired position
+        const courseInPosition = rankings.find(r => r.rank_position === finalPosition);
+        
+        if (courseInPosition) {
+          // Update the ranking by comparing with the course in the desired position
+          await rankingService.updateRankingsAfterComparison(
+            user.id,
+            originalReviewedCourseId,
+            courseInPosition.course_id,
+            originalReview.rating
+          );
+        }
       }
       
-      // If we can't find matching sentiment courses or reached max comparisons,
-      // end the flow and go to feed
-      setOriginalReviewedCourseId(null); // Reset the original course ID
+      // Reset state and go back to feed
+      setOriginalReviewedCourseId(null);
+      setComparisonResults([]);
       router.replace('/(tabs)');
     } catch (err) {
-      console.error('Detailed comparison error:', {
-        error: err,
-        message: err instanceof Error ? err.message : 'Unknown error',
-        stack: err instanceof Error ? err.stack : undefined
-      });
+      console.error('Detailed comparison error:', err);
       setError(err instanceof Error ? err.message : 'Failed to submit comparison');
-      // After error, wait 2 seconds then go back to feed
       setTimeout(() => {
-        setOriginalReviewedCourseId(null); // Reset the original course ID
+        setOriginalReviewedCourseId(null);
+        setComparisonResults([]);
         router.replace('/(tabs)');
       }, 2000);
     }
-  }, [user, router, comparisonsRemaining, setComparisonsRemaining, originalReviewedCourseId]);
+  }, [user, router, comparisonsRemaining, comparisonResults, originalReviewedCourseId]);
 
   const skipComparison = useCallback((courseAId: string, courseBId: string) => {
     if (!user || !originalReviewedCourseId) {
@@ -252,7 +275,7 @@ export const ReviewProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     
     if (newComparisonsRemaining > 0) {
       // Get next pair of reviewed courses with matching sentiment
-      getReviewsForUser(user.id).then(userReviews => {
+      getReviewsForUser(user.id).then(async userReviews => {
         const originalReview = userReviews.find(r => r.course_id === originalReviewedCourseId);
         
         if (originalReview) {
@@ -271,42 +294,52 @@ export const ReviewProvider: React.FC<{ children: React.ReactNode }> = ({ childr
             router.push({
               pathname: '/(modals)/comparison',
               params: {
-                courseAId: originalReviewedCourseId, // Always show the original reviewed course
+                courseAId: originalReviewedCourseId,
                 courseBId: randomCourse.course_id,
                 remainingComparisons: newComparisonsRemaining,
               },
             });
             return;
           }
+
+          // If we've skipped all comparisons, just use the initial ranking
+          await rankingService.addCourseRanking(
+            user.id,
+            originalReviewedCourseId,
+            originalReview.rating,
+            userReviews.filter(r => r.rating === originalReview.rating).length
+          );
         }
         
-        // If we can't find matching sentiment courses or something went wrong,
-        // end the flow and go to feed
-        setOriginalReviewedCourseId(null); // Reset the original course ID
+        // Reset state and go to feed
+        setOriginalReviewedCourseId(null);
+        setComparisonResults([]);
         router.replace('/(tabs)');
       }).catch(err => {
         setError(err instanceof Error ? err.message : 'Failed to get user reviews');
-        setOriginalReviewedCourseId(null); // Reset the original course ID
+        setOriginalReviewedCourseId(null);
+        setComparisonResults([]);
         router.replace('/(tabs)');
       });
     } else {
       // End of comparison flow, go to feed
-      setOriginalReviewedCourseId(null); // Reset the original course ID
+      setOriginalReviewedCourseId(null);
+      setComparisonResults([]);
       router.replace('/(tabs)');
     }
   }, [comparisonsRemaining, router, user, originalReviewedCourseId]);
 
-  const value = {
-    submitReview,
-    startComparisons,
-    handleComparison,
-    skipComparison,
-    isSubmitting,
-    error,
-  };
-
   return (
-    <ReviewContext.Provider value={value}>
+    <ReviewContext.Provider
+      value={{
+        submitReview,
+        startComparisons,
+        handleComparison,
+        skipComparison,
+        isSubmitting,
+        error,
+      }}
+    >
       {children}
     </ReviewContext.Provider>
   );
