@@ -1,3 +1,5 @@
+#!/bin/bash
+cat > .github/workflows/ci.yml << 'EOL'
 name: CI
 
 on:
@@ -36,3 +38,6 @@ jobs:
       with:
         name: coverage-report
         path: coverage/
+EOL
+
+echo "CI workflow file updated successfully." 

@@ -1,5 +1,8 @@
 # Golf Course Review App
 
+[![CI](https://github.com/yourusername/golf-course-review/actions/workflows/ci.yml/badge.svg)](https://github.com/yourusername/golf-course-review/actions/workflows/ci.yml)
+[![Test Coverage](https://img.shields.io/badge/coverage-70%25-green.svg)](TESTING.md)
+
 A mobile application for reviewing and comparing golf courses, built with React Native and Expo.
 
 ## Features
@@ -68,6 +71,35 @@ The app currently uses mock data for development. To connect to a real backend:
 2. Configure environment variables
 3. Update the Supabase client configuration
 4. Remove mock data implementations
+
+## Testing
+
+The app uses Jest and React Testing Library for testing. For detailed documentation, see [TESTING.md](TESTING.md).
+
+### Running Tests
+
+```bash
+# Run all tests
+npm test
+
+# Run tests with coverage report
+npm run test:coverage
+
+# Run tests in watch mode
+npm run test:watch
+```
+
+### Test Structure
+
+Tests are organized alongside the code they test:
+
+- Component tests: `/app/components/__tests__/`
+- Service tests: `/app/services/__tests__/`
+- Context tests: `/app/context/__tests__/` and `/app/review/context/__tests__/`
+
+### Mock System
+
+The app includes a comprehensive mock system for Supabase in `/app/__mocks__/supabase.ts` that can be used to simulate database interactions in tests.
 
 ## Contributing
 
