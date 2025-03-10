@@ -14,7 +14,7 @@ import { FavoriteHolesModal, FavoriteHole } from '../components/FavoriteHolesMod
 const SENTIMENT_ICONS = {
   liked: '✅',
   fine: '🟡',
-  disliked: '❌',
+  didnt_like: '❌',
 };
 
 export const ReviewScreen: React.FC<ReviewScreenProps> = ({ 
@@ -50,23 +50,45 @@ export const ReviewScreen: React.FC<ReviewScreenProps> = ({
   const handleSubmit = async () => {
     if (!rating || isSubmitting) return;
 
-    await onSubmit({
+    console.log('ReviewScreen: Starting review submission with data:', {
       course_id: course.id,
+      course_name: course.name,
       rating,
       tags,
       notes,
       favorite_holes: favoriteHoles,
-      photos,
+      photos: photos.length,
       date_played: datePlayed,
     });
+
+    try {
+      await onSubmit({
+        course_id: course.id,
+        rating,
+        tags,
+        notes,
+        favorite_holes: favoriteHoles,
+        photos,
+        date_played: datePlayed,
+      });
+      console.log('ReviewScreen: Review submitted successfully');
+    } catch (error) {
+      console.error('ReviewScreen: Error submitting review:', error);
+    }
   };
 
   const handleTagsSave = (selectedTags: Tag[]) => {
-    setTags(selectedTags.map(tag => tag.name));
+    setTags(selectedTags.map(tag => tag.id));
   };
 
   const getSelectedTagNames = () => {
-    return tags.join(', ');
+    // Convert tag IDs back to names for display
+    const tagNames = tags.map(tagId => {
+      const allTags = Object.values(TAGS_BY_CATEGORY).flat();
+      const tag = allTags.find(t => t.id === tagId);
+      return tag ? tag.name : '';
+    }).filter(Boolean);
+    return tagNames.join(', ');
   };
 
   const getFavoriteHolesPreview = () => {

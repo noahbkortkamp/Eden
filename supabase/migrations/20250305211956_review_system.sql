@@ -43,18 +43,21 @@ ALTER TABLE review_tags ENABLE ROW LEVEL SECURITY;
 -- RLS Policies
 
 -- Reviews are viewable by everyone
+DROP POLICY IF EXISTS "Reviews are viewable by everyone" ON reviews;
 CREATE POLICY "Reviews are viewable by everyone"
   ON reviews FOR SELECT
   TO authenticated
   USING (true);
 
 -- Users can create their own reviews
+DROP POLICY IF EXISTS "Users can create own reviews" ON reviews;
 CREATE POLICY "Users can create own reviews"
   ON reviews FOR INSERT
   TO authenticated
   WITH CHECK (auth.uid() = user_id);
 
 -- Users can update their own reviews
+DROP POLICY IF EXISTS "Users can update own reviews" ON reviews;
 CREATE POLICY "Users can update own reviews"
   ON reviews FOR UPDATE
   TO authenticated
@@ -62,24 +65,28 @@ CREATE POLICY "Users can update own reviews"
   WITH CHECK (auth.uid() = user_id);
 
 -- Users can delete their own reviews
+DROP POLICY IF EXISTS "Users can delete own reviews" ON reviews;
 CREATE POLICY "Users can delete own reviews"
   ON reviews FOR DELETE
   TO authenticated
   USING (auth.uid() = user_id);
 
 -- Tags are viewable by everyone
+DROP POLICY IF EXISTS "Tags are viewable by everyone" ON tags;
 CREATE POLICY "Tags are viewable by everyone"
   ON tags FOR SELECT
   TO authenticated
   USING (true);
 
 -- Review tags are viewable by everyone
+DROP POLICY IF EXISTS "Review tags are viewable by everyone" ON review_tags;
 CREATE POLICY "Review tags are viewable by everyone"
   ON review_tags FOR SELECT
   TO authenticated
   USING (true);
 
 -- Users can add tags to their own reviews
+DROP POLICY IF EXISTS "Users can add tags to own reviews" ON review_tags;
 CREATE POLICY "Users can add tags to own reviews"
   ON review_tags FOR INSERT
   TO authenticated
@@ -92,6 +99,7 @@ CREATE POLICY "Users can add tags to own reviews"
   );
 
 -- Users can remove tags from their own reviews
+DROP POLICY IF EXISTS "Users can remove tags from own reviews" ON review_tags;
 CREATE POLICY "Users can remove tags from own reviews"
   ON review_tags FOR DELETE
   TO authenticated
@@ -104,21 +112,25 @@ CREATE POLICY "Users can remove tags from own reviews"
   );
 
 -- Insert default tags
+-- MOVED TO 20250309_insert_tags.sql for centralized tag management
+/*
 INSERT INTO tags (name, category) VALUES
-  -- Course Conditions
-  ('Fast Greens', 'Course Conditions'),
-  ('Slow Greens', 'Course Conditions'),
-  ('Well Maintained', 'Course Conditions'),
-  ('Needs Work', 'Course Conditions'),
+  -- Course Conditions (using correct snake_case format)
+  ('Fast Greens', 'course_conditions'),
+  ('Slow Greens', 'course_conditions'),
+  ('Well Maintained', 'course_conditions'),
+  ('Needs Work', 'course_conditions'),
   -- Value
-  ('Great Value', 'Value'),
-  ('Overpriced', 'Value'),
-  ('Hidden Gem', 'Value'),
+  ('Great Value', 'value'),
+  ('Overpriced', 'value'),
+  ('Hidden Gem', 'value'),
   -- Facilities
-  ('Modern Clubhouse', 'Facilities'),
-  ('Friendly Staff', 'Facilities'),
-  ('Clean Facilities', 'Facilities'),
-  -- Difficulty
-  ('Beginner Friendly', 'Difficulty'),
-  ('Challenging', 'Difficulty'),
-  ('Tournament Ready', 'Difficulty'); 
+  ('Modern Clubhouse', 'facilities'),
+  ('Friendly Staff', 'facilities'),
+  ('Clean Facilities', 'facilities'),
+  -- Playing Experience (replacing Difficulty with an allowed category)
+  ('Beginner Friendly', 'playing_experience'),
+  ('Challenging', 'playing_experience'),
+  ('Tournament Ready', 'playing_experience')
+ON CONFLICT (name, category) DO NOTHING;
+*/ 

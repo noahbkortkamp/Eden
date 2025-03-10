@@ -37,6 +37,17 @@ export const ReviewProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       return;
     }
 
+    console.log('ReviewContext: Starting review submission:', {
+      userId: user.id,
+      courseId: review.course_id,
+      rating: review.rating,
+      hasNotes: !!review.notes,
+      favoriteHoles: review.favorite_holes,
+      photosCount: review.photos.length,
+      datePlayed: review.date_played,
+      tags: review.tags
+    });
+
     setIsSubmitting(true);
     setError(null);
 
@@ -53,14 +64,30 @@ export const ReviewProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         review.tags || []
       );
 
+      console.log('ReviewContext: Review created successfully:', {
+        reviewId: createdReview.id,
+        courseId: createdReview.course_id,
+        rating: createdReview.rating
+      });
+
       // Get user's reviewed courses with matching sentiment for comparison
       const userReviews = await getReviewsForUser(user.id);
       const reviewedCoursesWithSentiment = userReviews.filter(r => r.rating === review.rating);
+
+      console.log('ReviewContext: Found matching sentiment reviews:', {
+        totalMatching: reviewedCoursesWithSentiment.length,
+        sentiment: review.rating
+      });
 
       // Check if course already has a ranking
       const rankings = await rankingService.getUserRankings(user.id, review.rating);
       const existingRanking = rankings.find(r => r.course_id === review.course_id);
       
+      console.log('ReviewContext: Checking existing ranking:', {
+        hasExistingRanking: !!existingRanking,
+        totalRankings: rankings.length
+      });
+
       if (!existingRanking) {
         // Add initial ranking for the new course only if it doesn't exist
         const initialRankPosition = rankings.length + 1;

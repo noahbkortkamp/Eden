@@ -131,57 +131,61 @@ ALTER TABLE saved_courses ENABLE ROW LEVEL SECURITY;
 
 -- RLS Policies
 
--- Users can read all users
+-- Users RLS policies
+DROP POLICY IF EXISTS "Users are viewable by everyone" ON users;
 CREATE POLICY "Users are viewable by everyone"
   ON users FOR SELECT
   TO authenticated
   USING (true);
 
--- Users can update their own profile
+DROP POLICY IF EXISTS "Users can update own profile" ON users;
 CREATE POLICY "Users can update own profile"
   ON users FOR UPDATE
   TO authenticated
   USING (auth.uid() = id)
   WITH CHECK (auth.uid() = id);
 
--- Courses are viewable by everyone
+-- Courses RLS policies
+DROP POLICY IF EXISTS "Courses are viewable by everyone" ON courses;
 CREATE POLICY "Courses are viewable by everyone"
   ON courses FOR SELECT
   TO authenticated
   USING (true);
 
--- Verified users can submit new courses
+DROP POLICY IF EXISTS "Verified users can submit courses" ON courses;
 CREATE POLICY "Verified users can submit courses"
   ON courses FOR INSERT
   TO authenticated
   WITH CHECK (true);
 
--- Reviews are viewable by everyone
+-- Reviews RLS policies
+DROP POLICY IF EXISTS "Reviews are viewable by everyone" ON reviews;
 CREATE POLICY "Reviews are viewable by everyone"
   ON reviews FOR SELECT
   TO authenticated
   USING (true);
 
--- Users can create their own reviews
+DROP POLICY IF EXISTS "Users can create own reviews" ON reviews;
 CREATE POLICY "Users can create own reviews"
   ON reviews FOR INSERT
   TO authenticated
   WITH CHECK (auth.uid() = user_id);
 
--- Users can update their own reviews
+DROP POLICY IF EXISTS "Users can update own reviews" ON reviews;
 CREATE POLICY "Users can update own reviews"
   ON reviews FOR UPDATE
   TO authenticated
   USING (auth.uid() = user_id)
   WITH CHECK (auth.uid() = user_id);
 
--- Photos are viewable by everyone
+-- Photos RLS policies
+DROP POLICY IF EXISTS "Photos are viewable by everyone" ON photos;
 CREATE POLICY "Photos are viewable by everyone"
   ON photos FOR SELECT
   TO authenticated
   USING (true);
 
--- Users can upload photos to their own reviews
+DROP POLICY IF EXISTS "Users can upload photos to own reviews" ON photos;
 CREATE POLICY "Users can upload photos to own reviews"
   ON photos FOR INSERT
   TO authenticated
@@ -193,19 +197,20 @@ CREATE POLICY "Users can upload photos to own reviews"
     )
   );
 
--- Tags are viewable by everyone
+-- Tags RLS policies
+DROP POLICY IF EXISTS "Tags are viewable by everyone" ON tags;
 CREATE POLICY "Tags are viewable by everyone"
   ON tags FOR SELECT
   TO authenticated
   USING (true);
 
--- Review tags are viewable by everyone
+DROP POLICY IF EXISTS "Review tags are viewable by everyone" ON review_tags;
 CREATE POLICY "Review tags are viewable by everyone"
   ON review_tags FOR SELECT
   TO authenticated
   USING (true);
 
--- Users can add tags to their own reviews
+DROP POLICY IF EXISTS "Users can add tags to own reviews" ON review_tags;
 CREATE POLICY "Users can add tags to own reviews"
   ON review_tags FOR INSERT
   TO authenticated
@@ -217,33 +222,35 @@ CREATE POLICY "Users can add tags to own reviews"
     )
   );
 
--- Follows are viewable by everyone
+-- Follows RLS policies
+DROP POLICY IF EXISTS "Follows are viewable by everyone" ON follows;
 CREATE POLICY "Follows are viewable by everyone"
   ON follows FOR SELECT
   TO authenticated
   USING (true);
 
--- Users can manage their own follows
+DROP POLICY IF EXISTS "Users can manage own follows" ON follows;
 CREATE POLICY "Users can manage own follows"
   ON follows FOR ALL
   TO authenticated
-  USING (auth.uid() = follower_id)
-  WITH CHECK (auth.uid() = follower_id);
+  USING (follower_id = auth.uid());
 
--- Saved courses are viewable by the owner
+-- Saved courses RLS policies
+DROP POLICY IF EXISTS "Users can view own saved courses" ON saved_courses;
 CREATE POLICY "Users can view own saved courses"
   ON saved_courses FOR SELECT
   TO authenticated
-  USING (auth.uid() = user_id);
+  USING (user_id = auth.uid());
 
--- Users can manage their own saved courses
+DROP POLICY IF EXISTS "Users can manage own saved courses" ON saved_courses;
 CREATE POLICY "Users can manage own saved courses"
   ON saved_courses FOR ALL
   TO authenticated
-  USING (auth.uid() = user_id)
-  WITH CHECK (auth.uid() = user_id);
+  USING (user_id = auth.uid());
 
 -- Insert default tags
+-- MOVED TO 20250309_insert_tags.sql for centralized tag management
+/*
 INSERT INTO tags (category, name) VALUES
   -- Playing Experience
   ('playing_experience', 'Fast Pace'),
@@ -269,4 +276,6 @@ INSERT INTO tags (category, name) VALUES
   ('facilities', 'Modern Clubhouse'),
   ('facilities', 'Friendly Staff'),
   ('facilities', 'Good Cart Paths'),
-  ('facilities', 'Clean Facilities');
+  ('facilities', 'Clean Facilities')
+ON CONFLICT (category, name) DO NOTHING;
+*/

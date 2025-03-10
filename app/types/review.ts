@@ -1,6 +1,13 @@
 import type { Database } from './database.types';
 
-export type Course = Database['public']['Tables']['courses']['Row'];
+export interface Course {
+  id: string;
+  name: string;
+  location: string;
+  type: string;
+  price_level: number;
+  rating?: number;
+}
 
 export type SentimentRating = 'liked' | 'fine' | 'didnt_like';
 
@@ -15,18 +22,28 @@ export interface CourseTag {
   category: string;
 }
 
-export interface CourseReview {
+export interface Review {
   id: string;
   user_id: string;
   course_id: string;
-  rating: SentimentRating;
-  notes: string | null;
-  favorite_holes: number[];
-  photos: string[];
+  rating: number;
+  notes?: string;
+  favorite_holes?: number[];
+  photos?: string[];
   date_played: string;
   created_at: string;
   updated_at: string;
-  tags?: string[];
+}
+
+export interface Tag {
+  id: string;
+  name: string;
+  category: string;
+}
+
+export interface ReviewTag {
+  review_id: string;
+  tag_id: string;
 }
 
 export interface ReviewScreenProps {

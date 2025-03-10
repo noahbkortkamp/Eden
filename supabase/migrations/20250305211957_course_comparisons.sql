@@ -14,18 +14,21 @@ ALTER TABLE course_comparisons ENABLE ROW LEVEL SECURITY;
 -- RLS Policies
 
 -- Course comparisons are viewable by everyone
+DROP POLICY IF EXISTS "Course comparisons are viewable by everyone" ON course_comparisons;
 CREATE POLICY "Course comparisons are viewable by everyone"
   ON course_comparisons FOR SELECT
   TO authenticated
   USING (true);
 
 -- Users can create their own comparisons
+DROP POLICY IF EXISTS "Users can create own comparisons" ON course_comparisons;
 CREATE POLICY "Users can create own comparisons"
   ON course_comparisons FOR INSERT
   TO authenticated
   WITH CHECK (auth.uid() = user_id);
 
 -- Users can update their own comparisons
+DROP POLICY IF EXISTS "Users can update own comparisons" ON course_comparisons;
 CREATE POLICY "Users can update own comparisons"
   ON course_comparisons FOR UPDATE
   TO authenticated
@@ -33,6 +36,7 @@ CREATE POLICY "Users can update own comparisons"
   WITH CHECK (auth.uid() = user_id);
 
 -- Users can delete their own comparisons
+DROP POLICY IF EXISTS "Users can delete own comparisons" ON course_comparisons;
 CREATE POLICY "Users can delete own comparisons"
   ON course_comparisons FOR DELETE
   TO authenticated

@@ -1,5 +1,11 @@
 -- Create enum for sentiment categories
-CREATE TYPE sentiment_category AS ENUM ('liked', 'fine', 'didnt_like');
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'sentiment_category') THEN
+    CREATE TYPE sentiment_category AS ENUM ('liked', 'fine', 'didnt_like');
+  END IF;
+END
+$$;
 
 -- Create course_rankings table
 CREATE TABLE IF NOT EXISTS public.course_rankings (
@@ -18,43 +24,51 @@ CREATE TABLE IF NOT EXISTS public.course_rankings (
 CREATE INDEX course_rankings_user_id_idx ON public.course_rankings(user_id);
 CREATE INDEX course_rankings_sentiment_idx ON public.course_rankings(sentiment_category);
 
--- Add RLS policies
+-- Enable Row Level Security
 ALTER TABLE public.course_rankings ENABLE ROW LEVEL SECURITY;
 
--- Allow users to view only their own rankings
+-- RLS Policies
+
+-- Users can view their own rankings
+DROP POLICY IF EXISTS "Users can view their own rankings" ON public.course_rankings;
 CREATE POLICY "Users can view their own rankings"
-    ON public.course_rankings
-    FOR SELECT
+    ON public.course_rankings FOR SELECT
+    TO authenticated
     USING (auth.uid() = user_id);
 
--- Allow users to insert their own rankings
+-- Users can create their own rankings
+DROP POLICY IF EXISTS "Users can insert their own rankings" ON public.course_rankings;
 CREATE POLICY "Users can insert their own rankings"
-    ON public.course_rankings
-    FOR INSERT
+    ON public.course_rankings FOR INSERT
+    TO authenticated
     WITH CHECK (auth.uid() = user_id);
 
--- Allow users to update their own rankings
+-- Users can update their own rankings
+DROP POLICY IF EXISTS "Users can update their own rankings" ON public.course_rankings;
 CREATE POLICY "Users can update their own rankings"
-    ON public.course_rankings
-    FOR UPDATE
+    ON public.course_rankings FOR UPDATE
+    TO authenticated
     USING (auth.uid() = user_id)
     WITH CHECK (auth.uid() = user_id);
 
--- Allow users to delete their own rankings
+-- Users can delete their own rankings
+DROP POLICY IF EXISTS "Users can delete their own rankings" ON public.course_rankings;
 CREATE POLICY "Users can delete their own rankings"
-    ON public.course_rankings
-    FOR DELETE
+    ON public.course_rankings FOR DELETE
+    TO authenticated
     USING (auth.uid() = user_id);
 
--- Add trigger for updated_at
+-- Create updated_at trigger
 CREATE OR REPLACE FUNCTION update_updated_at_column()
 RETURNS TRIGGER AS $$
 BEGIN
-    NEW.updated_at = NOW();
-    RETURN NEW;
+   NEW.updated_at = NOW();
+   RETURN NEW;
 END;
-$$ language 'plpgsql';
+$$ LANGUAGE plpgsql;
 
+-- Add trigger for updating updated_at column
+DROP TRIGGER IF EXISTS update_course_rankings_updated_at ON public.course_rankings;
 CREATE TRIGGER update_course_rankings_updated_at
     BEFORE UPDATE ON public.course_rankings
     FOR EACH ROW

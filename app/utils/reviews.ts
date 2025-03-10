@@ -31,6 +31,28 @@ export async function createReview(
   });
 
   try {
+    // First verify that all tags exist
+    if (tagIds.length > 0) {
+      const { data: existingTags, error: tagCheckError } = await supabase
+        .from('tags')
+        .select('id')
+        .in('id', tagIds);
+
+      if (tagCheckError) {
+        console.error('Failed to check tags:', tagCheckError);
+        throw tagCheckError;
+      }
+
+      const foundTagIds = new Set(existingTags.map(tag => tag.id));
+      const missingTags = tagIds.filter(id => !foundTagIds.has(id));
+
+      if (missingTags.length > 0) {
+        console.error('Some tags do not exist:', missingTags);
+        throw new Error(`Tags not found: ${missingTags.join(', ')}`);
+      }
+    }
+
+    // Create the review
     const { data: review, error: reviewError } = await supabase
       .from('reviews')
       .insert({
@@ -50,6 +72,7 @@ export async function createReview(
       throw reviewError;
     }
 
+    // Create tag relationships if there are any tags
     if (tagIds.length > 0) {
       const reviewTags = tagIds.map(tagId => ({
         review_id: review.id,

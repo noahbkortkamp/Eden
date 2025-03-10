@@ -53,18 +53,21 @@ DROP POLICY IF EXISTS "Allow authenticated update" ON courses;
 DROP POLICY IF EXISTS "Allow authenticated delete" ON courses;
 
 -- Courses are viewable by everyone
+DROP POLICY IF EXISTS "Courses are viewable by everyone" ON courses;
 CREATE POLICY "Courses are viewable by everyone"
   ON courses FOR SELECT
   TO authenticated
   USING (true);
 
 -- Users can submit new courses
+DROP POLICY IF EXISTS "Users can submit courses" ON courses;
 CREATE POLICY "Users can submit courses"
   ON courses FOR INSERT
   TO authenticated
   WITH CHECK (true);
 
 -- Users can update their own courses
+DROP POLICY IF EXISTS "Users can update own courses" ON courses;
 CREATE POLICY "Users can update own courses"
   ON courses FOR UPDATE
   TO authenticated
@@ -72,6 +75,7 @@ CREATE POLICY "Users can update own courses"
   WITH CHECK (submitted_by = auth.uid());
 
 -- Admins can manage all courses
+DROP POLICY IF EXISTS "Admins can manage all courses" ON courses;
 CREATE POLICY "Admins can manage all courses"
   ON courses FOR ALL
   TO authenticated
@@ -88,6 +92,7 @@ CREATE POLICY "Tags are viewable by everyone"
   USING (true);
 
 -- Only admins can manage tags
+DROP POLICY IF EXISTS "Admins can manage tags" ON tags;
 CREATE POLICY "Admins can manage tags"
   ON tags FOR ALL
   TO authenticated
@@ -100,6 +105,7 @@ DROP POLICY IF EXISTS "Users can update own reviews" ON reviews;
 DROP POLICY IF EXISTS "Users can delete own reviews" ON reviews;
 
 -- Reviews are viewable by everyone
+DROP POLICY IF EXISTS "Reviews are viewable by everyone" ON reviews;
 CREATE POLICY "Reviews are viewable by everyone"
   ON reviews FOR SELECT
   TO authenticated
@@ -125,6 +131,7 @@ CREATE POLICY "Users can delete own reviews"
   USING (auth.uid() = user_id);
 
 -- Admins can manage all reviews
+DROP POLICY IF EXISTS "Admins can manage all reviews" ON reviews;
 CREATE POLICY "Admins can manage all reviews"
   ON reviews FOR ALL
   TO authenticated

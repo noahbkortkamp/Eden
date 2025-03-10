@@ -1,151 +1,164 @@
-import React from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Image } from 'react-native';
-import { Plus, ChevronRight, Star, MapPin } from 'lucide-react-native';
-import { LinearGradient } from 'expo-linear-gradient';
+import React, { useEffect, useState } from 'react';
+import { View, StyleSheet, ActivityIndicator } from 'react-native';
+import { useTheme } from '../theme/ThemeProvider';
+import { CourseListTabs } from '../components/CourseListTabs';
+import { Course } from '../types/review';
+import { supabase } from '../utils/supabase';
+import { router } from 'expo-router';
+import { rankingService } from '../services/rankingService';
+import { useAuth } from '../context/AuthContext';
 
 export default function ListsScreen() {
-  // Mock data - would come from your backend
-  const lists = [
-    {
-      id: '1',
-      title: 'Recently Played',
-      description: 'Courses you\'ve played recently',
-      courseCount: 5,
-      image: 'https://images.unsplash.com/photo-1587174486073-ae5e5cff23aa?q=80&w=3270&auto=format&fit=crop',
+  const theme = useTheme();
+  const { user } = useAuth();
+  const [loading, setLoading] = useState(true);
+  const [playedCourses, setPlayedCourses] = useState<Course[]>([]);
+  const [wantToPlayCourses, setWantToPlayCourses] = useState<Course[]>([]);
+  const [recommendedCourses, setRecommendedCourses] = useState<Course[]>([]);
+
+  useEffect(() => {
+    if (!user) {
+      router.push('/auth/login');
+      return;
+    }
+
+    Promise.all([
+      fetchPlayedCourses(),
+      fetchWantToPlayCourses(),
+      fetchRecommendedCourses(),
+    ]).finally(() => setLoading(false));
+  }, [user]);
+
+  const fetchPlayedCourses = async () => {
+    try {
+      // Get user's rankings for all sentiment categories
+      const [likedRankings, fineRankings, didntLikeRankings] = await Promise.all([
+        rankingService.getUserRankings(user?.id || '', 'liked'),
+        rankingService.getUserRankings(user?.id || '', 'fine'),
+        rankingService.getUserRankings(user?.id || '', 'didnt_like'),
+      ]);
+
+      // Combine all rankings
+      const allRankings = [...likedRankings, ...fineRankings, ...didntLikeRankings];
+
+      // Fetch course details for all ranked courses
+      const { data: courses, error } = await supabase
+        .from('courses')
+        .select('*')
+        .in('id', allRankings.map(r => r.course_id));
+
+      if (error) throw error;
+
+      // Combine course details with their rankings
+      const rankedCourses = courses?.map(course => {
+        const ranking = allRankings.find(r => r.course_id === course.id);
+        return {
+          ...course,
+          rating: ranking?.score || 0,
+        };
+      }) || [];
+
+      // Sort by score descending
+      setPlayedCourses(rankedCourses.sort((a, b) => (b.rating || 0) - (a.rating || 0)));
+    } catch (error) {
+      console.error('Error fetching played courses:', error);
+    }
+  };
+
+  const fetchWantToPlayCourses = async () => {
+    try {
+      const { data: courses, error } = await supabase
+        .from('want_to_play')
+        .select(`
+          course:courses (
+            id,
+            name,
+            location,
+            type,
+            price_level
+          )
+        `)
+        .eq('user_id', user?.id)
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+
+      setWantToPlayCourses(courses?.map(item => item.course) || []);
+    } catch (error) {
+      console.error('Error fetching want to play courses:', error);
+    }
+  };
+
+  const fetchRecommendedCourses = async () => {
+    try {
+      // Get user's liked courses
+      const likedRankings = await rankingService.getUserRankings(user?.id || '', 'liked');
+      
+      // Get similar courses based on tags from user's top-rated courses
+      const topCourseIds = likedRankings
+        .sort((a, b) => b.score - a.score)
+        .slice(0, 3)
+        .map(r => r.course_id);
+
+      const { data: similarCourses, error } = await supabase
+        .from('courses')
+        .select(`
+          *,
+          course_tags!inner (
+            tag_id
+          )
+        `)
+        .in(
+          'course_tags.tag_id',
+          // Subquery to get tags from user's top-rated courses
+          supabase
+            .from('course_tags')
+            .select('tag_id')
+            .in('course_id', topCourseIds)
+        )
+        .not('id', 'in', likedRankings.map(r => r.course_id)) // Exclude already rated courses
+        .limit(10);
+
+      if (error) throw error;
+
+      setRecommendedCourses(similarCourses || []);
+    } catch (error) {
+      console.error('Error fetching recommended courses:', error);
+    }
+  };
+
+  const handleCoursePress = (course: Course) => {
+    router.push(`/course/${course.id}`);
+  };
+
+  const styles = StyleSheet.create({
+    container: {
+      flex: 1,
+      backgroundColor: theme.colors.background,
     },
-    {
-      id: '2',
-      title: 'Favorite Courses',
-      description: 'Your top-rated golf courses',
-      courseCount: 8,
-      image: 'https://images.unsplash.com/photo-1600740288397-83cae0357539?q=80&w=3270&auto=format&fit=crop',
+    loadingContainer: {
+      flex: 1,
+      justifyContent: 'center',
+      alignItems: 'center',
     },
-    {
-      id: '3',
-      title: 'Want to Play',
-      description: 'Your golf course bucket list',
-      courseCount: 12,
-      image: 'https://images.unsplash.com/photo-1587174486073-ae5e5cff23aa?q=80&w=3270&auto=format&fit=crop',
-    },
-    {
-      id: '4',
-      title: 'Local Courses',
-      description: 'Courses near you',
-      courseCount: 15,
-      image: 'https://images.unsplash.com/photo-1600740288397-83cae0357539?q=80&w=3270&auto=format&fit=crop',
-    },
-  ];
+  });
+
+  if (loading) {
+    return (
+      <View style={[styles.container, styles.loadingContainer]}>
+        <ActivityIndicator size="large" color={theme.colors.primary} />
+      </View>
+    );
+  }
 
   return (
     <View style={styles.container}>
-      <View style={styles.header}>
-        <Text style={styles.title}>Your Courses</Text>
-        <TouchableOpacity style={styles.addButton}>
-          <Plus size={24} color="#2563eb" />
-        </TouchableOpacity>
-      </View>
-
-      <ScrollView style={styles.content}>
-        {lists.map((list) => (
-          <TouchableOpacity key={list.id} style={styles.listCard}>
-            <Image source={{ uri: list.image }} style={styles.listImage} />
-            <LinearGradient
-              colors={['transparent', 'rgba(0,0,0,0.8)']}
-              style={styles.gradient}>
-              <View style={styles.listInfo}>
-                <Text style={styles.listTitle}>{list.title}</Text>
-                <Text style={styles.listDescription}>{list.description}</Text>
-                <View style={styles.listStats}>
-                  <View style={styles.stat}>
-                    <MapPin size={16} color="#fff" />
-                    <Text style={styles.statText}>{list.courseCount} courses</Text>
-                  </View>
-                </View>
-              </View>
-            </LinearGradient>
-            <ChevronRight size={24} color="#fff" style={styles.chevron} />
-          </TouchableOpacity>
-        ))}
-      </ScrollView>
+      <CourseListTabs
+        playedCourses={playedCourses}
+        wantToPlayCourses={wantToPlayCourses}
+        recommendedCourses={recommendedCourses}
+        onCoursePress={handleCoursePress}
+      />
     </View>
   );
-}
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#fff',
-  },
-  header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingTop: 60,
-    paddingBottom: 16,
-  },
-  title: {
-    fontSize: 24,
-    fontWeight: '600',
-    color: '#0f172a',
-  },
-  addButton: {
-    padding: 8,
-  },
-  content: {
-    flex: 1,
-    padding: 16,
-  },
-  listCard: {
-    height: 160,
-    borderRadius: 16,
-    overflow: 'hidden',
-    marginBottom: 16,
-    position: 'relative',
-  },
-  listImage: {
-    width: '100%',
-    height: '100%',
-  },
-  gradient: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
-    padding: 16,
-  },
-  listInfo: {
-    flex: 1,
-    justifyContent: 'flex-end',
-  },
-  listTitle: {
-    fontSize: 20,
-    fontWeight: '600',
-    color: '#fff',
-    marginBottom: 4,
-  },
-  listDescription: {
-    fontSize: 14,
-    color: '#e2e8f0',
-    marginBottom: 8,
-  },
-  listStats: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 16,
-  },
-  stat: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-  },
-  statText: {
-    fontSize: 14,
-    color: '#fff',
-  },
-  chevron: {
-    position: 'absolute',
-    right: 16,
-    bottom: 16,
-  },
-}); 
+} 

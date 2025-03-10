@@ -29,7 +29,16 @@ export const TagSelectionModal: React.FC<TagSelectionModalProps> = ({
   const [localSelectedTags, setLocalSelectedTags] = React.useState<Tag[]>(selectedTags);
 
   React.useEffect(() => {
-    setLocalSelectedTags(selectedTags);
+    // Convert tag IDs to full tag objects when selectedTags changes
+    const allTags = Object.values(TAGS_BY_CATEGORY).flat();
+    const tagObjects = selectedTags.map(tag => {
+      if (typeof tag === 'string') {
+        // If we received a tag ID, find the full tag object
+        return allTags.find(t => t.id === tag) || allTags.find(t => t.name === tag);
+      }
+      return tag;
+    }).filter((tag): tag is Tag => tag !== undefined);
+    setLocalSelectedTags(tagObjects);
   }, [selectedTags]);
 
   const toggleTag = (tag: Tag) => {

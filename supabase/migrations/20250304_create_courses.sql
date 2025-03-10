@@ -19,6 +19,7 @@ CREATE TABLE IF NOT EXISTS public.courses (
 ALTER TABLE public.courses ENABLE ROW LEVEL SECURITY;
 
 -- Create policy to allow public read access
+DROP POLICY IF EXISTS "Allow public read access" ON public.courses;
 CREATE POLICY "Allow public read access"
     ON public.courses
     FOR SELECT
@@ -26,6 +27,7 @@ CREATE POLICY "Allow public read access"
     USING (true);
 
 -- Create policy to allow authenticated users to insert courses
+DROP POLICY IF EXISTS "Allow authenticated create" ON public.courses;
 CREATE POLICY "Allow authenticated create"
     ON public.courses
     FOR INSERT
@@ -33,6 +35,7 @@ CREATE POLICY "Allow authenticated create"
     WITH CHECK (true);
 
 -- Create policy to allow authenticated users to update their courses
+DROP POLICY IF EXISTS "Allow authenticated update" ON public.courses;
 CREATE POLICY "Allow authenticated update"
     ON public.courses
     FOR UPDATE
@@ -41,6 +44,7 @@ CREATE POLICY "Allow authenticated update"
     WITH CHECK (true);
 
 -- Create policy to allow authenticated users to delete their courses
+DROP POLICY IF EXISTS "Allow authenticated delete" ON public.courses;
 CREATE POLICY "Allow authenticated delete"
     ON public.courses
     FOR DELETE
