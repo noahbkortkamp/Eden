@@ -6,6 +6,7 @@ import { createReview, getReviewsForUser, getAllTags } from '../../utils/reviews
 import { format } from 'date-fns';
 import { reviewService } from '../../services/reviewService';
 import { rankingService } from '../../services/rankingService';
+import { supabase } from '../../utils/supabase';
 
 interface ReviewContextType {
   submitReview: (review: Omit<CourseReview, 'review_id' | 'user_id' | 'created_at' | 'updated_at'>) => Promise<void>;
@@ -37,6 +38,12 @@ export const ReviewProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       return;
     }
 
+    console.log('CRITICAL DEBUG - Auth user details:', {
+      userId: user.id,
+      userEmail: user.email,
+      userMetadata: user.user_metadata
+    });
+
     console.log('ReviewContext: Starting review submission:', {
       userId: user.id,
       courseId: review.course_id,
@@ -52,6 +59,13 @@ export const ReviewProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     setError(null);
 
     try {
+      // Verify user profile exists before submitting review
+      const profileExists = await verifyUserProfile(user.id);
+      if (!profileExists) {
+        console.log('Attempting to create profile before review submission');
+        // Still continue even if this fails - the server-side logic should handle it
+      }
+      
       // Create the review
       const createdReview = await createReview(
         user.id,
@@ -345,6 +359,62 @@ export const ReviewProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       router.replace('/(tabs)');
     }
   }, [comparisonsRemaining, router, user, originalReviewedCourseId, comparisonResults]);
+
+  const verifyUserProfile = useCallback(async (userId: string) => {
+    if (!userId) return false;
+    
+    console.log('Verifying user profile for ID:', userId);
+    try {
+      // Check if user profile exists
+      const { data: profile, error } = await supabase
+        .from('users')
+        .select('id')
+        .eq('id', userId)
+        .single();
+        
+      if (error) {
+        if (error.code === 'PGRST116') {
+          // No profile found
+          console.log('No user profile found, creating one...');
+          return await createUserProfile(userId);
+        }
+        console.error('Error checking user profile:', error);
+        return false;
+      }
+      
+      return !!profile;
+    } catch (err) {
+      console.error('Error in verifyUserProfile:', err);
+      return false;
+    }
+  }, []);
+
+  const createUserProfile = useCallback(async (userId: string) => {
+    try {
+      const randomUsername = `user_${Math.random().toString(36).substring(2, 10)}`;
+      
+      const { error } = await supabase
+        .from('users')
+        .insert({
+          id: userId,
+          username: randomUsername,
+          full_name: user?.user_metadata?.name || 'New Golfer',
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        });
+        
+      if (error) {
+        console.error('Failed to create user profile:', error);
+        return false;
+      }
+      
+      console.log('Successfully created user profile for:', userId);
+      return true;
+    } catch (err) {
+      console.error('Error creating user profile:', err);
+      return false;
+    }
+  }, [user]);
 
   return (
     <ReviewContext.Provider
