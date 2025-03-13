@@ -68,15 +68,207 @@ export async function getAllCourses(): Promise<Course[]> {
   return data;
 }
 
-export async function searchCourses(query: string): Promise<Course[]> {
+// Calculate Levenshtein distance between two strings
+// This measures how many single-character edits (insertions, deletions, substitutions)
+// are needed to change one string to another
+function levenshteinDistance(a: string, b: string): number {
+  if (a.length === 0) return b.length;
+  if (b.length === 0) return a.length;
+
+  const matrix = [];
+
+  // Initialize the matrix
+  for (let i = 0; i <= b.length; i++) {
+    matrix[i] = [i];
+  }
+  for (let j = 0; j <= a.length; j++) {
+    matrix[0][j] = j;
+  }
+
+  // Fill the matrix
+  for (let i = 1; i <= b.length; i++) {
+    for (let j = 1; j <= a.length; j++) {
+      const cost = a[j - 1] === b[i - 1] ? 0 : 1;
+      matrix[i][j] = Math.min(
+        matrix[i - 1][j] + 1, // deletion
+        matrix[i][j - 1] + 1, // insertion
+        matrix[i - 1][j - 1] + cost // substitution
+      );
+    }
+  }
+
+  return matrix[b.length][a.length];
+}
+
+// Calculate fuzzy match score based on Levenshtein distance
+function calculateFuzzyScore(source: string, target: string): number {
+  if (!source || !target) return 0;
+  if (source === target) return 100; // Perfect match
+
+  const distance = levenshteinDistance(source, target);
+  const maxLength = Math.max(source.length, target.length);
+  
+  // Convert distance to a similarity percentage (100 = identical, 0 = completely different)
+  const similarity = Math.max(0, 100 - Math.floor((distance / maxLength) * 100));
+  
+  return similarity;
+}
+
+// Debug function to log search scoring
+export function logSearchScoring(query: string, scoredResults: CourseWithRelevance[]) {
+  const normalizedQuery = query.toLowerCase().trim();
+  console.log(`🔍 DEBUG: Search results for "${normalizedQuery}":`);
+  
+  scoredResults.slice(0, 10).forEach((item, index) => {
+    console.log(`🔍 DEBUG: "${item.name}" scored ${item.relevanceScore} - rank ${index + 1}`);
+  });
+}
+
+// Define enhanced type for courses with relevance scores
+export interface CourseWithRelevance extends Course {
+  relevanceScore: number;
+}
+
+export async function searchCourses(query: string): Promise<CourseWithRelevance[]> {
+  // If query is empty, return all courses
+  if (!query.trim()) {
+    return getAllCourses();
+  }
+  
+  // Get all courses to perform client-side filtering for more control
   const { data, error } = await supabase
     .from('courses')
     .select('*')
-    .or(`name.ilike.%${query}%,location.ilike.%${query}%`)
     .order('name', { ascending: true });
 
   if (error) throw error;
-  return data;
+  
+  if (!data || data.length === 0) {
+    return [];
+  }
+  
+  // Normalize the query (lowercase, trim)
+  const normalizedQuery = query.toLowerCase().trim();
+  const words = normalizedQuery.split(/\s+/);
+  
+  // Calculate relevance score for each course
+  const scoredCourses = data.map(course => {
+    const name = course.name.toLowerCase();
+    const location = (course.location || '').toLowerCase();
+    
+    let score = 0;
+    
+    // Check for exact match in name (highest priority)
+    if (name === normalizedQuery) {
+      score += 100;
+    }
+    
+    // Check for name starting with query (high priority)
+    else if (name.startsWith(normalizedQuery)) {
+      score += 80;
+    }
+    
+    // Check for each word in query starting a word in name
+    for (const word of words) {
+      const wordRegex = new RegExp(`\\b${word}`, 'i');
+      if (wordRegex.test(name)) {
+        score += 60;
+      }
+    }
+    
+    // Check for query being contained in name
+    if (name.includes(normalizedQuery)) {
+      score += 40;
+    }
+    
+    // Check for individual words in the query being in the name
+    for (const word of words) {
+      if (word.length > 1 && name.includes(word)) {
+        score += 20;
+      }
+    }
+    
+    // Lower priority checks for location
+    if (location) {
+      // Exact location match
+      if (location === normalizedQuery) {
+        score += 30;
+      }
+      
+      // Location starts with query
+      else if (location.startsWith(normalizedQuery)) {
+        score += 25;
+      }
+      
+      // Query is contained in location
+      else if (location.includes(normalizedQuery)) {
+        score += 15;
+      }
+      
+      // Words in query are in location
+      for (const word of words) {
+        if (word.length > 1 && location.includes(word)) {
+          score += 10;
+        }
+      }
+    }
+    
+    // Fuzzy matching for typo tolerance (especially valuable for longer words)
+    if (score === 0 && normalizedQuery.length > 3) {
+      // Try fuzzy matching for the course name
+      const nameParts = name.split(/\s+/);
+      
+      for (const part of nameParts) {
+        if (part.length > 3) { // Only consider longer words worth fuzzy matching
+          const fuzzyScore = calculateFuzzyScore(normalizedQuery, part);
+          
+          // If it's a good fuzzy match (more than 70% similar)
+          if (fuzzyScore > 70) {
+            score += Math.floor(fuzzyScore / 10); // Scale down the fuzzy score
+            break; // Found a good fuzzy match, no need to check others
+          }
+        }
+      }
+      
+      // If still no match and we have location data, try fuzzy matching there
+      if (score === 0 && location) {
+        const locationParts = location.split(/[\s,]+/);
+        
+        for (const part of locationParts) {
+          if (part.length > 3) {
+            const fuzzyScore = calculateFuzzyScore(normalizedQuery, part);
+            
+            if (fuzzyScore > 70) {
+              score += Math.floor(fuzzyScore / 20); // Lower priority than name
+              break;
+            }
+          }
+        }
+      }
+    }
+    
+    // If still no match found, check for substring match anywhere (lowest priority)
+    if (score === 0 && (name.includes(normalizedQuery) || location.includes(normalizedQuery))) {
+      score = 1;
+    }
+    
+    return { 
+      ...course, 
+      relevanceScore: score 
+    } as CourseWithRelevance;
+  });
+  
+  // Filter out courses with no relevance
+  const relevantCourses = scoredCourses.filter(item => item.relevanceScore > 0);
+  
+  // Sort by relevance score (highest first)
+  relevantCourses.sort((a, b) => b.relevanceScore - a.relevanceScore);
+  
+  // Log search scoring for debugging
+  logSearchScoring(query, relevantCourses);
+  
+  // Return the courses with relevance scores included
+  return relevantCourses;
 }
 
 export async function createCourse(

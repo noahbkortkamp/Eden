@@ -25,12 +25,18 @@ import type { Course } from '../types';
 import { useAuth } from '../context/AuthContext';
 import { getReviewsForUser } from '../utils/reviews';
 
+// Enhanced Course type with search relevance score
+interface EnhancedCourse extends Omit<Course, 'type'> {
+  type: string;  // Override the type to be more flexible
+  relevanceScore?: number;
+}
+
 export default function SearchScreen() {
   const router = useRouter();
   const theme = useTheme();
   const { user } = useAuth();
   const [searchQuery, setSearchQuery] = useState('');
-  const [courses, setCourses] = useState<Course[]>([]);
+  const [courses, setCourses] = useState<EnhancedCourse[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isSearchFocused, setIsSearchFocused] = useState(false);
@@ -51,7 +57,7 @@ export default function SearchScreen() {
       setLoading(true);
       setError(null);
       const allCourses = await getAllCourses();
-      setCourses(allCourses as Course[]);
+      setCourses(allCourses as EnhancedCourse[]);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load courses');
     } finally {
@@ -75,8 +81,24 @@ export default function SearchScreen() {
     try {
       setLoading(true);
       setError(null);
+      
+      // Get raw search results with scores (we'll keep the smart search but not display stars)
       const results = await searchCourses(query);
-      setCourses(results as Course[]);
+      
+      // Set courses with their relevance scores (used for sorting)
+      if (Array.isArray(results)) {
+        if (results.length > 0 && 'relevanceScore' in (results[0] || {})) {
+          setCourses(results as EnhancedCourse[]);
+        } else {
+          const enhancedResults = results.map((course, index) => ({
+            ...course,
+            relevanceScore: Math.max(100 - (index * 5), 10),
+          })) as EnhancedCourse[];
+          setCourses(enhancedResults);
+        }
+      } else {
+        setCourses(results as EnhancedCourse[]);
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'An error occurred while searching');
       setCourses([]);
@@ -162,9 +184,11 @@ export default function SearchScreen() {
                   onPress={() => handleCoursePress(course.id)}
                 >
                   <View style={styles.courseHeader}>
-                    <Text style={[styles.courseName, { color: theme.colors.text }]}>
-                      {course.name}
-                    </Text>
+                    <View style={styles.courseHeaderLeft}>
+                      <Text style={[styles.courseName, { color: theme.colors.text }]}>
+                        {course.name}
+                      </Text>
+                    </View>
                     {reviewedCourseIds.has(course.id) && (
                       <CheckCircle size={20} color={theme.colors.primary} />
                     )}
@@ -291,7 +315,10 @@ const styles = StyleSheet.create({
   courseHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'center',
+    alignItems: 'flex-start',
     marginBottom: 4,
+  },
+  courseHeaderLeft: {
+    flex: 1,
   },
 }); 
