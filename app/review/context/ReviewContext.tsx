@@ -2,6 +2,7 @@ import React, { createContext, useContext, useState, useCallback } from 'react';
 import { CourseReview, Course, SentimentRating } from '../../types/review';
 import { useRouter } from 'expo-router';
 import { useAuth } from '../../context/AuthContext';
+import { usePlayedCourses } from '../../context/PlayedCoursesContext';
 import { createReview, getReviewsForUser, getAllTags } from '../../utils/reviews';
 import { format } from 'date-fns';
 import { reviewService } from '../../services/reviewService';
@@ -24,6 +25,7 @@ const ReviewContext = createContext<ReviewContextType | undefined>(undefined);
 export const ReviewProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const router = useRouter();
   const { user } = useAuth();
+  const { setNeedsRefresh } = usePlayedCourses();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [comparisonsRemaining, setComparisonsRemaining] = useState(MAX_COMPARISONS);
@@ -83,6 +85,10 @@ export const ReviewProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         courseId: createdReview.course_id,
         rating: createdReview.rating
       });
+
+      // Mark played courses as needing refresh when user returns to Lists tab
+      setNeedsRefresh();
+      console.log('ReviewContext: Marked played courses for refresh');
 
       // Get user's reviewed courses with matching sentiment for comparison
       const userReviews = await getReviewsForUser(user.id);
@@ -154,7 +160,7 @@ export const ReviewProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     } finally {
       setIsSubmitting(false);
     }
-  }, [router, user]);
+  }, [router, user, setNeedsRefresh]);
 
   const startComparisons = useCallback(async (rating: SentimentRating) => {
     if (!user) {

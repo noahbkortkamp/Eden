@@ -1,55 +1,107 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState, useMemo, useCallback } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView, SafeAreaView, Platform, Dimensions } from 'react-native';
 import { useTheme } from '../theme/ThemeProvider';
 import { MapPin } from 'lucide-react-native';
 import { Course } from '../types/review';
+import { usePlayedCourses } from '../context/PlayedCoursesContext';
 
 interface PlayedCoursesListProps {
   courses: Course[];
   onCoursePress?: (course: Course) => void;
 }
 
-export const PlayedCoursesList: React.FC<PlayedCoursesListProps> = ({
+// Convert to memoized component to prevent unnecessary re-renders
+export const PlayedCoursesList = React.memo(({
   courses,
   onCoursePress,
-}) => {
+}: PlayedCoursesListProps) => {
   const theme = useTheme();
   const scrollViewRef = useRef<ScrollView>(null);
+  // Get the global course state
+  const { playedCourses: globalPlayedCourses } = usePlayedCourses();
   
-  // Reset scroll position when component remounts
+  // Add internal state to persist the courses data
+  const [internalCourses, setInternalCourses] = useState<Course[]>(
+    // Initialize with data from props or context to avoid empty initial render
+    courses && courses.length > 0 ? courses : 
+    globalPlayedCourses && globalPlayedCourses.length > 0 ? globalPlayedCourses : 
+    []
+  );
+  
+  // Prevent too many state updates with this ref
+  const lastUpdateRef = useRef<number>(0);
+  const UPDATE_THROTTLE_MS = 300;
+  
+  // Add component lifecycle logging - minimal to reduce overhead
   useEffect(() => {
+    console.log('📌 PlayedCoursesList Mounted');
+    return () => console.log('📌 PlayedCoursesList Unmounted');
+  }, []);
+  
+  // Update internal state only when we get non-empty courses data - with throttling
+  useEffect(() => {
+    // Skip frequent updates to reduce render cycles
+    const now = Date.now();
+    if (now - lastUpdateRef.current < UPDATE_THROTTLE_MS) {
+      return;
+    }
+    
+    // Only log course count, not full objects to reduce log overhead
+    const courseCount = courses?.length || 0;
+    
+    // Only update if we receive valid, non-empty data
+    if (courses && Array.isArray(courses) && courses.length > 0) {
+      lastUpdateRef.current = now;
+      setInternalCourses(courses);
+    } else {
+      // Check if we have data in the global context
+      if (globalPlayedCourses && globalPlayedCourses.length > 0) {
+        lastUpdateRef.current = now;
+        setInternalCourses(globalPlayedCourses);
+      }
+      // If both are empty, preserve existing internal data
+    }
+  }, [courses, globalPlayedCourses]);
+  
+  // Reset scroll position when component remounts, but keep it less frequent
+  const resetScroll = useCallback(() => {
     if (scrollViewRef.current) {
       scrollViewRef.current.scrollTo({ x: 0, y: 0, animated: false });
     }
-    
-    // The return function will cleanup when component unmounts
-    return () => {
-      // Any additional cleanup if needed
-    };
+  }, []);
+  
+  useEffect(() => {
+    // Only reset scroll when component first mounts
+    resetScroll();
+  }, [resetScroll]);
+
+  // Memoize expensive calculations
+  const getPriceLevel = useCallback((level: number) => {
+    return '$'.repeat(Math.min(level, 5));
   }, []);
 
-  const getPriceLevel = (level: number) => {
-    return '$'.repeat(Math.min(level, 5));
-  };
-
-  const getScoreColor = (score: number) => {
+  const getScoreColor = useCallback((score: number) => {
     if (score >= 8.5) return '#2563eb'; // Blue for excellent scores
     if (score >= 7.0) return '#3b82f6'; // Lighter blue for good scores
     if (score >= 5.0) return '#6366f1'; // Indigo for average scores
     return '#818cf8'; // Light indigo for below average
-  };
+  }, []);
 
-  // Get screen dimensions for responsive layout
-  const screenWidth = Dimensions.get('window').width;
+  // Get screen dimensions for responsive layout - memoize to prevent recalculations
+  const screenWidth = useMemo(() => Dimensions.get('window').width, []);
   
-  const styles = StyleSheet.create({
+  const styles = useMemo(() => StyleSheet.create({
     safeArea: {
       flex: 1,
+      backgroundColor: theme.colors.background,
     },
     container: {
-      flex: 1,
+      flexGrow: 1,
       paddingHorizontal: theme.spacing.md,
       paddingTop: theme.spacing.md,
+    },
+    scrollContent: {
+      flexGrow: 1,
       paddingBottom: Platform.OS === 'ios' ? 100 : 90, // Extra padding for tab bar
     },
     courseCard: {
@@ -139,64 +191,94 @@ export const PlayedCoursesList: React.FC<PlayedCoursesListProps> = ({
       color: theme.colors.textSecondary,
       textAlign: 'center',
     }
-  });
+  }), [theme, screenWidth]);
 
-  if (!courses || courses.length === 0) {
+  // IMPORTANT: Memoize coursesToRender calculation but initialize with valid data
+  const coursesToRender = useMemo(() => {
+    // Immediately use whatever data is available (props > internal state > context)
+    return (courses && courses.length > 0) ? courses : 
+      (internalCourses && internalCourses.length > 0) ? internalCourses :
+      (globalPlayedCourses && globalPlayedCourses.length > 0) ? globalPlayedCourses :
+      [];
+  }, [courses, internalCourses, globalPlayedCourses]);
+  
+  // Memoize the course press handler
+  const handleCoursePress = useCallback((course: Course) => {
+    onCoursePress?.(course);
+  }, [onCoursePress]);
+  
+  // Check if we have ANY courses to display
+  if (!coursesToRender || coursesToRender.length === 0) {
     return (
-      <View style={[styles.container, styles.emptyState]}>
-        <Text style={styles.emptyStateText}>No courses found</Text>
-      </View>
+      <SafeAreaView style={styles.safeArea}>
+        <View style={[styles.container, styles.emptyState]}>
+          <Text style={styles.emptyStateText}>No courses found</Text>
+          <Text style={[styles.emptyStateText, {fontSize: 13, marginTop: 10}]}>
+            Try adding some course reviews to see them here.
+          </Text>
+        </View>
+      </SafeAreaView>
     );
   }
-
+  
   return (
-    <ScrollView 
-      ref={scrollViewRef}
-      style={styles.container}
-      contentContainerStyle={{ paddingBottom: 20 }}
-      showsVerticalScrollIndicator={false}
-      bounces={true}
-      overScrollMode="always"
-      removeClippedSubviews={true} // Performance optimization
-    >
-      {courses.map((course) => (
-        <TouchableOpacity
-          key={course.id}
-          style={styles.courseCard}
-          onPress={() => onCoursePress?.(course)}
-          activeOpacity={0.7}
-        >
-          <Text style={styles.courseName} numberOfLines={2}>{course.name}</Text>
-          <View style={styles.locationContainer}>
-            <MapPin size={16} color={theme.colors.textSecondary} />
-            <Text style={styles.locationText} numberOfLines={2}>{course.location}</Text>
-          </View>
-          <View style={styles.detailsContainer}>
-            <View style={styles.leftSection}>
-              <View style={styles.courseType}>
-                <Text style={styles.courseTypeText} numberOfLines={1}>{course.type}</Text>
+    <SafeAreaView style={styles.safeArea}>
+      <ScrollView 
+        ref={scrollViewRef}
+        style={styles.container}
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={true}
+        bounces={true}
+        overScrollMode="always"
+        removeClippedSubviews={Platform.OS === 'android'} // Only use on Android
+        scrollEventThrottle={16} // Optimize scroll performance
+        maxToRenderPerBatch={5} // Limit batch rendering for better performance
+        windowSize={5} // Keep fewer items in memory
+        keyboardShouldPersistTaps="handled"
+        keyboardDismissMode="on-drag"
+      >
+        {coursesToRender.map((course) => (
+          <TouchableOpacity
+            key={course.id}
+            style={styles.courseCard}
+            onPress={() => handleCoursePress(course)}
+            activeOpacity={0.7}
+          >
+            <Text style={styles.courseName} numberOfLines={2}>{course.name}</Text>
+            <View style={styles.locationContainer}>
+              <MapPin size={16} color={theme.colors.textSecondary} />
+              <Text style={styles.locationText} numberOfLines={2}>{course.location}</Text>
+            </View>
+            <View style={styles.detailsContainer}>
+              <View style={styles.leftSection}>
+                <View style={styles.courseType}>
+                  <Text style={styles.courseTypeText} numberOfLines={1}>{course.type}</Text>
+                </View>
+              </View>
+              
+              <View style={styles.centerSection}>
+                <Text style={styles.priceLevel}>{getPriceLevel(course.price_level)}</Text>
+              </View>
+              
+              <View style={styles.rightSection}>
+                <View 
+                  style={[
+                    styles.scoreContainer, 
+                    { backgroundColor: getScoreColor(course.rating || 0) }
+                  ]}
+                >
+                  <Text style={styles.scoreText}>
+                    {course.rating ? course.rating.toFixed(1) : '-'}
+                  </Text>
+                </View>
               </View>
             </View>
-            
-            <View style={styles.centerSection}>
-              <Text style={styles.priceLevel}>{getPriceLevel(course.price_level)}</Text>
-            </View>
-            
-            <View style={styles.rightSection}>
-              <View 
-                style={[
-                  styles.scoreContainer, 
-                  { backgroundColor: getScoreColor(course.rating || 0) }
-                ]}
-              >
-                <Text style={styles.scoreText}>
-                  {course.rating ? course.rating.toFixed(1) : '-'}
-                </Text>
-              </View>
-            </View>
-          </View>
-        </TouchableOpacity>
-      ))}
-    </ScrollView>
+          </TouchableOpacity>
+        ))}
+      </ScrollView>
+    </SafeAreaView>
   );
-}; 
+});
+
+// Add display name for debugging
+PlayedCoursesList.displayName = 'PlayedCoursesList'; 

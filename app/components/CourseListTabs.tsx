@@ -1,9 +1,10 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { View, Text, StyleSheet, Dimensions, TouchableOpacity, Platform, SafeAreaView } from 'react-native';
 import { TabView, SceneMap, TabBar } from 'react-native-tab-view';
 import { useTheme } from '../theme/ThemeProvider';
 import { PlayedCoursesList } from './PlayedCoursesList';
 import { Course } from '../types/review';
+import { usePlayedCourses } from '../context/PlayedCoursesContext';
 
 // Specialized components for each tab
 const WantToPlayList = ({ courses, onCoursePress }: { courses: Course[], onCoursePress: (course: Course) => void }) => {
@@ -21,13 +22,73 @@ interface CourseListTabsProps {
   onCoursePress: (course: Course) => void;
 }
 
-export const CourseListTabs: React.FC<CourseListTabsProps> = ({
+// Export as memoized component to prevent unnecessary re-renders
+export const CourseListTabs: React.FC<CourseListTabsProps> = React.memo(({
   playedCourses,
   wantToPlayCourses,
   recommendedCourses,
   onCoursePress,
 }) => {
   const theme = useTheme();
+  // Access global course state from context
+  const { 
+    playedCourses: globalPlayedCourses,
+    wantToPlayCourses: globalWantToPlayCourses,
+    recommendedCourses: globalRecommendedCourses
+  } = usePlayedCourses();
+  
+  // Add internal state to persist course data
+  const [internalPlayedCourses, setInternalPlayedCourses] = useState<Course[]>([]);
+  const [internalWantToPlayCourses, setInternalWantToPlayCourses] = useState<Course[]>([]);
+  const [internalRecommendedCourses, setInternalRecommendedCourses] = useState<Course[]>([]);
+  
+  // Add lifecycle logging
+  useEffect(() => {
+    console.log('📌 CourseListTabs Mounted');
+    return () => console.log('📌 CourseListTabs Unmounted');
+  }, []);
+  
+  // Update internal state when props change, but ONLY if the new data is not empty
+  useEffect(() => {
+    console.log('🔎 DIAGNOSTIC: CourseListTabs checking received data:', {
+      playedCount: playedCourses?.length || 0,
+      wantToPlayCount: wantToPlayCourses?.length || 0,
+      recommendedCount: recommendedCourses?.length || 0,
+    });
+    
+    // Only update internal state if new data is not empty
+    if (playedCourses && playedCourses.length > 0) {
+      console.log('🔎 DIAGNOSTIC: Updating internal played courses state with', playedCourses.length, 'courses');
+      setInternalPlayedCourses(playedCourses);
+    } else if (globalPlayedCourses && globalPlayedCourses.length > 0) {
+      console.log('🔎 DIAGNOSTIC: Using global played courses with', globalPlayedCourses.length, 'courses');
+      setInternalPlayedCourses(globalPlayedCourses);
+    } else {
+      console.log('🔎 DIAGNOSTIC: Skipping empty played courses update to preserve existing data');
+    }
+    
+    if (wantToPlayCourses && wantToPlayCourses.length > 0) {
+      setInternalWantToPlayCourses(wantToPlayCourses);
+    } else if (globalWantToPlayCourses && globalWantToPlayCourses.length > 0) {
+      setInternalWantToPlayCourses(globalWantToPlayCourses);
+    }
+    
+    if (recommendedCourses && recommendedCourses.length > 0) {
+      setInternalRecommendedCourses(recommendedCourses);
+    } else if (globalRecommendedCourses && globalRecommendedCourses.length > 0) {
+      setInternalRecommendedCourses(globalRecommendedCourses);
+    }
+  }, [playedCourses, wantToPlayCourses, recommendedCourses, globalPlayedCourses, globalWantToPlayCourses, globalRecommendedCourses]);
+  
+  // Debug log when internal state changes
+  useEffect(() => {
+    console.log('🔎 DIAGNOSTIC: CourseListTabs internal state updated:', {
+      internalPlayedCount: internalPlayedCourses?.length || 0,
+      internalWantToPlayCount: internalWantToPlayCourses?.length || 0,
+      internalRecommendedCount: internalRecommendedCourses?.length || 0,
+    });
+  }, [internalPlayedCourses, internalWantToPlayCourses, internalRecommendedCourses]);
+
   const [index, setIndex] = useState(0);
   const [routes] = useState([
     { key: 'played', title: 'Played' },
@@ -47,7 +108,10 @@ export const CourseListTabs: React.FC<CourseListTabsProps> = ({
   // Add ready state to delay TabView initialization
   const [isReady, setIsReady] = useState(false);
   
-  // Force remount key - to help with rerendering after navigation
+  // Add a stable key that doesn't change on every render
+  const stableKey = useRef(`tabs-${Date.now()}`).current;
+  
+  // Force remount key - to help with rerendering after navigation when absolutely necessary
   const [remountKey, setRemountKey] = useState(Date.now());
   
   // Initialize component with a slight delay to ensure proper layout
@@ -71,8 +135,6 @@ export const CourseListTabs: React.FC<CourseListTabsProps> = ({
           width: Dimensions.get('window').width,
           height: Dimensions.get('window').height,
         });
-        // Force tab view to remount with new dimensions
-        setRemountKey(Date.now());
       }
     };
     
@@ -87,36 +149,100 @@ export const CourseListTabs: React.FC<CourseListTabsProps> = ({
     };
   }, []);
   
+  // Optimize renderLazyPlaceholder for better UX during lazy loading
+  const renderLazyPlaceholder = useCallback(() => {
+    return (
+      <View style={{ 
+        flex: 1, 
+        justifyContent: 'center', 
+        alignItems: 'center',
+        backgroundColor: theme.colors.background 
+      }}>
+        <Text style={{ color: theme.colors.textSecondary }}>Loading...</Text>
+      </View>
+    );
+  }, [theme]);
+  
+  // Replace the effect that sets remountKey with a more selective approach
   useEffect(() => {
-    // When props change (like when courses update), force a remount
-    setRemountKey(Date.now());
-  }, [playedCourses, wantToPlayCourses, recommendedCourses]);
+    // Only update the remount key if there's an actual change in data length
+    // This prevents unnecessary remounts when the same data is passed in
+    const shouldRemount = 
+      (playedCourses?.length !== internalPlayedCourses.length) ||
+      (wantToPlayCourses?.length !== internalWantToPlayCourses.length) ||
+      (recommendedCourses?.length !== internalRecommendedCourses.length);
+      
+    if (shouldRemount) {
+      // Limit console logging to reduce performance impact
+      setRemountKey(Date.now());
+    }
+  }, [
+    playedCourses?.length, 
+    wantToPlayCourses?.length, 
+    recommendedCourses?.length,
+    internalPlayedCourses.length,
+    internalWantToPlayCourses.length,
+    internalRecommendedCourses.length
+  ]);
 
-  // Create renderScene function that creates new instances for each tab
-  const renderScene = ({ route }: { route: { key: string } }) => {
+  // Create a simpler custom renderScene that ensures content is rendered immediately
+  const renderScene = useCallback(({ route }: { route: { key: string } }) => {    
+    // Priority: Props > Internal State > Global Context
+    const coursesToRender = {
+      played: (playedCourses && playedCourses.length > 0) 
+        ? playedCourses 
+        : (internalPlayedCourses && internalPlayedCourses.length > 0)
+          ? internalPlayedCourses
+          : globalPlayedCourses,
+          
+      wantToPlay: (wantToPlayCourses && wantToPlayCourses.length > 0)
+        ? wantToPlayCourses
+        : (internalWantToPlayCourses && internalWantToPlayCourses.length > 0)
+          ? internalWantToPlayCourses
+          : globalWantToPlayCourses,
+          
+      recommended: (recommendedCourses && recommendedCourses.length > 0)
+        ? recommendedCourses
+        : (internalRecommendedCourses && internalRecommendedCourses.length > 0)
+          ? internalRecommendedCourses
+          : globalRecommendedCourses,
+    };
+    
     switch (route.key) {
       case 'played':
         return <PlayedCoursesList 
                  key={`played-${remountKey}`} 
-                 courses={playedCourses} 
+                 courses={coursesToRender.played || []} 
                  onCoursePress={onCoursePress} 
                />;
       case 'wantToPlay':
         return <WantToPlayList 
                  key={`wantToPlay-${remountKey}`} 
-                 courses={wantToPlayCourses} 
+                 courses={coursesToRender.wantToPlay || []} 
                  onCoursePress={onCoursePress} 
                />;
       case 'recommended':
         return <RecommendedList 
                  key={`recommended-${remountKey}`} 
-                 courses={recommendedCourses} 
+                 courses={coursesToRender.recommended || []} 
                  onCoursePress={onCoursePress} 
                />;
       default:
-        return null;
+          return null;
     }
-  };
+  }, [
+    playedCourses,
+    wantToPlayCourses,
+    recommendedCourses,
+    internalPlayedCourses,
+    internalWantToPlayCourses,
+    internalRecommendedCourses,
+    globalPlayedCourses,
+    globalWantToPlayCourses,
+    globalRecommendedCourses,
+    onCoursePress,
+    remountKey
+  ]);
 
   const renderTabBar = (props: any) => (
     <View style={styles.tabBarContainer}>
@@ -196,24 +322,30 @@ export const CourseListTabs: React.FC<CourseListTabsProps> = ({
     }
   };
 
-  return (
-    <View style={styles.container} onLayout={onLayout}>
-      {isReady ? (
-        <TabView
-          key={`tabview-${remountKey}`}
-          navigationState={{ index, routes }}
-          renderScene={renderScene}
-          renderTabBar={renderTabBar}
-          onIndexChange={setIndex}
-          initialLayout={{ width: layout.width }}
-          style={styles.tabView}
-          swipeEnabled={true}
-          lazy={true}
-          lazyPreloadDistance={1} // Preload adjacent tabs
-        />
-      ) : (
-        <View style={styles.loadingContainer} />
+  return !isReady ? null : (
+    <View style={{ flex: 1 }} onLayout={onLayout}>
+      {/* Add diagnostic info */}
+      {playedCourses?.length === 0 && (
+        <View style={{ padding: 5, backgroundColor: 'rgba(0,0,0,0.05)' }}>
+          <Text style={{ fontSize: 12, color: 'red' }}>
+            DIAGNOSTIC: No played courses to display. See logs for details.
+          </Text>
+        </View>
       )}
+      
+      <TabView
+        key={stableKey}
+        navigationState={{ index, routes }}
+        renderScene={renderScene}
+        onIndexChange={setIndex}
+        initialLayout={layout}
+        renderTabBar={renderTabBar}
+        lazy={false} // Disable lazy loading completely to ensure first tab shows immediately
+        swipeEnabled={true}
+        style={{
+          backgroundColor: theme.colors.background,
+        }}
+      />
     </View>
   );
-}; 
+}); 
