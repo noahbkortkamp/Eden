@@ -81,10 +81,9 @@ export const PlayedCoursesList = React.memo(({
   }, []);
 
   const getScoreColor = useCallback((score: number) => {
-    if (score >= 8.5) return '#2563eb'; // Blue for excellent scores
-    if (score >= 7.0) return '#3b82f6'; // Lighter blue for good scores
-    if (score >= 5.0) return '#6366f1'; // Indigo for average scores
-    return '#818cf8'; // Light indigo for below average
+    if (score >= 7.0) return '#22c55e'; // Green for good scores (7.0-10.0)
+    if (score >= 3.0) return '#eab308'; // Yellow for average scores (3.0-6.9)
+    return '#ef4444'; // Red for poor scores (0.0-2.9)
   }, []);
 
   // Get screen dimensions for responsive layout - memoize to prevent recalculations
