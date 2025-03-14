@@ -1,7 +1,7 @@
-import { View, Text, StyleSheet, ScrollView, Pressable, TextInput, Image } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, Pressable, TextInput, Image, KeyboardAvoidingView, Platform } from 'react-native';
 import { useFonts, Inter_400Regular, Inter_600SemiBold, Inter_700Bold } from '@expo-google-fonts/inter';
 import { Star, Camera, X, ArrowLeft, Tag, ChevronRight } from 'lucide-react-native';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import * as ImagePicker from 'expo-image-picker';
 import { useRouter } from 'expo-router';
 import { calculateCourseScore, getScoreBreakdown } from '../utils/scoring';
@@ -108,6 +108,7 @@ export default function NewReviewScreen() {
   });
   const [courseScore, setCourseScore] = useState(0);
   const [scoreBreakdown, setScoreBreakdown] = useState<any>(null);
+  const scrollViewRef = useRef<ScrollView>(null);
 
   if (!fontsLoaded) {
     return null;
@@ -171,211 +172,230 @@ export default function NewReviewScreen() {
     }
   }, [rating, comparisonRatings, selectedTags]);
 
+  // Handle text input focus to scroll to the review section
+  const handleReviewFocus = () => {
+    setTimeout(() => {
+      scrollViewRef.current?.scrollToEnd({ animated: true });
+    }, 100);
+  };
+
   return (
     <View style={styles.container}>
-      <View style={styles.header}>
-        <Pressable onPress={() => router.back()} style={styles.backButton}>
-          <ArrowLeft size={24} color="#000" />
-        </Pressable>
-        <Text style={styles.title}>Write a Review</Text>
-      </View>
-
-      <ScrollView style={styles.content}>
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Rating</Text>
-          <View style={styles.ratingContainer}>
-            {[1, 2, 3, 4, 5].map((star) => (
-              <Pressable
-                key={star}
-                onPress={() => setRating(star)}
-                style={styles.starButton}>
-                <Star
-                  size={32}
-                  color={star <= rating ? '#fbbf24' : '#e2e8f0'}
-                  fill={star <= rating ? '#fbbf24' : 'none'}
-                />
-              </Pressable>
-            ))}
-          </View>
-          {rating > 0 && (
-            <View style={styles.scoreContainer}>
-              <Text style={styles.scoreTitle}>Course Score</Text>
-              <View style={styles.scoreDisplay}>
-                <Text style={styles.scoreValue}>{courseScore.toFixed(1)}</Text>
-                <Text style={styles.scoreMax}>/10</Text>
-              </View>
-              {scoreBreakdown && (
-                <View style={styles.breakdownContainer}>
-                  {Object.entries(scoreBreakdown).map(([key, value]: [string, any]) => (
-                    <View key={key} style={styles.breakdownItem}>
-                      <Text style={styles.breakdownLabel}>
-                        {key.charAt(0).toUpperCase() + key.slice(1)}
-                      </Text>
-                      <View style={styles.breakdownBarContainer}>
-                        <View 
-                          style={[
-                            styles.breakdownBar,
-                            { width: `${value.weightedScore * 10}%` }
-                          ]} 
-                        />
-                      </View>
-                      <Text style={styles.breakdownValue}>
-                        {value.score.toFixed(1)}
-                      </Text>
-                    </View>
-                  ))}
-                </View>
-              )}
-            </View>
-          )}
-        </View>
-
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Compare with Previous Reviews</Text>
-          <View style={styles.comparisonContainer}>
-            {Object.entries(comparisonRatings).map(([aspect, value]) => (
-              <View key={aspect} style={styles.comparisonItem}>
-                <Text style={styles.comparisonLabel}>
-                  {aspect.charAt(0).toUpperCase() + aspect.slice(1)}
-                </Text>
-                <View style={styles.comparisonStars}>
-                  {[1, 2, 3, 4, 5].map((star) => (
-                    <Pressable
-                      key={star}
-                      onPress={() => updateComparisonRating(aspect as keyof typeof comparisonRatings, star)}
-                      style={styles.starButton}>
-                      <Star
-                        size={20}
-                        color={star <= value ? '#fbbf24' : '#e2e8f0'}
-                        fill={star <= value ? '#fbbf24' : 'none'}
-                      />
-                    </Pressable>
-                  ))}
-                </View>
-              </View>
-            ))}
-          </View>
-          <View style={styles.previousReviews}>
-            <Text style={styles.previousReviewsTitle}>Your Previous Reviews</Text>
-            {PREVIOUS_REVIEWS.map((review) => (
-              <Pressable key={review.id} style={styles.previousReviewCard}>
-                <View style={styles.previousReviewHeader}>
-                  <View>
-                    <Text style={styles.previousReviewName}>{review.name}</Text>
-                    <Text style={styles.previousReviewDate}>{review.date}</Text>
-                  </View>
-                  <View style={styles.previousReviewRating}>
-                    <Star size={16} color="#fbbf24" fill="#fbbf24" />
-                    <Text style={styles.previousReviewRatingText}>{review.rating}/5</Text>
-                  </View>
-                </View>
-                <View style={styles.previousReviewTags}>
-                  {review.tags.map((tag, index) => (
-                    <View key={index} style={styles.previousReviewTag}>
-                      <Text style={styles.previousReviewTagText}>{tag}</Text>
-                    </View>
-                  ))}
-                </View>
-                <View style={styles.previousReviewComparison}>
-                  {Object.entries(review.comparison).map(([aspect, value]) => (
-                    <View key={aspect} style={styles.previousReviewComparisonItem}>
-                      <Text style={styles.previousReviewComparisonLabel}>
-                        {aspect.charAt(0).toUpperCase() + aspect.slice(1)}
-                      </Text>
-                      <View style={styles.previousReviewComparisonStars}>
-                        {[1, 2, 3, 4, 5].map((star) => (
-                          <Star
-                            key={star}
-                            size={12}
-                            color={star <= value ? '#fbbf24' : '#e2e8f0'}
-                            fill={star <= value ? '#fbbf24' : 'none'}
-                          />
-                        ))}
-                      </View>
-                    </View>
-                  ))}
-                </View>
-              </Pressable>
-            ))}
-          </View>
-        </View>
-
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Course Tags</Text>
-          <ScrollView 
-            horizontal 
-            showsHorizontalScrollIndicator={false}
-            style={styles.categoryScroll}>
-            {Object.keys(COURSE_TAGS).map((category) => (
-              <Pressable
-                key={category}
-                style={[
-                  styles.categoryButton,
-                  activeCategory === category && styles.activeCategoryButton
-                ]}
-                onPress={() => setActiveCategory(category)}>
-                <Text style={[
-                  styles.categoryText,
-                  activeCategory === category && styles.activeCategoryText
-                ]}>
-                  {category.charAt(0).toUpperCase() + category.slice(1)}
-                </Text>
-              </Pressable>
-            ))}
-          </ScrollView>
-          <View style={styles.tagsContainer}>
-            {COURSE_TAGS[activeCategory as keyof typeof COURSE_TAGS].map((tag) => (
-              <Pressable
-                key={tag}
-                style={[
-                  styles.tagButton,
-                  selectedTags.includes(tag) && styles.selectedTagButton
-                ]}
-                onPress={() => toggleTag(tag)}>
-                <Tag size={16} color={selectedTags.includes(tag) ? '#fff' : '#64748b'} />
-                <Text style={[
-                  styles.tagText,
-                  selectedTags.includes(tag) && styles.selectedTagText
-                ]}>
-                  {tag}
-                </Text>
-              </Pressable>
-            ))}
-          </View>
-        </View>
-
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Review</Text>
-          <TextInput
-            style={styles.input}
-            multiline
-            numberOfLines={6}
-            placeholder="Share your experience..."
-            value={content}
-            onChangeText={setContent}
-          />
-        </View>
-
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Photos</Text>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-            <Pressable style={styles.addPhotoButton} onPress={pickImage}>
-              <Camera size={24} color="#64748b" />
-              <Text style={styles.addPhotoText}>Add Photo</Text>
+      <KeyboardAvoidingView 
+        style={{ flex: 1 }} 
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 100 : 20}
+      >
+        <ScrollView 
+          ref={scrollViewRef}
+          style={styles.scrollContainer} 
+          keyboardShouldPersistTaps="handled"
+          keyboardDismissMode="interactive"
+        >
+          <View style={styles.header}>
+            <Pressable onPress={() => router.back()} style={styles.backButton}>
+              <ArrowLeft size={24} color="#000" />
             </Pressable>
-            {images.map((uri, index) => (
-              <View key={index} style={styles.photoContainer}>
-                <Image source={{ uri }} style={styles.photo} />
+            <Text style={styles.title}>Write a Review</Text>
+          </View>
+
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Rating</Text>
+            <View style={styles.ratingContainer}>
+              {[1, 2, 3, 4, 5].map((star) => (
                 <Pressable
-                  style={styles.removePhoto}
-                  onPress={() => removeImage(index)}>
-                  <X size={16} color="#fff" />
+                  key={star}
+                  onPress={() => setRating(star)}
+                  style={styles.starButton}>
+                  <Star
+                    size={32}
+                    color={star <= rating ? '#fbbf24' : '#e2e8f0'}
+                    fill={star <= rating ? '#fbbf24' : 'none'}
+                  />
                 </Pressable>
+              ))}
+            </View>
+            {rating > 0 && (
+              <View style={styles.scoreContainer}>
+                <Text style={styles.scoreTitle}>Course Score</Text>
+                <View style={styles.scoreDisplay}>
+                  <Text style={styles.scoreValue}>{courseScore.toFixed(1)}</Text>
+                  <Text style={styles.scoreMax}>/10</Text>
+                </View>
+                {scoreBreakdown && (
+                  <View style={styles.breakdownContainer}>
+                    {Object.entries(scoreBreakdown).map(([key, value]: [string, any]) => (
+                      <View key={key} style={styles.breakdownItem}>
+                        <Text style={styles.breakdownLabel}>
+                          {key.charAt(0).toUpperCase() + key.slice(1)}
+                        </Text>
+                        <View style={styles.breakdownBarContainer}>
+                          <View 
+                            style={[
+                              styles.breakdownBar,
+                              { width: `${value.weightedScore * 10}%` }
+                            ]} 
+                          />
+                        </View>
+                        <Text style={styles.breakdownValue}>
+                          {value.score.toFixed(1)}
+                        </Text>
+                      </View>
+                    ))}
+                  </View>
+                )}
               </View>
-            ))}
-          </ScrollView>
-        </View>
-      </ScrollView>
+            )}
+          </View>
+
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Compare with Previous Reviews</Text>
+            <View style={styles.comparisonContainer}>
+              {Object.entries(comparisonRatings).map(([aspect, value]) => (
+                <View key={aspect} style={styles.comparisonItem}>
+                  <Text style={styles.comparisonLabel}>
+                    {aspect.charAt(0).toUpperCase() + aspect.slice(1)}
+                  </Text>
+                  <View style={styles.comparisonStars}>
+                    {[1, 2, 3, 4, 5].map((star) => (
+                      <Pressable
+                        key={star}
+                        onPress={() => updateComparisonRating(aspect as keyof typeof comparisonRatings, star)}
+                        style={styles.starButton}>
+                        <Star
+                          size={20}
+                          color={star <= value ? '#fbbf24' : '#e2e8f0'}
+                          fill={star <= value ? '#fbbf24' : 'none'}
+                        />
+                      </Pressable>
+                    ))}
+                  </View>
+                </View>
+              ))}
+            </View>
+            <View style={styles.previousReviews}>
+              <Text style={styles.previousReviewsTitle}>Your Previous Reviews</Text>
+              {PREVIOUS_REVIEWS.map((review) => (
+                <Pressable key={review.id} style={styles.previousReviewCard}>
+                  <View style={styles.previousReviewHeader}>
+                    <View>
+                      <Text style={styles.previousReviewName}>{review.name}</Text>
+                      <Text style={styles.previousReviewDate}>{review.date}</Text>
+                    </View>
+                    <View style={styles.previousReviewRating}>
+                      <Star size={16} color="#fbbf24" fill="#fbbf24" />
+                      <Text style={styles.previousReviewRatingText}>{review.rating}/5</Text>
+                    </View>
+                  </View>
+                  <View style={styles.previousReviewTags}>
+                    {review.tags.map((tag, index) => (
+                      <View key={index} style={styles.previousReviewTag}>
+                        <Text style={styles.previousReviewTagText}>{tag}</Text>
+                      </View>
+                    ))}
+                  </View>
+                  <View style={styles.previousReviewComparison}>
+                    {Object.entries(review.comparison).map(([aspect, value]) => (
+                      <View key={aspect} style={styles.previousReviewComparisonItem}>
+                        <Text style={styles.previousReviewComparisonLabel}>
+                          {aspect.charAt(0).toUpperCase() + aspect.slice(1)}
+                        </Text>
+                        <View style={styles.previousReviewComparisonStars}>
+                          {[1, 2, 3, 4, 5].map((star) => (
+                            <Star
+                              key={star}
+                              size={12}
+                              color={star <= value ? '#fbbf24' : '#e2e8f0'}
+                              fill={star <= value ? '#fbbf24' : 'none'}
+                            />
+                          ))}
+                        </View>
+                      </View>
+                    ))}
+                  </View>
+                </Pressable>
+              ))}
+            </View>
+          </View>
+
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Course Tags</Text>
+            <ScrollView 
+              horizontal 
+              showsHorizontalScrollIndicator={false}
+              style={styles.categoryScroll}>
+              {Object.keys(COURSE_TAGS).map((category) => (
+                <Pressable
+                  key={category}
+                  style={[
+                    styles.categoryButton,
+                    activeCategory === category && styles.activeCategoryButton
+                  ]}
+                  onPress={() => setActiveCategory(category)}>
+                  <Text style={[
+                    styles.categoryText,
+                    activeCategory === category && styles.activeCategoryText
+                  ]}>
+                    {category.charAt(0).toUpperCase() + category.slice(1)}
+                  </Text>
+                </Pressable>
+              ))}
+            </ScrollView>
+            <View style={styles.tagsContainer}>
+              {COURSE_TAGS[activeCategory as keyof typeof COURSE_TAGS].map((tag) => (
+                <Pressable
+                  key={tag}
+                  style={[
+                    styles.tagButton,
+                    selectedTags.includes(tag) && styles.selectedTagButton
+                  ]}
+                  onPress={() => toggleTag(tag)}>
+                  <Tag size={16} color={selectedTags.includes(tag) ? '#fff' : '#64748b'} />
+                  <Text style={[
+                    styles.tagText,
+                    selectedTags.includes(tag) && styles.selectedTagText
+                  ]}>
+                    {tag}
+                  </Text>
+                </Pressable>
+              ))}
+            </View>
+          </View>
+
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Review</Text>
+            <TextInput
+              style={styles.input}
+              multiline
+              numberOfLines={6}
+              placeholder="Share your experience..."
+              value={content}
+              onChangeText={setContent}
+              onFocus={handleReviewFocus}
+            />
+          </View>
+
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Photos</Text>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+              <Pressable style={styles.addPhotoButton} onPress={pickImage}>
+                <Camera size={24} color="#64748b" />
+                <Text style={styles.addPhotoText}>Add Photo</Text>
+              </Pressable>
+              {images.map((uri, index) => (
+                <View key={index} style={styles.photoContainer}>
+                  <Image source={{ uri }} style={styles.photo} />
+                  <Pressable
+                    style={styles.removePhoto}
+                    onPress={() => removeImage(index)}>
+                    <X size={16} color="#fff" />
+                  </Pressable>
+                </View>
+              ))}
+            </ScrollView>
+          </View>
+        </ScrollView>
+      </KeyboardAvoidingView>
 
       <Pressable 
         style={[
@@ -412,7 +432,7 @@ const styles = StyleSheet.create({
     fontFamily: 'Inter-Bold',
     color: '#000',
   },
-  content: {
+  scrollContainer: {
     flex: 1,
   },
   section: {

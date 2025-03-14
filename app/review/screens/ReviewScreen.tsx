@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { View, Text, ScrollView, TouchableOpacity, StyleSheet, ActivityIndicator, TextInput, InputAccessoryView, Keyboard, Platform } from 'react-native';
+import React, { useState, useRef } from 'react';
+import { View, Text, ScrollView, TouchableOpacity, StyleSheet, ActivityIndicator, TextInput, InputAccessoryView, Keyboard, Platform, KeyboardAvoidingView } from 'react-native';
 import { Image } from 'expo-image';
 import { useTheme } from '../../theme/ThemeProvider';
 import { ReviewScreenProps, SentimentRating } from '../../types/review';
@@ -33,6 +33,7 @@ export const ReviewScreen: React.FC<ReviewScreenProps> = ({
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [showTagsModal, setShowTagsModal] = useState(false);
   const [showFavoriteHolesModal, setShowFavoriteHolesModal] = useState(false);
+  const scrollViewRef = useRef<ScrollView>(null);
 
   const handlePhotoUpload = async () => {
     const result = await ImagePicker.launchImageLibraryAsync({
@@ -264,178 +265,198 @@ export const ReviewScreen: React.FC<ReviewScreenProps> = ({
   // Generate a unique ID for the input accessory view
   const inputAccessoryViewID = 'notesInput';
 
+  // Scroll to notes section when focused
+  const handleNotesFocus = () => {
+    // Use a small delay to ensure the keyboard has started to appear
+    setTimeout(() => {
+      scrollViewRef.current?.scrollToEnd({ animated: true });
+    }, 100);
+  };
+
   return (
-    <ScrollView style={styles.container}>
-      {/* Course Header */}
-      <View style={styles.header}>
-        <Text style={styles.courseName}>{course.name}</Text>
-        <Text style={styles.location}>{course.location}</Text>
-      </View>
-
-      {/* Sentiment Rating */}
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>How was your experience?</Text>
-        <View style={styles.sentimentContainer}>
-          {Object.entries(SENTIMENT_ICONS).map(([key, icon]) => (
-            <TouchableOpacity
-              key={key}
-              style={[
-                styles.sentimentButton,
-                rating === key && styles.selectedSentiment,
-              ]}
-              onPress={() => setRating(key as SentimentRating)}
-              disabled={isSubmitting}
-            >
-              <Text style={styles.sentimentIcon}>{icon}</Text>
-              <Text style={styles.sentimentText}>{key}</Text>
-            </TouchableOpacity>
-          ))}
-        </View>
-      </View>
-
-      {/* Tags Section */}
-      <TouchableOpacity 
-        style={styles.section}
-        onPress={() => setShowTagsModal(true)}
-        disabled={isSubmitting}
+    <KeyboardAvoidingView 
+      style={{ flex: 1 }} 
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      keyboardVerticalOffset={Platform.OS === 'ios' ? 100 : 20}
+    >
+      <ScrollView 
+        ref={scrollViewRef}
+        style={styles.container} 
+        keyboardShouldPersistTaps="handled"
+        keyboardDismissMode="interactive"
       >
-        <Text style={styles.sectionTitle}>Tags</Text>
-        <View style={styles.tagsPreview}>
-          <Text style={tags.length > 0 ? styles.tagsText : styles.tagsPlaceholder}>
-            {tags.length > 0 ? getSelectedTagNames() : 'Select course tags'}
-          </Text>
-          <ChevronRight size={20} color={theme.colors.textSecondary} />
+        {/* Course Header */}
+        <View style={styles.header}>
+          <Text style={styles.courseName}>{course.name}</Text>
+          <Text style={styles.location}>{course.location}</Text>
         </View>
-      </TouchableOpacity>
 
-      {/* Favorite Holes Section */}
-      <TouchableOpacity 
-        style={styles.section}
-        onPress={() => setShowFavoriteHolesModal(true)}
-        disabled={isSubmitting}
-      >
-        <Text style={styles.sectionTitle}>Favorite Holes</Text>
-        <View style={styles.favoriteHolesPreview}>
-          <Text style={favoriteHoles.length > 0 ? styles.favoriteHolesText : styles.favoriteHolesPlaceholder}>
-            {favoriteHoles.length > 0 ? getFavoriteHolesPreview() : 'Select your favorite holes'}
-          </Text>
-          <ChevronRight size={20} color={theme.colors.textSecondary} />
-        </View>
-      </TouchableOpacity>
-
-      {/* Notes Section */}
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Notes</Text>
-        <TextInput
-          style={styles.notesInput}
-          placeholder="Write about your experience..."
-          placeholderTextColor={theme.colors.textSecondary}
-          value={notes}
-          onChangeText={setNotes}
-          multiline
-          numberOfLines={4}
-          textAlignVertical="top"
-          editable={!isSubmitting}
-          inputAccessoryViewID={inputAccessoryViewID}
-        />
-      </View>
-
-      {Platform.OS === 'ios' && (
-        <InputAccessoryView nativeID={inputAccessoryViewID}>
-          <View style={styles.keyboardAccessory}>
-            <TouchableOpacity
-              style={styles.doneButton}
-              onPress={() => Keyboard.dismiss()}
-            >
-              <Text style={styles.doneButtonText}>Done</Text>
-            </TouchableOpacity>
+        {/* Sentiment Rating */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>How was your experience?</Text>
+          <View style={styles.sentimentContainer}>
+            {Object.entries(SENTIMENT_ICONS).map(([key, icon]) => (
+              <TouchableOpacity
+                key={key}
+                style={[
+                  styles.sentimentButton,
+                  rating === key && styles.selectedSentiment,
+                ]}
+                onPress={() => setRating(key as SentimentRating)}
+                disabled={isSubmitting}
+              >
+                <Text style={styles.sentimentIcon}>{icon}</Text>
+                <Text style={styles.sentimentText}>{key}</Text>
+              </TouchableOpacity>
+            ))}
           </View>
-        </InputAccessoryView>
-      )}
-
-      {/* Date Played */}
-      <TouchableOpacity
-        style={styles.section}
-        onPress={() => setShowDatePicker(true)}
-        disabled={isSubmitting}
-      >
-        <Text style={styles.sectionTitle}>Date Played</Text>
-        <Text style={styles.sectionContent}>
-          {format(datePlayed, 'MMMM d, yyyy')}
-        </Text>
-      </TouchableOpacity>
-
-      {showDatePicker && (
-        <DateTimePicker
-          value={datePlayed}
-          mode="date"
-          display="default"
-          onChange={(event, selectedDate) => {
-            setShowDatePicker(false);
-            if (selectedDate) {
-              setDatePlayed(selectedDate);
-            }
-          }}
-        />
-      )}
-
-      {/* Photos */}
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Photos</Text>
-        <View style={styles.photoGrid}>
-          {photos.map((photo, index) => (
-            <Image
-              key={index}
-              source={{ uri: photo }}
-              style={styles.photoThumbnail}
-            />
-          ))}
-          {photos.length < 5 && !isSubmitting && (
-            <TouchableOpacity
-              style={styles.addPhotoButton}
-              onPress={handlePhotoUpload}
-            >
-              <Text style={styles.addPhotoText}>+</Text>
-            </TouchableOpacity>
-          )}
         </View>
-      </View>
 
-      {/* Error Message */}
-      {error && (
-        <Text style={styles.errorText}>{error}</Text>
-      )}
+        {/* Tags Section */}
+        <TouchableOpacity 
+          style={styles.section}
+          onPress={() => setShowTagsModal(true)}
+          disabled={isSubmitting}
+        >
+          <Text style={styles.sectionTitle}>Tags</Text>
+          <View style={styles.tagsPreview}>
+            <Text style={tags.length > 0 ? styles.tagsText : styles.tagsPlaceholder}>
+              {tags.length > 0 ? getSelectedTagNames() : 'Select course tags'}
+            </Text>
+            <ChevronRight size={20} color={theme.colors.textSecondary} />
+          </View>
+        </TouchableOpacity>
 
-      {/* Submit Button */}
-      <TouchableOpacity
-        style={[
-          styles.submitButton, 
-          (!rating || isSubmitting) && styles.submitButtonDisabled
-        ]}
-        onPress={handleSubmit}
-        disabled={!rating || isSubmitting}
-      >
-        <Text style={styles.submitButtonText}>Submit Review</Text>
-        {isSubmitting && <ActivityIndicator color={theme.colors.background} />}
-      </TouchableOpacity>
+        {/* Favorite Holes Section */}
+        <TouchableOpacity 
+          style={styles.section}
+          onPress={() => setShowFavoriteHolesModal(true)}
+          disabled={isSubmitting}
+        >
+          <Text style={styles.sectionTitle}>Favorite Holes</Text>
+          <View style={styles.favoriteHolesPreview}>
+            <Text style={favoriteHoles.length > 0 ? styles.favoriteHolesText : styles.favoriteHolesPlaceholder}>
+              {favoriteHoles.length > 0 ? getFavoriteHolesPreview() : 'Select your favorite holes'}
+            </Text>
+            <ChevronRight size={20} color={theme.colors.textSecondary} />
+          </View>
+        </TouchableOpacity>
 
-      <TagSelectionModal
-        visible={showTagsModal}
-        onClose={() => setShowTagsModal(false)}
-        onSave={handleTagsSave}
-        selectedTags={tags.map(tagName => {
-          const allTags = Object.values(TAGS_BY_CATEGORY).flat();
-          return allTags.find(t => t.name === tagName)!;
-        }).filter(Boolean)}
-      />
+        {/* Notes Section */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Notes</Text>
+          <TextInput
+            style={styles.notesInput}
+            placeholder="Write about your experience..."
+            placeholderTextColor={theme.colors.textSecondary}
+            value={notes}
+            onChangeText={setNotes}
+            multiline
+            numberOfLines={4}
+            textAlignVertical="top"
+            editable={!isSubmitting}
+            inputAccessoryViewID={inputAccessoryViewID}
+            onFocus={handleNotesFocus}
+          />
+        </View>
 
-      <FavoriteHolesModal
-        visible={showFavoriteHolesModal}
-        onClose={() => setShowFavoriteHolesModal(false)}
-        onSave={setFavoriteHoles}
-        selectedHoles={favoriteHoles}
-        totalHoles={18}
-      />
-    </ScrollView>
+        {Platform.OS === 'ios' && (
+          <InputAccessoryView nativeID={inputAccessoryViewID}>
+            <View style={styles.keyboardAccessory}>
+              <TouchableOpacity
+                style={styles.doneButton}
+                onPress={() => Keyboard.dismiss()}
+              >
+                <Text style={styles.doneButtonText}>Done</Text>
+              </TouchableOpacity>
+            </View>
+          </InputAccessoryView>
+        )}
+
+        {/* Date Played */}
+        <TouchableOpacity
+          style={styles.section}
+          onPress={() => setShowDatePicker(true)}
+          disabled={isSubmitting}
+        >
+          <Text style={styles.sectionTitle}>Date Played</Text>
+          <Text style={styles.sectionContent}>
+            {format(datePlayed, 'MMMM d, yyyy')}
+          </Text>
+        </TouchableOpacity>
+
+        {showDatePicker && (
+          <DateTimePicker
+            value={datePlayed}
+            mode="date"
+            display="default"
+            onChange={(event, selectedDate) => {
+              setShowDatePicker(false);
+              if (selectedDate) {
+                setDatePlayed(selectedDate);
+              }
+            }}
+          />
+        )}
+
+        {/* Photos */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Photos</Text>
+          <View style={styles.photoGrid}>
+            {photos.map((photo, index) => (
+              <Image
+                key={index}
+                source={{ uri: photo }}
+                style={styles.photoThumbnail}
+              />
+            ))}
+            {photos.length < 5 && !isSubmitting && (
+              <TouchableOpacity
+                style={styles.addPhotoButton}
+                onPress={handlePhotoUpload}
+              >
+                <Text style={styles.addPhotoText}>+</Text>
+              </TouchableOpacity>
+            )}
+          </View>
+        </View>
+
+        {/* Error Message */}
+        {error && (
+          <Text style={styles.errorText}>{error}</Text>
+        )}
+
+        {/* Submit Button */}
+        <TouchableOpacity
+          style={[
+            styles.submitButton, 
+            (!rating || isSubmitting) && styles.submitButtonDisabled
+          ]}
+          onPress={handleSubmit}
+          disabled={!rating || isSubmitting}
+        >
+          <Text style={styles.submitButtonText}>Submit Review</Text>
+          {isSubmitting && <ActivityIndicator color={theme.colors.background} />}
+        </TouchableOpacity>
+
+        <TagSelectionModal
+          visible={showTagsModal}
+          onClose={() => setShowTagsModal(false)}
+          onSave={handleTagsSave}
+          selectedTags={tags.map(tagName => {
+            const allTags = Object.values(TAGS_BY_CATEGORY).flat();
+            return allTags.find(t => t.name === tagName)!;
+          }).filter(Boolean)}
+        />
+
+        <FavoriteHolesModal
+          visible={showFavoriteHolesModal}
+          onClose={() => setShowFavoriteHolesModal(false)}
+          onSave={setFavoriteHoles}
+          selectedHoles={favoriteHoles}
+          totalHoles={18}
+        />
+      </ScrollView>
+    </KeyboardAvoidingView>
   );
 }; 

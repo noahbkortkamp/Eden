@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useRef } from 'react';
 import {
   View,
   Text,
@@ -11,6 +11,7 @@ import {
   InputAccessoryView,
   Keyboard,
   Platform,
+  KeyboardAvoidingView,
 } from 'react-native';
 import { useTheme } from '../../theme/ThemeProvider';
 import { X } from 'lucide-react-native';
@@ -37,6 +38,7 @@ export const FavoriteHolesModal: React.FC<FavoriteHolesModalProps> = ({
 }) => {
   const theme = useTheme();
   const [localSelectedHoles, setLocalSelectedHoles] = React.useState<FavoriteHole[]>(selectedHoles);
+  const scrollViewRef = useRef<ScrollView>(null);
 
   // Generate a unique ID for the input accessory view
   const inputAccessoryViewID = 'holeReasonInput';
@@ -66,6 +68,21 @@ export const FavoriteHolesModal: React.FC<FavoriteHolesModalProps> = ({
   const handleSave = () => {
     onSave(localSelectedHoles);
     onClose();
+  };
+
+  // Handle text input focus to scroll to the focused input
+  const handleReasonFocus = (holeNumber: number) => {
+    setTimeout(() => {
+      // Find the index of the hole in the sorted array
+      const sortedHoles = [...localSelectedHoles].sort((a, b) => a.number - b.number);
+      const index = sortedHoles.findIndex(h => h.number === holeNumber);
+      if (index > -1 && scrollViewRef.current) {
+        scrollViewRef.current.scrollTo({
+          y: index * 150, // Approximate height of each reason item plus some margin
+          animated: true
+        });
+      }
+    }, 100);
   };
 
   const styles = StyleSheet.create({
@@ -188,87 +205,94 @@ export const FavoriteHolesModal: React.FC<FavoriteHolesModalProps> = ({
     <Modal
       visible={visible}
       animationType="slide"
-      presentationStyle="pageSheet"
+      onRequestClose={onClose}
     >
-      <SafeAreaView style={styles.modalContainer}>
-        <View style={styles.header}>
-          <Text style={styles.headerTitle}>Select Favorite Holes</Text>
-          <TouchableOpacity style={styles.closeButton} onPress={onClose}>
-            <X size={24} color={theme.colors.text} />
-          </TouchableOpacity>
-        </View>
-        
-        <ScrollView style={styles.content}>
-          {/* Hole Selection Grid */}
-          <View style={styles.holesGrid}>
-            {Array.from({ length: totalHoles }, (_, i) => i + 1).map((holeNumber) => {
-              const isSelected = localSelectedHoles.some((h) => h.number === holeNumber);
-              return (
+      <SafeAreaView style={{ flex: 1 }}>
+        <KeyboardAvoidingView 
+          style={{ flex: 1 }} 
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          keyboardVerticalOffset={Platform.OS === 'ios' ? 20 : 0}
+        >
+          <View style={styles.header}>
+            <Text style={styles.headerTitle}>Select Favorite Holes</Text>
+            <TouchableOpacity style={styles.closeButton} onPress={onClose}>
+              <X size={24} color={theme.colors.text} />
+            </TouchableOpacity>
+          </View>
+          
+          <ScrollView style={styles.content} keyboardShouldPersistTaps="handled" ref={scrollViewRef}>
+            {/* Hole Selection Grid */}
+            <View style={styles.holesGrid}>
+              {Array.from({ length: totalHoles }, (_, i) => i + 1).map((holeNumber) => {
+                const isSelected = localSelectedHoles.some((h) => h.number === holeNumber);
+                return (
+                  <TouchableOpacity
+                    key={holeNumber}
+                    style={[
+                      styles.holeButton,
+                      isSelected && styles.holeButtonSelected,
+                    ]}
+                    onPress={() => toggleHole(holeNumber)}
+                  >
+                    <Text style={[
+                      styles.holeNumber,
+                      isSelected && styles.holeNumberSelected,
+                    ]}>
+                      {holeNumber}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+
+            {/* Reasons Section */}
+            {localSelectedHoles.length > 0 && (
+              <View style={styles.reasonsContainer}>
+                <Text style={styles.reasonsTitle}>Why are these your favorite holes?</Text>
+                {localSelectedHoles
+                  .sort((a, b) => a.number - b.number)
+                  .map((hole) => (
+                    <View key={hole.number} style={styles.reasonItem}>
+                      <View style={styles.reasonHeader}>
+                        <Text style={styles.reasonHoleNumber}>Hole {hole.number}</Text>
+                      </View>
+                      <TextInput
+                        style={styles.reasonInput}
+                        placeholder="What makes this hole special?"
+                        placeholderTextColor={theme.colors.textSecondary}
+                        value={hole.reason}
+                        onChangeText={(text) => updateHoleReason(hole.number, text)}
+                        multiline
+                        inputAccessoryViewID={inputAccessoryViewID}
+                        onFocus={() => handleReasonFocus(hole.number)}
+                      />
+                    </View>
+                  ))}
+              </View>
+            )}
+          </ScrollView>
+
+          {Platform.OS === 'ios' && (
+            <InputAccessoryView nativeID={inputAccessoryViewID}>
+              <View style={[styles.keyboardAccessory, { backgroundColor: theme.colors.surface }]}>
                 <TouchableOpacity
-                  key={holeNumber}
-                  style={[
-                    styles.holeButton,
-                    isSelected && styles.holeButtonSelected,
-                  ]}
-                  onPress={() => toggleHole(holeNumber)}
+                  style={styles.doneButton}
+                  onPress={() => Keyboard.dismiss()}
                 >
-                  <Text style={[
-                    styles.holeNumber,
-                    isSelected && styles.holeNumberSelected,
-                  ]}>
-                    {holeNumber}
+                  <Text style={[styles.doneButtonText, { color: theme.colors.primary }]}>
+                    Done
                   </Text>
                 </TouchableOpacity>
-              );
-            })}
-          </View>
-
-          {/* Reasons Section */}
-          {localSelectedHoles.length > 0 && (
-            <View style={styles.reasonsContainer}>
-              <Text style={styles.reasonsTitle}>Why are these your favorite holes?</Text>
-              {localSelectedHoles
-                .sort((a, b) => a.number - b.number)
-                .map((hole) => (
-                  <View key={hole.number} style={styles.reasonItem}>
-                    <View style={styles.reasonHeader}>
-                      <Text style={styles.reasonHoleNumber}>Hole {hole.number}</Text>
-                    </View>
-                    <TextInput
-                      style={styles.reasonInput}
-                      placeholder="What makes this hole special?"
-                      placeholderTextColor={theme.colors.textSecondary}
-                      value={hole.reason}
-                      onChangeText={(text) => updateHoleReason(hole.number, text)}
-                      multiline
-                      inputAccessoryViewID={inputAccessoryViewID}
-                    />
-                  </View>
-                ))}
-            </View>
+              </View>
+            </InputAccessoryView>
           )}
-        </ScrollView>
-
-        {Platform.OS === 'ios' && (
-          <InputAccessoryView nativeID={inputAccessoryViewID}>
-            <View style={[styles.keyboardAccessory, { backgroundColor: theme.colors.surface }]}>
-              <TouchableOpacity
-                style={styles.doneButton}
-                onPress={() => Keyboard.dismiss()}
-              >
-                <Text style={[styles.doneButtonText, { color: theme.colors.primary }]}>
-                  Done
-                </Text>
-              </TouchableOpacity>
-            </View>
-          </InputAccessoryView>
-        )}
-
-        <TouchableOpacity style={styles.saveButton} onPress={handleSave}>
-          <Text style={styles.saveButtonText}>
-            Save Favorite Holes ({localSelectedHoles.length})
-          </Text>
-        </TouchableOpacity>
+          
+          <TouchableOpacity style={styles.saveButton} onPress={handleSave}>
+            <Text style={styles.saveButtonText}>
+              Save Favorite Holes ({localSelectedHoles.length})
+            </Text>
+          </TouchableOpacity>
+        </KeyboardAvoidingView>
       </SafeAreaView>
     </Modal>
   );
