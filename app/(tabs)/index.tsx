@@ -1,14 +1,19 @@
-import { View, Text, StyleSheet, ScrollView, Image, Pressable, TextInput, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, Image, Pressable, TextInput, ActivityIndicator, Modal } from 'react-native';
 import { useRouter } from 'expo-router';
-import { Search, MapPin, X, Trophy, Bell, Menu } from 'lucide-react-native';
+import { Search, MapPin, X, Trophy, Bell, Menu, Users, TrendingUp } from 'lucide-react-native';
 import { useFonts, Inter_400Regular, Inter_600SemiBold, Inter_700Bold } from '@expo-google-fonts/inter';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useState, useEffect } from 'react';
 import * as Location from 'expo-location';
 import { searchCourses, getNearbyCoursesWithinRadius } from '../utils/courses';
 import { Database } from '../utils/database.types';
+import { UserSearch } from '../components/UserSearch';
+import { FriendsReviewsFeed } from '../components/FriendsReviewsFeed';
 
 type Course = Database['public']['Tables']['courses']['Row'];
+
+// Define tab types for the feed
+type FeedTab = 'top-rated' | 'friends' | 'trending';
 
 export default function HomeScreen() {
   const router = useRouter();
@@ -22,6 +27,8 @@ export default function HomeScreen() {
   const [courses, setCourses] = useState<Course[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState<FeedTab>('top-rated');
+  const [showUserSearch, setShowUserSearch] = useState(false);
 
   useEffect(() => {
     loadNearbyCourses();
@@ -72,6 +79,19 @@ export default function HomeScreen() {
     }
   };
 
+  const handleTabChange = (tab: FeedTab) => {
+    setActiveTab(tab);
+    
+    // If switching to "Friends" tab and search is shown, hide it
+    if (tab === 'friends' && showUserSearch) {
+      setShowUserSearch(false);
+    }
+  };
+
+  const handleFindFriendsPress = () => {
+    setShowUserSearch(true);
+  };
+
   if (!fontsLoaded) {
     return null;
   }
@@ -111,87 +131,141 @@ export default function HomeScreen() {
         horizontal 
         showsHorizontalScrollIndicator={false}
         contentContainerStyle={styles.filterContainer}>
-        <Pressable style={[styles.filterPill, styles.activeFilter]}>
-          <Trophy size={16} color="#2563eb" />
-          <Text style={styles.activeFilterText}>Top Rated</Text>
+        <Pressable 
+          style={[
+            styles.filterPill, 
+            activeTab === 'top-rated' && styles.activeFilter
+          ]}
+          onPress={() => handleTabChange('top-rated')}
+        >
+          <Trophy size={16} color={activeTab === 'top-rated' ? "#2563eb" : "#64748b"} />
+          <Text 
+            style={activeTab === 'top-rated' ? styles.activeFilterText : styles.filterText}
+          >
+            Top Rated
+          </Text>
         </Pressable>
-        <Pressable style={styles.filterPill}>
-          <Text style={styles.filterText}>Trending</Text>
+
+        <Pressable 
+          style={[
+            styles.filterPill, 
+            activeTab === 'friends' && styles.activeFilter
+          ]}
+          onPress={() => handleTabChange('friends')}
+        >
+          <Users size={16} color={activeTab === 'friends' ? "#2563eb" : "#64748b"} />
+          <Text 
+            style={activeTab === 'friends' ? styles.activeFilterText : styles.filterText}
+          >
+            Friends
+          </Text>
         </Pressable>
-        <Pressable style={styles.filterPill}>
-          <Text style={styles.filterText}>Friend Recs</Text>
+
+        <Pressable 
+          style={[
+            styles.filterPill, 
+            activeTab === 'trending' && styles.activeFilter
+          ]}
+          onPress={() => handleTabChange('trending')}
+        >
+          <TrendingUp size={16} color={activeTab === 'trending' ? "#2563eb" : "#64748b"} />
+          <Text 
+            style={activeTab === 'trending' ? styles.activeFilterText : styles.filterText}
+          >
+            Trending
+          </Text>
         </Pressable>
       </ScrollView>
 
-      <ScrollView style={styles.content}>
-        {/* Featured Courses */}
-        <View style={styles.section}>
-          <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>Featured Courses</Text>
-            <Text style={styles.seeAll}>See All</Text>
+      {/* Main Content */}
+      {activeTab === 'friends' ? (
+        // Friends Reviews Feed
+        <View style={styles.friendsFeedContainer}>
+          <FriendsReviewsFeed onFindFriendsPress={handleFindFriendsPress} />
+        </View>
+      ) : (
+        // Default feed for Top Rated and Trending
+        <ScrollView style={styles.content}>
+          {/* Featured Courses */}
+          <View style={styles.section}>
+            <View style={styles.sectionHeader}>
+              <Text style={styles.sectionTitle}>Featured Courses</Text>
+              <Text style={styles.seeAll}>See All</Text>
+            </View>
+
+            <ScrollView 
+              horizontal 
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.featuredContainer}>
+              <Pressable style={styles.featuredCard}>
+                <Image 
+                  source={{ uri: 'https://images.unsplash.com/photo-1587174486073-ae5e5cff23aa?q=80&w=3270&auto=format&fit=crop' }}
+                  style={styles.featuredImage}
+                />
+                <LinearGradient
+                  colors={['transparent', 'rgba(0,0,0,0.8)']}
+                  style={styles.gradient}>
+                  <Text style={styles.featuredTitle}>Top 10 Public Courses</Text>
+                  <Text style={styles.featuredSubtitle}>You've played 3 of 10</Text>
+                </LinearGradient>
+              </Pressable>
+              <Pressable style={styles.featuredCard}>
+                <Image 
+                  source={{ uri: 'https://images.unsplash.com/photo-1600740288397-83cae0357539?q=80&w=3270&auto=format&fit=crop' }}
+                  style={styles.featuredImage}
+                />
+                <LinearGradient
+                  colors={['transparent', 'rgba(0,0,0,0.8)']}
+                  style={styles.gradient}>
+                  <Text style={styles.featuredTitle}>Best Value Courses</Text>
+                  <Text style={styles.featuredSubtitle}>Under $60 green fees</Text>
+                </LinearGradient>
+              </Pressable>
+            </ScrollView>
           </View>
 
-          <ScrollView 
-            horizontal 
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.featuredContainer}>
-            <Pressable style={styles.featuredCard}>
-              <Image 
-                source={{ uri: 'https://images.unsplash.com/photo-1587174486073-ae5e5cff23aa?q=80&w=3270&auto=format&fit=crop' }}
-                style={styles.featuredImage}
-              />
-              <LinearGradient
-                colors={['transparent', 'rgba(0,0,0,0.8)']}
-                style={styles.gradient}>
-                <Text style={styles.featuredTitle}>Top 10 Public Courses</Text>
-                <Text style={styles.featuredSubtitle}>You've played 3 of 10</Text>
-              </LinearGradient>
-            </Pressable>
-            <Pressable style={styles.featuredCard}>
-              <Image 
-                source={{ uri: 'https://images.unsplash.com/photo-1600740288397-83cae0357539?q=80&w=3270&auto=format&fit=crop' }}
-                style={styles.featuredImage}
-              />
-              <LinearGradient
-                colors={['transparent', 'rgba(0,0,0,0.8)']}
-                style={styles.gradient}>
-                <Text style={styles.featuredTitle}>Best Value Courses</Text>
-                <Text style={styles.featuredSubtitle}>Under $60 green fees</Text>
-              </LinearGradient>
-            </Pressable>
-          </ScrollView>
-        </View>
+          {/* Course List */}
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>
+              {activeTab === 'top-rated' ? 'Top Rated Courses' : 'Trending Courses'}
+            </Text>
+            {loading ? (
+              <ActivityIndicator style={styles.loader} color="#2563eb" />
+            ) : error ? (
+              <Text style={styles.errorText}>{error}</Text>
+            ) : (
+              <View style={styles.courseList}>
+                {courses.map((course) => (
+                  <Pressable 
+                    key={course.id} 
+                    style={styles.courseItem}
+                    onPress={() => router.push({
+                      pathname: '/(modals)/course-details',
+                      params: { courseId: course.id }
+                    })}>
+                    <View style={styles.courseInfo}>
+                      <Text style={styles.courseName}>{course.name}</Text>
+                      <Text style={styles.courseLocation}>{course.location}</Text>
+                    </View>
+                    <View style={styles.ratingBadge}>
+                      <Text style={styles.ratingText}>{(course.rating ?? 0).toFixed(1)}</Text>
+                    </View>
+                  </Pressable>
+                ))}
+              </View>
+            )}
+          </View>
+        </ScrollView>
+      )}
 
-        {/* Course List */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Nearby Courses</Text>
-          {loading ? (
-            <ActivityIndicator style={styles.loader} color="#2563eb" />
-          ) : error ? (
-            <Text style={styles.errorText}>{error}</Text>
-          ) : (
-            <View style={styles.courseList}>
-              {courses.map((course) => (
-                <Pressable 
-                  key={course.id} 
-                  style={styles.courseItem}
-                  onPress={() => router.push({
-                    pathname: '/(modals)/course-details',
-                    params: { courseId: course.id }
-                  })}>
-                  <View style={styles.courseInfo}>
-                    <Text style={styles.courseName}>{course.name}</Text>
-                    <Text style={styles.courseLocation}>{course.location}</Text>
-                  </View>
-                  <View style={styles.ratingBadge}>
-                    <Text style={styles.ratingText}>{(course.rating ?? 0).toFixed(1)}</Text>
-                  </View>
-                </Pressable>
-              ))}
-            </View>
-          )}
-        </View>
-      </ScrollView>
+      {/* User Search Modal */}
+      <Modal
+        visible={showUserSearch}
+        animationType="slide"
+        onRequestClose={() => setShowUserSearch(false)}
+      >
+        <UserSearch onClose={() => setShowUserSearch(false)} />
+      </Modal>
     </View>
   );
 }
@@ -208,98 +282,111 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingTop: 60,
     paddingBottom: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#f1f5f9',
+    backgroundColor: '#fff',
   },
   logo: {
-    fontFamily: 'Inter-Bold',
     fontSize: 24,
+    fontFamily: 'Inter-Bold',
     color: '#000',
   },
   headerIcons: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 16,
   },
   icon: {
-    marginRight: 8,
+    marginRight: 16,
   },
   searchContainer: {
     padding: 16,
-    gap: 8,
+    backgroundColor: '#fff',
   },
   searchBar: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: '#f1f5f9',
-    padding: 12,
-    borderRadius: 12,
-    gap: 8,
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    marginBottom: 8,
   },
   searchInput: {
     flex: 1,
+    marginLeft: 8,
     fontSize: 16,
     fontFamily: 'Inter-Regular',
+    color: '#000',
   },
   locationBar: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: '#f1f5f9',
-    padding: 12,
-    borderRadius: 12,
-    gap: 8,
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
   },
   locationText: {
     flex: 1,
-    fontSize: 16,
+    marginLeft: 8,
+    fontSize: 14,
     fontFamily: 'Inter-Regular',
-    color: '#000',
+    color: '#64748b',
   },
   clearIcon: {
     padding: 4,
   },
   filterContainer: {
     paddingHorizontal: 16,
+    paddingVertical: 8,
     gap: 8,
-    marginBottom: 16,
+    backgroundColor: '#fff',
   },
   filterPill: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingVertical: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
     borderRadius: 20,
-    backgroundColor: '#f1f5f9',
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
     marginRight: 8,
-    gap: 6,
   },
   activeFilter: {
     backgroundColor: '#eff6ff',
+    borderColor: '#bfdbfe',
   },
   filterText: {
     fontSize: 14,
-    fontFamily: 'Inter-SemiBold',
+    fontFamily: 'Inter-Regular',
     color: '#64748b',
+    marginLeft: 4,
   },
   activeFilterText: {
     fontSize: 14,
     fontFamily: 'Inter-SemiBold',
     color: '#2563eb',
+    marginLeft: 4,
   },
   content: {
     flex: 1,
+    backgroundColor: '#f8fafc',
   },
   section: {
     marginBottom: 24,
+    backgroundColor: '#fff',
+    paddingVertical: 16,
   },
   sectionHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     paddingHorizontal: 16,
-    marginBottom: 16,
+    marginBottom: 12,
   },
   sectionTitle: {
     fontSize: 18,
-    fontFamily: 'Inter-Bold',
+    fontFamily: 'Inter-SemiBold',
     color: '#000',
   },
   seeAll: {
@@ -308,15 +395,15 @@ const styles = StyleSheet.create({
     color: '#2563eb',
   },
   featuredContainer: {
-    paddingHorizontal: 16,
-    gap: 16,
+    paddingLeft: 16,
+    gap: 12,
   },
   featuredCard: {
     width: 280,
     height: 160,
-    borderRadius: 16,
+    borderRadius: 12,
     overflow: 'hidden',
-    marginRight: 16,
+    marginRight: 12,
   },
   featuredImage: {
     width: '100%',
@@ -324,21 +411,23 @@ const styles = StyleSheet.create({
   },
   gradient: {
     position: 'absolute',
-    bottom: 0,
     left: 0,
     right: 0,
+    bottom: 0,
     padding: 16,
+    height: '50%',
+    justifyContent: 'flex-end',
   },
   featuredTitle: {
-    fontSize: 18,
+    fontSize: 16,
     fontFamily: 'Inter-Bold',
     color: '#fff',
+    marginBottom: 4,
   },
   featuredSubtitle: {
-    fontSize: 14,
+    fontSize: 12,
     fontFamily: 'Inter-Regular',
     color: '#e2e8f0',
-    marginTop: 4,
   },
   courseList: {
     paddingHorizontal: 16,
@@ -347,9 +436,9 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingVertical: 16,
+    paddingVertical: 12,
     borderBottomWidth: 1,
-    borderBottomColor: '#e2e8f0',
+    borderBottomColor: '#f1f5f9',
   },
   courseInfo: {
     flex: 1,
@@ -366,24 +455,29 @@ const styles = StyleSheet.create({
     color: '#64748b',
   },
   ratingBadge: {
-    backgroundColor: '#f0fdf4',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 12,
+    backgroundColor: '#eff6ff',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   ratingText: {
     fontSize: 14,
-    fontFamily: 'Inter-Bold',
-    color: '#16a34a',
+    fontFamily: 'Inter-SemiBold',
+    color: '#2563eb',
   },
   loader: {
-    marginTop: 20,
-    alignSelf: 'center',
+    marginTop: 24,
   },
   errorText: {
-    color: '#ef4444',
     textAlign: 'center',
-    marginTop: 20,
-    fontFamily: 'Inter-Regular',
+    marginTop: 24,
+    color: '#ef4444',
+    paddingHorizontal: 16,
+  },
+  friendsFeedContainer: {
+    flex: 1,
+    backgroundColor: '#f8fafc',
   },
 });
