@@ -32,6 +32,7 @@ export const FriendsReviewsFeed: React.FC<FriendsReviewsFeedProps> = ({ onFindFr
     if (!user) return;
     
     const currentPage = refresh ? 1 : page;
+    const pageSize = 10;
     
     if (refresh) {
       setLoading(true);
@@ -56,7 +57,12 @@ export const FriendsReviewsFeed: React.FC<FriendsReviewsFeedProps> = ({ onFindFr
         }
       }
       
-      const newReviews = await getFriendsReviews(user.id, currentPage);
+      const newReviews = await getFriendsReviews(user.id, currentPage, pageSize);
+      console.log(`Loaded ${newReviews.length} reviews for page ${currentPage}`);
+      
+      // Check if we've reached the end
+      const hasMoreReviews = newReviews.length > 0 && newReviews.length >= pageSize;
+      setHasMore(hasMoreReviews);
       
       if (refresh || currentPage === 1) {
         setReviews(newReviews);
@@ -69,8 +75,6 @@ export const FriendsReviewsFeed: React.FC<FriendsReviewsFeedProps> = ({ onFindFr
       } else {
         setReviews(prev => [...prev, ...newReviews]);
       }
-      
-      setHasMore(newReviews.length > 0);
       
       if (refresh || currentPage === 1) {
         setPage(1);
@@ -153,7 +157,9 @@ export const FriendsReviewsFeed: React.FC<FriendsReviewsFeedProps> = ({ onFindFr
   
   // Function to handle "load more" when reaching the end of the list
   const handleLoadMore = () => {
+    console.log(`Handle load more called. hasMore: ${hasMore}, isLoadingMore: ${isLoadingMore}`);
     if (!isLoadingMore && hasMore) {
+      console.log('Loading more reviews...');
       fetchReviews();
     }
   };
@@ -173,7 +179,7 @@ export const FriendsReviewsFeed: React.FC<FriendsReviewsFeedProps> = ({ onFindFr
   
   if (loading && !refreshing && !isLoadingMore) {
     return (
-      <View style={[styles.loadingContainer, { backgroundColor: theme.colors.background }]}>
+      <View style={[styles.fillContainer, styles.loadingContainer, { backgroundColor: theme.colors.background }]}>
         <ActivityIndicator size="large" color={theme.colors.primary} />
       </View>
     );
@@ -181,7 +187,7 @@ export const FriendsReviewsFeed: React.FC<FriendsReviewsFeedProps> = ({ onFindFr
   
   if (error) {
     return (
-      <View style={[styles.errorContainer, { backgroundColor: theme.colors.background }]}>
+      <View style={[styles.fillContainer, styles.errorContainer, { backgroundColor: theme.colors.background }]}>
         <Text style={[styles.errorText, { color: theme.colors.error }]}>{error}</Text>
         <TouchableOpacity 
           style={[styles.retryButton, { backgroundColor: theme.colors.primary }]} 
@@ -195,7 +201,7 @@ export const FriendsReviewsFeed: React.FC<FriendsReviewsFeedProps> = ({ onFindFr
   
   if (reviews.length === 0 && !loading) {
     return (
-      <View style={[styles.emptyContainer, { backgroundColor: theme.colors.background }]}>
+      <View style={[styles.fillContainer, styles.emptyContainer, { backgroundColor: theme.colors.background }]}>
         <Users size={48} color={theme.colors.textSecondary} />
         <Text style={[styles.emptyTitle, { color: theme.colors.text }]}>
           No Friend Reviews Yet
@@ -226,13 +232,24 @@ export const FriendsReviewsFeed: React.FC<FriendsReviewsFeedProps> = ({ onFindFr
       )}
       keyExtractor={item => item.id}
       contentContainerStyle={styles.container}
+      style={styles.flatList}
       onEndReached={handleLoadMore}
-      onEndReachedThreshold={0.3}
+      onEndReachedThreshold={0.5}
       refreshing={refreshing}
       onRefresh={handleRefresh}
+      showsVerticalScrollIndicator={false}
       ListFooterComponent={
         isLoadingMore ? (
           <ActivityIndicator size="small" color={theme.colors.primary} style={styles.loadMoreIndicator} />
+        ) : hasMore ? (
+          <TouchableOpacity 
+            style={styles.loadMoreButton} 
+            onPress={handleLoadMore}
+          >
+            <Text style={styles.loadMoreText}>Load More</Text>
+          </TouchableOpacity>
+        ) : reviews.length > 0 ? (
+          <Text style={styles.endOfListText}>You've reached the end</Text>
         ) : null
       }
     />
@@ -241,7 +258,13 @@ export const FriendsReviewsFeed: React.FC<FriendsReviewsFeedProps> = ({ onFindFr
 
 const styles = StyleSheet.create({
   container: {
-    padding: 16,
+    padding: 8,
+    paddingBottom: 20,
+    flexGrow: 1,
+  },
+  flatList: {
+    flex: 1,
+    marginTop: 2, // Small margin to create slight separation from tabs
   },
   loadingContainer: {
     flex: 1,
@@ -271,9 +294,10 @@ const styles = StyleSheet.create({
   },
   emptyContainer: {
     flex: 1,
-    justifyContent: 'center',
+    justifyContent: 'flex-start',
     alignItems: 'center',
     padding: 16,
+    paddingTop: 40,
   },
   emptyTitle: {
     fontSize: 18,
@@ -298,5 +322,27 @@ const styles = StyleSheet.create({
   },
   loadMoreIndicator: {
     marginVertical: 16,
+  },
+  loadMoreButton: {
+    paddingVertical: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  loadMoreText: {
+    fontSize: 14,
+    fontFamily: 'Inter-Medium',
+    color: '#0066ff',
+  },
+  endOfListText: {
+    textAlign: 'center',
+    paddingVertical: 16,
+    fontSize: 14,
+    fontFamily: 'Inter-Regular',
+    color: '#94a3b8',
+  },
+  fillContainer: {
+    flex: 1,
+    height: '100%',
+    width: '100%',
   },
 }); 

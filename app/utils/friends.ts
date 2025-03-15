@@ -160,12 +160,13 @@ export async function searchUsersByName(query: string, limit: number = 10): Prom
 export async function getFriendsReviews(userId: string, page: number = 1, limit: number = 10) {
   const offset = (page - 1) * limit;
   
+  // Request one extra item to determine if there are more pages
   const { data, error } = await supabase
     .from('followed_users_reviews')
     .select('*')
     .eq('follower_id', userId)
     .order('created_at', { ascending: false })
-    .range(offset, offset + limit - 1);
+    .range(offset, offset + limit);  // Request one extra item to check if there are more
 
   if (error) {
     console.error("Error fetching friend reviews:", error);

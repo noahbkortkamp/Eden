@@ -130,17 +130,17 @@ export default function HomeScreen() {
       <ScrollView 
         horizontal 
         showsHorizontalScrollIndicator={false}
-        contentContainerStyle={styles.filterContainer}>
+        contentContainerStyle={styles.filterContainer}
+        style={styles.filterScrollView}>
         <Pressable 
           style={[
-            styles.filterPill, 
-            activeTab === 'top-rated' && styles.activeFilter
+            styles.filterTab, 
+            activeTab === 'top-rated' && styles.activeTab
           ]}
           onPress={() => handleTabChange('top-rated')}
         >
-          <Trophy size={16} color={activeTab === 'top-rated' ? "#2563eb" : "#64748b"} />
           <Text 
-            style={activeTab === 'top-rated' ? styles.activeFilterText : styles.filterText}
+            style={activeTab === 'top-rated' ? styles.activeTabText : styles.tabText}
           >
             Top Rated
           </Text>
@@ -148,14 +148,13 @@ export default function HomeScreen() {
 
         <Pressable 
           style={[
-            styles.filterPill, 
-            activeTab === 'friends' && styles.activeFilter
+            styles.filterTab, 
+            activeTab === 'friends' && styles.activeTab
           ]}
           onPress={() => handleTabChange('friends')}
         >
-          <Users size={16} color={activeTab === 'friends' ? "#2563eb" : "#64748b"} />
           <Text 
-            style={activeTab === 'friends' ? styles.activeFilterText : styles.filterText}
+            style={activeTab === 'friends' ? styles.activeTabText : styles.tabText}
           >
             Friends
           </Text>
@@ -163,14 +162,13 @@ export default function HomeScreen() {
 
         <Pressable 
           style={[
-            styles.filterPill, 
-            activeTab === 'trending' && styles.activeFilter
+            styles.filterTab, 
+            activeTab === 'trending' && styles.activeTab
           ]}
           onPress={() => handleTabChange('trending')}
         >
-          <TrendingUp size={16} color={activeTab === 'trending' ? "#2563eb" : "#64748b"} />
           <Text 
-            style={activeTab === 'trending' ? styles.activeFilterText : styles.filterText}
+            style={activeTab === 'trending' ? styles.activeTabText : styles.tabText}
           >
             Trending
           </Text>
@@ -336,37 +334,40 @@ const styles = StyleSheet.create({
   clearIcon: {
     padding: 4,
   },
+  filterScrollView: {
+    backgroundColor: '#fff',
+    paddingVertical: 0,
+    borderBottomWidth: 1,
+    borderBottomColor: '#f1f5f9',
+    zIndex: 5,
+    maxHeight: 32,
+  },
   filterContainer: {
     paddingHorizontal: 16,
-    paddingVertical: 8,
-    gap: 8,
-    backgroundColor: '#fff',
+    paddingBottom: 0,
+    gap: 16,
+    height: 30,
   },
-  filterPill: {
-    flexDirection: 'row',
+  filterTab: {
+    paddingVertical: 3,
+    marginHorizontal: 4,
+    height: 28,
     alignItems: 'center',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 20,
-    borderWidth: 1,
-    borderColor: '#e2e8f0',
-    marginRight: 8,
+    justifyContent: 'center',
   },
-  activeFilter: {
-    backgroundColor: '#eff6ff',
-    borderColor: '#bfdbfe',
+  activeTab: {
+    borderBottomWidth: 2,
+    borderBottomColor: '#0066ff',
   },
-  filterText: {
+  tabText: {
     fontSize: 14,
     fontFamily: 'Inter-Regular',
-    color: '#64748b',
-    marginLeft: 4,
+    color: '#94a3b8',
   },
-  activeFilterText: {
+  activeTabText: {
     fontSize: 14,
     fontFamily: 'Inter-SemiBold',
-    color: '#2563eb',
-    marginLeft: 4,
+    color: '#0066ff',
   },
   content: {
     flex: 1,
@@ -478,6 +479,7 @@ const styles = StyleSheet.create({
   },
   friendsFeedContainer: {
     flex: 1,
-    backgroundColor: '#f8fafc',
+    backgroundColor: '#fff',
+    zIndex: 1,
   },
 });
