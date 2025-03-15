@@ -120,8 +120,7 @@ export const FriendsReviewsFeed: React.FC<FriendsReviewsFeedProps> = ({ onFindFr
               .from('followed_users_reviews')
               .select('*')
               .eq('id', payload.new.id)
-              .eq('follower_id', user.id)
-              .single();
+              .eq('follower_id', user.id);
               
             if (error) {
               console.error('Error checking if review is from followed user:', error);
@@ -129,9 +128,9 @@ export const FriendsReviewsFeed: React.FC<FriendsReviewsFeedProps> = ({ onFindFr
             }
             
             // If the review is from a followed user, add it to the feed
-            if (data) {
-              console.log('Adding new review to feed:', data);
-              setReviews(prevReviews => [data, ...prevReviews]);
+            if (data && data.length > 0) {
+              console.log('Adding new review to feed:', data[0]);
+              setReviews(prevReviews => [data[0], ...prevReviews]);
               
               // Update cache
               const cachedData = await AsyncStorage.getItem('friendsReviewsCache');
@@ -139,7 +138,7 @@ export const FriendsReviewsFeed: React.FC<FriendsReviewsFeedProps> = ({ onFindFr
                 const { timestamp, data: cachedReviews } = JSON.parse(cachedData);
                 await AsyncStorage.setItem('friendsReviewsCache', JSON.stringify({
                   timestamp,
-                  data: [data, ...cachedReviews],
+                  data: [data[0], ...cachedReviews],
                 }));
               }
             }
