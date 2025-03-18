@@ -9,10 +9,13 @@ import { rankingService } from '../services/rankingService';
 import { useAuth } from '../context/AuthContext';
 import { courseListService } from '../services/courseListService';
 import { usePlayedCourses } from '../context/PlayedCoursesContext';
+import { reviewService } from '../services/reviewService';
+import { PlayedCoursesList } from '../components/PlayedCoursesList';
 
 export default function ListsScreen() {
   const theme = useTheme();
   const { user } = useAuth();
+  const [courseType, setCourseType] = useState<'played' | 'recommended' | 'want-to-play'>('played');
   const [loading, setLoading] = useState(true);
   const { 
     playedCourses, setPlayedCourses,
@@ -20,7 +23,8 @@ export default function ListsScreen() {
     recommendedCourses, setRecommendedCourses,
     isCoursesLoading, setCoursesLoading,
     hasLoadedCourses, setHasLoadedCourses,
-    lastUpdateTimestamp
+    lastUpdateTimestamp,
+    setNeedsRefresh
   } = usePlayedCourses();
   
   const [error, setError] = useState<string | null>(null);
@@ -39,6 +43,25 @@ export default function ListsScreen() {
   const lastRefreshTime = useRef(0);
   // Minimum time between refreshes (2 seconds)
   const REFRESH_THROTTLE_MS = 2000;
+
+  const [userReviewCount, setUserReviewCount] = useState(0);
+
+  // Load user review count on initial render
+  useEffect(() => {
+    async function loadUserReviewCount() {
+      if (user) {
+        try {
+          const count = await reviewService.getUserReviewCount(user.id);
+          console.log(`🔢 User has ${count} reviews. Score visibility: ${count >= 10 ? 'ENABLED' : 'DISABLED'}`);
+          setUserReviewCount(count);
+        } catch (err) {
+          console.error('Error fetching user review count:', err);
+        }
+      }
+    }
+    
+    loadUserReviewCount();
+  }, [user]);
 
   // Add lifecycle logging to track component mounting and unmounting
   useEffect(() => {
@@ -348,7 +371,8 @@ export default function ListsScreen() {
                 created_at: item.courses.created_at,
                 updated_at: item.courses.updated_at,
                 rating: 0, // Will be updated with ranking score
-                sentiment: item.rating // Store the original sentiment
+                sentiment: item.rating, // Store the original sentiment
+                showScores: userReviewCount >= 10 // Add this flag to each course
               };
             })
             .filter(Boolean); // Remove any nulls
@@ -358,7 +382,8 @@ export default function ListsScreen() {
             courses: formattedCourses.map(c => ({ 
               id: c.id, 
               name: c.name,
-              sentiment: c.sentiment 
+              sentiment: c.sentiment,
+              showScores: c.showScores
             }))
           });
           
@@ -422,7 +447,8 @@ export default function ListsScreen() {
               return {
                 ...course,
                 rating: Number(score.toFixed(1)),
-                scoreDetails: scoreDetails // Including scoring details for debugging
+                scoreDetails: scoreDetails, // Including scoring details for debugging
+                showScores: userReviewCount >= 10 // Add this flag to each course
               };
             });
             
@@ -433,7 +459,8 @@ export default function ListsScreen() {
               name: c.name, 
               score: c.rating,
               sentiment: c.sentiment,
-              reason: c.scoreDetails?.reason
+              reason: c.scoreDetails?.reason,
+              showScores: c.showScores
             })));
             
             // Update the context state instead of local state
@@ -487,7 +514,8 @@ export default function ListsScreen() {
             created_at: item.courses.created_at,
             updated_at: item.courses.updated_at,
             rating: 0, // Will be updated with ranking score
-            sentiment: item.rating // Store the original sentiment
+            sentiment: item.rating, // Store the original sentiment
+            showScores: userReviewCount >= 10 // Add this flag to each course
           };
         });
         
@@ -496,7 +524,8 @@ export default function ListsScreen() {
         courses: formattedCourses.map(c => ({ 
           id: c.id, 
           name: c.name,
-          sentiment: c.sentiment 
+          sentiment: c.sentiment,
+          showScores: c.showScores
         }))
       });
         
@@ -570,7 +599,8 @@ export default function ListsScreen() {
         return {
           ...course,
           rating: Number(score.toFixed(1)),
-          scoreDetails: scoreDetails // Including scoring details for debugging
+          scoreDetails: scoreDetails, // Including scoring details for debugging
+          showScores: userReviewCount >= 10 // Add this flag to each course
         };
       });
 
@@ -581,7 +611,8 @@ export default function ListsScreen() {
         name: c.name, 
         score: c.rating,
         sentiment: c.sentiment,
-        reason: c.scoreDetails?.reason
+        reason: c.scoreDetails?.reason,
+        showScores: c.showScores
       })));
       
       // Update the context state instead of local state
@@ -637,7 +668,8 @@ export default function ListsScreen() {
           created_at: new Date().toISOString(),
           updated_at: new Date().toISOString(),
           rating: 5.0, // Default rating
-          sentiment: courseSentiments[course.id] || 'fine'
+          sentiment: courseSentiments[course.id] || 'fine',
+          showScores: userReviewCount >= 10 // Add this flag to each course
         }));
         
         console.log('🔍 DEBUG: Last resort fallback succeeded - displaying minimal courses:', 
@@ -847,17 +879,15 @@ export default function ListsScreen() {
   });
 
   // Memoize the CourseListTabs to prevent unnecessary re-renders
-  const memoizedCourseListTabs = useMemo(() => {
-    return (
-      <CourseListTabs
-        key={refreshKey}
-        playedCourses={playedCourses}
-        wantToPlayCourses={wantToPlayCourses}
-        recommendedCourses={recommendedCourses}
-        onCoursePress={handleCoursePress}
-      />
-    );
-  }, [refreshKey, playedCourses, wantToPlayCourses, recommendedCourses, handleCoursePress]);
+  const memoizedCourseListTabs = useMemo(() => (
+    <CourseListTabs 
+      playedCourses={playedCourses}
+      wantToPlayCourses={wantToPlayCourses}
+      recommendedCourses={recommendedCourses}
+      onCoursePress={handleCoursePress}
+      reviewCount={userReviewCount}
+    />
+  ), [playedCourses, wantToPlayCourses, recommendedCourses, userReviewCount]);
 
   if (loading) {
     return (
@@ -958,7 +988,8 @@ export default function ListsScreen() {
                           sentiment: review?.rating || 'liked',
                           description: '',
                           created_at: course.created_at || new Date().toISOString(),
-                          updated_at: course.updated_at || new Date().toISOString()
+                          updated_at: course.updated_at || new Date().toISOString(),
+                          showScores: userReviewCount >= 10 // Add this flag to each course
                         };
                       });
                       
@@ -1071,7 +1102,8 @@ export default function ListsScreen() {
                             created_at: course.created_at || new Date().toISOString(),
                             updated_at: course.updated_at || new Date().toISOString(),
                             sentiment: sentiment,
-                            rating: score
+                            rating: score,
+                            showScores: userReviewCount >= 10 // Add this flag to each course
                           };
                         });
                         
@@ -1115,7 +1147,8 @@ export default function ListsScreen() {
                           
                           return {
                             ...course,
-                            rating: parseFloat(finalScore.toFixed(1))
+                            rating: parseFloat(finalScore.toFixed(1)),
+                            showScores: userReviewCount >= 10 // Add this flag to each course
                           };
                         });
                         
@@ -1196,7 +1229,8 @@ export default function ListsScreen() {
                   created_at: new Date().toISOString(),
                   updated_at: new Date().toISOString(),
                   rating: 10.0,
-                  sentiment: 'liked'
+                  sentiment: 'liked',
+                  showScores: userReviewCount >= 10 // Add this flag to each course
                 },
                 {
                   id: 'hc2',
@@ -1208,7 +1242,8 @@ export default function ListsScreen() {
                   created_at: new Date().toISOString(),
                   updated_at: new Date().toISOString(),
                   rating: 8.5,
-                  sentiment: 'liked'
+                  sentiment: 'liked',
+                  showScores: userReviewCount >= 10 // Add this flag to each course
                 },
                 {
                   id: 'hc3',
@@ -1220,7 +1255,8 @@ export default function ListsScreen() {
                   created_at: new Date().toISOString(),
                   updated_at: new Date().toISOString(),
                   rating: 6.9,
-                  sentiment: 'fine'
+                  sentiment: 'fine',
+                  showScores: userReviewCount >= 10 // Add this flag to each course
                 }
               ];
               
@@ -1408,7 +1444,8 @@ const triggerDirectFetch = async () => {
         description: '',
         created_at: course.created_at || new Date().toISOString(),
         updated_at: course.updated_at || new Date().toISOString(),
-        rating: score
+        rating: score,
+        showScores: userReviewCount >= 10 // Add this flag to each course
       };
     });
     
@@ -1457,7 +1494,8 @@ const useHardcodedData = () => {
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
       rating: 10.0,
-      sentiment: 'liked'
+      sentiment: 'liked',
+      showScores: userReviewCount >= 10 // Add this flag to each course
     },
     {
       id: 'hc2',
@@ -1469,7 +1507,8 @@ const useHardcodedData = () => {
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
       rating: 8.5,
-      sentiment: 'liked'
+      sentiment: 'liked',
+      showScores: userReviewCount >= 10 // Add this flag to each course
     },
     {
       id: 'hc3',
@@ -1481,7 +1520,8 @@ const useHardcodedData = () => {
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
       rating: 6.9,
-      sentiment: 'fine'
+      sentiment: 'fine',
+      showScores: userReviewCount >= 10 // Add this flag to each course
     },
     {
       id: 'hc4',
@@ -1493,7 +1533,8 @@ const useHardcodedData = () => {
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
       rating: 2.9,
-      sentiment: 'didnt_like'
+      sentiment: 'didnt_like',
+      showScores: userReviewCount >= 10 // Add this flag to each course
     }
   ];
   

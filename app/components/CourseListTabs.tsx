@@ -7,12 +7,12 @@ import { Course } from '../types/review';
 import { usePlayedCourses } from '../context/PlayedCoursesContext';
 
 // Specialized components for each tab
-const WantToPlayList = ({ courses, onCoursePress }: { courses: Course[], onCoursePress: (course: Course) => void }) => {
-  return <PlayedCoursesList courses={courses} onCoursePress={onCoursePress} />;
+const WantToPlayList = ({ courses, onCoursePress, reviewCount }: { courses: Course[], onCoursePress: (course: Course) => void, reviewCount?: number }) => {
+  return <PlayedCoursesList courses={courses} onCoursePress={onCoursePress} reviewCount={reviewCount} />;
 };
 
-const RecommendedList = ({ courses, onCoursePress }: { courses: Course[], onCoursePress: (course: Course) => void }) => {
-  return <PlayedCoursesList courses={courses} onCoursePress={onCoursePress} />;
+const RecommendedList = ({ courses, onCoursePress, reviewCount }: { courses: Course[], onCoursePress: (course: Course) => void, reviewCount?: number }) => {
+  return <PlayedCoursesList courses={courses} onCoursePress={onCoursePress} reviewCount={reviewCount} />;
 };
 
 interface CourseListTabsProps {
@@ -20,6 +20,7 @@ interface CourseListTabsProps {
   wantToPlayCourses: Course[];
   recommendedCourses: Course[];
   onCoursePress: (course: Course) => void;
+  reviewCount?: number;
 }
 
 // Export as memoized component to prevent unnecessary re-renders
@@ -28,6 +29,7 @@ export const CourseListTabs: React.FC<CourseListTabsProps> = React.memo(({
   wantToPlayCourses,
   recommendedCourses,
   onCoursePress,
+  reviewCount = 0,
 }) => {
   const theme = useTheme();
   // Access global course state from context
@@ -214,18 +216,21 @@ export const CourseListTabs: React.FC<CourseListTabsProps> = React.memo(({
                  key={`played-${remountKey}`} 
                  courses={coursesToRender.played || []} 
                  onCoursePress={onCoursePress} 
+                 reviewCount={reviewCount}
                />;
       case 'wantToPlay':
         return <WantToPlayList 
                  key={`wantToPlay-${remountKey}`} 
                  courses={coursesToRender.wantToPlay || []} 
                  onCoursePress={onCoursePress} 
+                 reviewCount={reviewCount}
                />;
       case 'recommended':
         return <RecommendedList 
                  key={`recommended-${remountKey}`} 
                  courses={coursesToRender.recommended || []} 
                  onCoursePress={onCoursePress} 
+                 reviewCount={reviewCount}
                />;
       default:
           return null;
@@ -241,7 +246,8 @@ export const CourseListTabs: React.FC<CourseListTabsProps> = React.memo(({
     globalWantToPlayCourses,
     globalRecommendedCourses,
     onCoursePress,
-    remountKey
+    remountKey,
+    reviewCount
   ]);
 
   const renderTabBar = (props: any) => (

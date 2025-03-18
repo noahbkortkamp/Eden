@@ -224,4 +224,21 @@ export const reviewService = {
     if (error) throw error;
     return data;
   },
+
+  /**
+   * Get the count of reviews submitted by a user
+   */
+  getUserReviewCount: async (userId: string): Promise<number> => {
+    const { count, error } = await supabase
+      .from('reviews')
+      .select('*', { count: 'exact', head: true })
+      .eq('user_id', userId);
+
+    if (error) {
+      console.error("Error fetching review count:", error);
+      return 0;
+    }
+
+    return count || 0;
+  },
 }; 

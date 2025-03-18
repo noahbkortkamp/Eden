@@ -8,17 +8,21 @@ import { usePlayedCourses } from '../context/PlayedCoursesContext';
 interface PlayedCoursesListProps {
   courses: Course[];
   onCoursePress?: (course: Course) => void;
+  reviewCount?: number;
 }
 
 // Convert to memoized component to prevent unnecessary re-renders
 export const PlayedCoursesList = React.memo(({
   courses,
   onCoursePress,
+  reviewCount = 0,
 }: PlayedCoursesListProps) => {
   const theme = useTheme();
   const scrollViewRef = useRef<ScrollView>(null);
+  const [isRefreshing, setIsRefreshing] = useState(false);
   // Get the global course state
   const { playedCourses: globalPlayedCourses } = usePlayedCourses();
+  const hasTenReviews = reviewCount >= 10;
   
   // Add internal state to persist the courses data
   const [internalCourses, setInternalCourses] = useState<Course[]>(
@@ -189,7 +193,21 @@ export const PlayedCoursesList = React.memo(({
       fontSize: 16,
       color: theme.colors.textSecondary,
       textAlign: 'center',
-    }
+    },
+    reviewCountMessage: {
+      padding: theme.spacing.sm,
+      backgroundColor: theme.colors.primary + '20', // Semi-transparent primary color
+      borderRadius: 8,
+      marginVertical: theme.spacing.sm,
+      marginHorizontal: theme.spacing.md,
+      alignItems: 'center',
+    },
+    reviewCountText: {
+      fontSize: 14,
+      color: theme.colors.primary,
+      fontWeight: '500',
+      textAlign: 'center',
+    },
   }), [theme, screenWidth]);
 
   // IMPORTANT: Memoize coursesToRender calculation but initialize with valid data
@@ -236,6 +254,13 @@ export const PlayedCoursesList = React.memo(({
         keyboardShouldPersistTaps="handled"
         keyboardDismissMode="on-drag"
       >
+        {!hasTenReviews && (
+          <View style={styles.reviewCountMessage}>
+            <Text style={styles.reviewCountText}>
+              Submit {10 - reviewCount} more {10 - reviewCount === 1 ? 'review' : 'reviews'} to unlock course scores!
+            </Text>
+          </View>
+        )}
         {coursesToRender.map((course) => (
           <TouchableOpacity
             key={course.id}
@@ -267,7 +292,7 @@ export const PlayedCoursesList = React.memo(({
                   ]}
                 >
                   <Text style={styles.scoreText}>
-                    {course.rating ? course.rating.toFixed(1) : '-'}
+                    {course.showScores ? (course.rating ? course.rating.toFixed(1) : '-') : '-'}
                   </Text>
                 </View>
               </View>

@@ -86,6 +86,12 @@ export const ReviewProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         rating: createdReview.rating
       });
 
+      // Check if user has reached 10 reviews
+      const reviewCount = await reviewService.getUserReviewCount(user.id);
+      if (reviewCount === 10) {
+        console.log('🎉 User has reached 10 reviews! Score visibility is now ENABLED');
+      }
+
       // Mark played courses as needing refresh when user returns to Lists tab
       setNeedsRefresh();
       console.log('ReviewContext: Marked played courses for refresh');
