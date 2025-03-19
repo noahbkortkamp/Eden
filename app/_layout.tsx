@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { SearchProvider } from './context/SearchContext';
-import { AuthProvider } from './context/AuthContext';
+import { AuthProvider, useAuth } from './context/AuthContext';
 import { ReviewProvider } from './review/context/ReviewContext';
 import { ThemeProvider, useTheme } from './theme/ThemeProvider';
 import { View, ActivityIndicator, Text, StyleSheet, Platform } from 'react-native';
@@ -10,6 +10,7 @@ import { ErrorBoundary } from './components/ErrorBoundary';
 import { useTranslation } from 'react-i18next';
 import { initializeAuthDeepLinks } from './services/auth';
 import './i18n';
+import { PlayedCoursesProvider } from './context/PlayedCoursesContext';
 
 declare global {
   interface Window {
@@ -19,6 +20,8 @@ declare global {
 
 function AppContent() {
   const theme = useTheme();
+  const { user } = useAuth();
+
   return (
     <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
       <Stack>
@@ -134,9 +137,11 @@ export default function RootLayout() {
       <ThemeProvider>
         <AuthProvider>
           <SearchProvider>
-            <ReviewProvider>
-              <AppContent />
-            </ReviewProvider>
+            <PlayedCoursesProvider>
+              <ReviewProvider>
+                <AppContent />
+              </ReviewProvider>
+            </PlayedCoursesProvider>
           </SearchProvider>
         </AuthProvider>
       </ThemeProvider>

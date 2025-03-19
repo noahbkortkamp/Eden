@@ -13,7 +13,7 @@ import { FriendsReviewsFeed } from '../components/FriendsReviewsFeed';
 type Course = Database['public']['Tables']['courses']['Row'];
 
 // Define tab types for the feed
-type FeedTab = 'top-rated' | 'friends' | 'trending';
+type FeedTab = 'friends' | 'trending';
 
 export default function HomeScreen() {
   const router = useRouter();
@@ -27,7 +27,7 @@ export default function HomeScreen() {
   const [courses, setCourses] = useState<Course[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<FeedTab>('top-rated');
+  const [activeTab, setActiveTab] = useState<FeedTab>('friends');
   const [showUserSearch, setShowUserSearch] = useState(false);
 
   useEffect(() => {
@@ -135,20 +135,6 @@ export default function HomeScreen() {
         <Pressable 
           style={[
             styles.filterTab, 
-            activeTab === 'top-rated' && styles.activeTab
-          ]}
-          onPress={() => handleTabChange('top-rated')}
-        >
-          <Text 
-            style={activeTab === 'top-rated' ? styles.activeTabText : styles.tabText}
-          >
-            Top Rated
-          </Text>
-        </Pressable>
-
-        <Pressable 
-          style={[
-            styles.filterTab, 
             activeTab === 'friends' && styles.activeTab
           ]}
           onPress={() => handleTabChange('friends')}
@@ -182,7 +168,7 @@ export default function HomeScreen() {
           <FriendsReviewsFeed onFindFriendsPress={handleFindFriendsPress} />
         </View>
       ) : (
-        // Default feed for Top Rated and Trending
+        // Only Trending feed now
         <ScrollView style={styles.content}>
           {/* Featured Courses */}
           <View style={styles.section}>
@@ -224,9 +210,7 @@ export default function HomeScreen() {
 
           {/* Course List */}
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>
-              {activeTab === 'top-rated' ? 'Top Rated Courses' : 'Trending Courses'}
-            </Text>
+            <Text style={styles.sectionTitle}>Trending Courses</Text>
             {loading ? (
               <ActivityIndicator style={styles.loader} color="#2563eb" />
             ) : error ? (

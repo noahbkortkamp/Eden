@@ -27,7 +27,8 @@ export default function TabLayout() {
           tabBarLabelStyle: {
             paddingBottom: Platform.OS === 'ios' ? 0 : 4,
           },
-        }}>
+        }}
+        initialRouteName="lists">
       <Tabs.Screen
         name="index"
         options={{
