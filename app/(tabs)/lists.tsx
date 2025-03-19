@@ -46,6 +46,36 @@ export default function ListsScreen() {
 
   const [userReviewCount, setUserReviewCount] = useState(0);
 
+  // Enhanced debug - log when component mounts or remounts
+  useEffect(() => {
+    console.log('📌 ListsScreen Mounted - STARTING REVIEW COUNT CHECK');
+    // Immediately check review count on startup
+    if (user) {
+      console.log('🚀 STARTUP CHECK: Immediately checking review count for user', user.id);
+      reviewService.getUserReviewCount(user.id)
+        .then(count => {
+          console.log(`🚨 INITIAL LOAD: User has ${count} reviews. Score visibility ${count >= 10 ? 'SHOULD BE ENABLED' : 'DISABLED'}`);
+          setUserReviewCount(count);
+          
+          // Immediately update course scores when we get the count on startup
+          if (count >= 10 && playedCourses.length > 0) {
+            console.log('🚨 IMMEDIATE UPDATE: Updating course scores on startup because count >= 10');
+            const updatedPlayedCourses = playedCourses.map(course => ({
+              ...course,
+              showScores: true // Explicitly set to true for 10+ reviews
+            }));
+            setPlayedCourses(updatedPlayedCourses);
+            setRefreshKey(Date.now());
+          }
+        })
+        .catch(err => {
+          console.error('Error fetching user review count on startup:', err);
+        });
+    }
+    
+    return () => console.log('📌 ListsScreen Unmounted');
+  }, []);
+
   // Load user review count on initial render
   useEffect(() => {
     async function loadUserReviewCount() {
@@ -53,7 +83,14 @@ export default function ListsScreen() {
         try {
           const count = await reviewService.getUserReviewCount(user.id);
           console.log(`🔢 User has ${count} reviews. Score visibility: ${count >= 10 ? 'ENABLED' : 'DISABLED'}`);
+          const previousCount = userReviewCount;
           setUserReviewCount(count);
+          
+          // If user has crossed the 10 review threshold, force refresh the data
+          if (previousCount < 10 && count >= 10) {
+            console.log('🎉 User just crossed 10 review threshold! Forcing data refresh');
+            loadData();
+          }
         } catch (err) {
           console.error('Error fetching user review count:', err);
         }
@@ -92,6 +129,18 @@ export default function ListsScreen() {
     useCallback(() => {
       console.log('Lists tab is now focused, usingTestData:', usingTestData);
       
+      // Refresh user review count on tab focus
+      if (user) {
+        reviewService.getUserReviewCount(user.id)
+          .then(count => {
+            console.log(`🔢 Tab focused: User has ${count} reviews. Score visibility: ${count >= 10 ? 'ENABLED' : 'DISABLED'}`);
+            setUserReviewCount(count);
+          })
+          .catch(err => {
+            console.error('Error refreshing user review count on tab focus:', err);
+          });
+      }
+      
       const now = Date.now();
       const timeSinceLastRefresh = now - lastRefreshTime.current;
       
@@ -119,8 +168,42 @@ export default function ListsScreen() {
       return () => {
         console.log('Lists tab lost focus');
       };
-    }, [usingTestData, hasLoadedCourses, isCoursesLoading, lastUpdateTimestamp])
+    }, [usingTestData, hasLoadedCourses, isCoursesLoading, lastUpdateTimestamp, user])
   );
+
+  // Watch for changes in userReviewCount and update showScores property for all courses
+  useEffect(() => {
+    // Skip on initial render when userReviewCount is still 0
+    if (playedCourses.length > 0) {
+      console.log(`🔄 Updating showScores flag for all courses. Review count: ${userReviewCount}`);
+      
+      // Update played courses with correct showScores flag
+      const updatedPlayedCourses = playedCourses.map(course => ({
+        ...course,
+        showScores: userReviewCount >= 10
+      }));
+      
+      // Update want to play courses
+      const updatedWantToPlayCourses = wantToPlayCourses.map(course => ({
+        ...course,
+        showScores: userReviewCount >= 10
+      }));
+      
+      // Update recommended courses
+      const updatedRecommendedCourses = recommendedCourses.map(course => ({
+        ...course,
+        showScores: userReviewCount >= 10
+      }));
+      
+      // Update all course lists
+      setPlayedCourses(updatedPlayedCourses);
+      setWantToPlayCourses(updatedWantToPlayCourses);
+      setRecommendedCourses(updatedRecommendedCourses);
+      
+      // Force a UI refresh
+      setRefreshKey(Date.now());
+    }
+  }, [userReviewCount]);
 
   // Centralized data loading function
   const loadData = async () => {
@@ -130,6 +213,12 @@ export default function ListsScreen() {
     console.log('Loading all data for Lists screen');
     
     try {
+      // First, get current user review count to ensure showScores flag is set correctly
+      const count = await reviewService.getUserReviewCount(user.id);
+      console.log(`🔢 loadData: User has ${count} reviews. Score visibility: ${count >= 10 ? 'ENABLED' : 'DISABLED'}`);
+      setUserReviewCount(count);
+      const shouldShowScores = count >= 10;
+      
       // Try a completely fresh approach to diagnose database issues
       console.log('🔎 DIAGNOSTIC: Trying direct table access...');
       
@@ -178,95 +267,20 @@ export default function ListsScreen() {
   };
 
   const fetchPlayedCourses = async () => {
+    if (!user) return [];
+
+    console.log('🔍 DEBUG: Starting fetchPlayedCourses for user', user.id);
+    console.log(`🔍 DEBUG: Current userReviewCount: ${userReviewCount}, showScores will be ${userReviewCount >= 10}`);
+    
     try {
-      console.log('🔍 DEBUG: Starting fetchPlayedCourses');
-      console.log('🔍 DEBUG: User ID:', user?.id);
-      
-      // TEST: Check if courses table is accessible directly
-      console.log('🔍 DEBUG: Testing direct access to courses table...');
-      const { data: coursesCheck, error: coursesCheckError } = await supabase
-        .from('courses')
-        .select('*')
-        .limit(3);
-        
-      console.log('🔍 DEBUG: Courses table check:', { 
-        hasError: !!coursesCheckError,
-        errorMessage: coursesCheckError?.message,
-        courseCount: coursesCheck?.length || 0,
-        sampleCourses: coursesCheck?.map(c => ({
-          id: c.id,
-          name: c.name
-        }))
-      });
-      
-      // First check if we can query the reviews table directly
-      console.log('🔍 DEBUG: Querying reviews table directly...');
-      const { data: reviewCheck, error: reviewCheckError } = await supabase
-        .from('reviews')
-        .select('*')
-        .eq('user_id', user?.id || '');
-        
-      console.log('🔍 DEBUG: Raw reviews check:', { 
-        hasError: !!reviewCheckError,
-        errorDetails: reviewCheckError?.message,
-        reviewCount: reviewCheck?.length || 0,
-        reviews: reviewCheck?.map(r => ({
-          id: r.id,
-          course_id: r.course_id,
-          rating: r.rating,
-          date_played: r.date_played,
-          user_id: r.user_id // Add user_id to verify it's filtering correctly
-        }))
-      });
-
-      if (reviewCheckError) {
-        console.error('🔍 ERROR: Failed to query reviews directly:', reviewCheckError.message);
-        throw new Error(`Failed to query reviews: ${reviewCheckError.message}`);
-      }
-
-      // Check course_id values from reviews
-      if (reviewCheck && reviewCheck.length > 0) {
-        const courseIds = reviewCheck.map(r => r.course_id);
-        console.log('🔍 DEBUG: Looking up course IDs from reviews:', courseIds);
-        
-        // Verify these course IDs exist in the courses table
-        const { data: courseVerify, error: courseVerifyError } = await supabase
-          .from('courses')
-          .select('id, name')
-          .in('id', courseIds);
-          
-        console.log('🔍 DEBUG: Course verification:', {
-          hasError: !!courseVerifyError,
-          errorMessage: courseVerifyError?.message,
-          foundCount: courseVerify?.length || 0,
-          expectedCount: courseIds.length,
-          foundCourses: courseVerify?.map(c => ({
-            id: c.id,
-            name: c.name
-          }))
-        });
-        
-        // Compare found vs expected
-        if (courseVerify && courseIds.length !== courseVerify.length) {
-          console.log('🔍 DEBUG: ⚠️ Missing courses detected - not all review course_ids match courses in database');
-          
-          // Find which course IDs are missing
-          const foundIds = new Set(courseVerify.map(c => c.id));
-          const missingIds = courseIds.filter(id => !foundIds.has(id));
-          console.log('🔍 DEBUG: Missing course IDs:', missingIds);
-        }
-      }
-      
-      // DIRECT QUERY: Get courses the user has reviewed with proper join
-      console.log('🔍 DEBUG: Executing main join query...');
-      const { data, error: queryError } = await supabase
+      // More aggressive approach to fetch data using a simpler join
+      const { data, error } = await supabase
         .from('reviews')
         .select(`
           id,
           course_id,
           rating,
-          date_played,
-          courses:courses!inner (
+          courses (
             id,
             name,
             location,
@@ -276,210 +290,16 @@ export default function ListsScreen() {
             updated_at
           )
         `)
-        .eq('user_id', user?.id || '')
-        .order('date_played', { ascending: false });
-        
-      console.log('🔍 DEBUG: Main query result:', {
-        hasError: !!queryError,
-        errorMessage: queryError?.message,
-        dataLength: data?.length || 0,
-        data: data?.map(d => ({
-          id: d.id,
-          course_id: d.course_id,
-          rating: d.rating,
-          courseName: d.courses?.name,
-          date_played: d.date_played,
-          hasCourseData: !!d.courses
-        }))
-      });
-      
-      if (queryError) {
-        console.error('🔍 ERROR: Error fetching reviews with courses:', queryError.message);
-        
-        // FALLBACK: If inner join fails, try two separate queries
-        console.log('🔍 DEBUG: Inner join failed, attempting fallback query approach...');
-        
-        // 1. Get reviews for user
-        const { data: reviewsData, error: reviewsError } = await supabase
-          .from('reviews')
-          .select('*')
-          .eq('user_id', user?.id || '')
-          .order('date_played', { ascending: false });
-          
-        if (reviewsError || !reviewsData || reviewsData.length === 0) {
-          console.error('🔍 ERROR: Fallback reviews query failed:', reviewsError?.message);
-          throw new Error(`Fallback reviews query failed: ${reviewsError?.message || 'No data returned'}`);
-        }
-        
-        console.log('🔍 DEBUG: Fallback reviews query successful, found', reviewsData.length, 'reviews');
-        
-        // 2. Extract course IDs and fetch those courses
-        const courseIds = reviewsData.map(r => r.course_id);
-        
-        const { data: coursesData, error: coursesError } = await supabase
-          .from('courses')
-          .select('*')
-          .in('id', courseIds);
-          
-        if (coursesError || !coursesData || coursesData.length === 0) {
-          console.error('🔍 ERROR: Fallback courses query failed:', coursesError?.message);
-          throw new Error(`Fallback courses query failed: ${coursesError?.message || 'No courses found'}`);
-        }
-        
-        console.log('🔍 DEBUG: Fallback courses query successful, found', coursesData.length, 'courses');
-        
-        // 3. Manually join the data
-        const manuallyJoinedData = reviewsData.map(review => {
-          const matchingCourse = coursesData.find(course => course.id === review.course_id);
-          if (matchingCourse) {
-            return {
-              id: review.id,
-              course_id: review.course_id,
-              rating: review.rating,
-              date_played: review.date_played,
-              courses: matchingCourse
-            };
-          }
-          return null;
-        }).filter(item => item !== null);
-        
-        console.log('🔍 DEBUG: Manually joined data:', {
-          count: manuallyJoinedData.length,
-          expectedCount: reviewsData.length,
-          sample: manuallyJoinedData.slice(0, 2).map(d => ({
-            reviewId: d?.id,
-            courseId: d?.course_id,
-            courseName: d?.courses?.name
-          }))
-        });
-        
-        // Use this manually joined data instead
-        if (manuallyJoinedData.length > 0) {
-          // Process this data the same way we would the regular joined data
-          // Extract and format course data
-          const formattedCourses = manuallyJoinedData
-            .filter(item => item && item.courses) // Only include items with course data
-            .map(item => {
-              if (!item) return null; // Extra safety check
-              return {
-                id: item.course_id,
-                name: item.courses.name,
-                location: item.courses.location,
-                type: item.courses.type,
-                price_level: item.courses.price_level,
-                description: "", // Set an empty description since that field doesn't exist
-                created_at: item.courses.created_at,
-                updated_at: item.courses.updated_at,
-                rating: 0, // Will be updated with ranking score
-                sentiment: item.rating, // Store the original sentiment
-                showScores: userReviewCount >= 10 // Add this flag to each course
-              };
-            })
-            .filter(Boolean); // Remove any nulls
-            
-          console.log('🔍 DEBUG: Formatted courses from fallback:', {
-            count: formattedCourses.length,
-            courses: formattedCourses.map(c => ({ 
-              id: c.id, 
-              name: c.name,
-              sentiment: c.sentiment,
-              showScores: c.showScores
-            }))
-          });
-          
-          if (formattedCourses.length > 0) {
-            // Continue with normal processing using formattedCourses
-            // Group courses by sentiment
-            const likedCourses = formattedCourses.filter(c => c.sentiment === 'liked');
-            const fineCourses = formattedCourses.filter(c => c.sentiment === 'fine');
-            const didntLikeCourses = formattedCourses.filter(c => c.sentiment === 'didnt_like');
-            
-            // Assign scores based on sentiment
-            const scoredCourses = formattedCourses.map(course => {
-              let score = 0;
-              let scoreDetails = { sentiment: course.sentiment, reason: '' };
-              
-              if (course.sentiment === 'liked') {
-                const position = likedCourses.findIndex(c => c.id === course.id);
-                const total = likedCourses.length;
-                
-                // Handle case with only one liked course
-                if (total === 1) {
-                  score = 10.0;
-                  scoreDetails.reason = 'only liked course - max score';
-                } else {
-                  // Ensure we don't divide by zero
-                  score = position === 0 ? 10.0 : 7.0 + ((10.0 - 7.0) * (total - position - 1) / Math.max(total - 1, 1));
-                  scoreDetails.reason = position === 0 ? 'top liked course' : `position ${position + 1} of ${total}`;
-                }
-              } else if (course.sentiment === 'fine') {
-                const position = fineCourses.findIndex(c => c.id === course.id);
-                const total = fineCourses.length;
-                
-                // Handle case with only one fine course
-                if (total === 1) {
-                  score = 6.9;
-                  scoreDetails.reason = 'only fine course - max score';
-                } else {
-                  // Ensure we don't divide by zero
-                  score = position === 0 ? 6.9 : 3.0 + ((6.9 - 3.0) * (total - position - 1) / Math.max(total - 1, 1));
-                  scoreDetails.reason = position === 0 ? 'top fine course' : `position ${position + 1} of ${total}`;
-                }
-              } else if (course.sentiment === 'didnt_like') {
-                const position = didntLikeCourses.findIndex(c => c.id === course.id);
-                const total = didntLikeCourses.length;
-                
-                // Handle case with only one didnt_like course
-                if (total === 1) {
-                  score = 2.9;
-                  scoreDetails.reason = 'only didnt_like course - max score';
-                } else {
-                  // Ensure we don't divide by zero
-                  score = position === 0 ? 2.9 : 0.0 + ((2.9 - 0.0) * (total - position - 1) / Math.max(total - 1, 1));
-                  scoreDetails.reason = position === 0 ? 'top didnt_like course' : `position ${position + 1} of ${total}`;
-                }
-              } else {
-                scoreDetails.reason = 'unknown sentiment';
-              }
-              
-              console.log(`🔍 DEBUG: Scoring ${course.name} (${course.sentiment}): ${score.toFixed(1)} - ${scoreDetails.reason}`);
-              
-              return {
-                ...course,
-                rating: Number(score.toFixed(1)),
-                scoreDetails: scoreDetails, // Including scoring details for debugging
-                showScores: userReviewCount >= 10 // Add this flag to each course
-              };
-            });
-            
-            // Sort by rating (highest to lowest)
-            const sortedCourses = scoredCourses.sort((a, b) => b.rating - a.rating);
-            
-            console.log('🔍 Final sorted courses with scores (from fallback):', sortedCourses.map(c => ({ 
-              name: c.name, 
-              score: c.rating,
-              sentiment: c.sentiment,
-              reason: c.scoreDetails?.reason,
-              showScores: c.showScores
-            })));
-            
-            // Update the context state instead of local state
-            setPlayedCourses(sortedCourses);
-            return;
-          }
-        }
-        
-        throw new Error('Failed to process data with fallback approach');
-      }
-      
-      // Check for complete absence of data
+        .eq('user_id', user.id);
+
+      if (error) throw error;
+
       if (!data) {
         console.log('🔍 DEBUG: No data returned from query (undefined)');
         setPlayedCourses([]);
         return;
       }
-      
-      // Check for empty array
+
       if (data.length === 0) {
         console.log('🔍 DEBUG: Empty array returned from query (length 0)');
         setPlayedCourses([]);
