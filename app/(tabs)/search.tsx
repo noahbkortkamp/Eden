@@ -22,6 +22,8 @@ import {
   Flag,
   CircleDot as GolfIcon,
   Users,
+  Bookmark,
+  BookmarkCheck,
 } from 'lucide-react-native';
 import { useRouter } from 'expo-router';
 import { useTheme } from '../theme/ThemeProvider';
@@ -33,6 +35,7 @@ import { getReviewsForUser } from '../utils/reviews';
 import { Image } from 'expo-image';
 import { searchUsersByName, followUser, unfollowUser, isFollowing } from '../utils/friends';
 import { User } from '../types/index';
+import { bookmarkService } from '../services/bookmarkService';
 
 // Enhanced Course type with search relevance score
 interface EnhancedCourse extends Omit<Course, 'type'> {
@@ -65,6 +68,8 @@ export default function SearchScreen() {
   const [activeTab, setActiveTab] = useState<SearchTab>('courses');
   const [followingStatus, setFollowingStatus] = useState<{[key: string]: boolean}>({});
   const [followLoading, setFollowLoading] = useState<{[key: string]: boolean}>({});
+  const [bookmarkedCourseIds, setBookmarkedCourseIds] = useState<Set<string>>(new Set());
+  const [bookmarkLoading, setBookmarkLoading] = useState<{[key: string]: boolean}>({});
 
   const loadReviewedCourses = async () => {
     if (!user) return;
@@ -73,6 +78,16 @@ export default function SearchScreen() {
       setReviewedCourseIds(new Set(reviews.map(review => review.course_id)));
     } catch (err) {
       console.error('Failed to load reviewed courses:', err);
+    }
+  };
+
+  const loadBookmarkedCourses = async () => {
+    if (!user) return;
+    try {
+      const bookmarkedIds = await bookmarkService.getBookmarkedCourseIds(user.id);
+      setBookmarkedCourseIds(new Set(bookmarkedIds));
+    } catch (err) {
+      console.error('Failed to load bookmarked courses:', err);
     }
   };
 
@@ -89,11 +104,12 @@ export default function SearchScreen() {
     }
   };
 
-  // Load courses and reviews when component mounts
+  // Load courses, reviews, and bookmarks when component mounts
   useEffect(() => {
     if (activeTab === 'courses') {
       loadCourses();
       loadReviewedCourses();
+      loadBookmarkedCourses();
     }
   }, [user, activeTab]);
 
@@ -234,6 +250,43 @@ export default function SearchScreen() {
       console.error('Error following/unfollowing user:', error);
     } finally {
       setFollowLoading(prev => ({ ...prev, [userId]: false }));
+    }
+  };
+
+  const handleBookmarkToggle = async (courseId: string) => {
+    if (!user) return;
+    
+    // Set loading state for this course
+    setBookmarkLoading(prev => ({ ...prev, [courseId]: true }));
+    
+    try {
+      // Optimistically update UI
+      const isCurrentlyBookmarked = bookmarkedCourseIds.has(courseId);
+      
+      if (isCurrentlyBookmarked) {
+        // Remove from bookmarks
+        const newBookmarkedIds = new Set(bookmarkedCourseIds);
+        newBookmarkedIds.delete(courseId);
+        setBookmarkedCourseIds(newBookmarkedIds);
+        
+        // Call API to remove bookmark
+        await bookmarkService.removeBookmark(user.id, courseId);
+      } else {
+        // Add to bookmarks
+        const newBookmarkedIds = new Set(bookmarkedCourseIds);
+        newBookmarkedIds.add(courseId);
+        setBookmarkedCourseIds(newBookmarkedIds);
+        
+        // Call API to add bookmark
+        await bookmarkService.addBookmark(user.id, courseId);
+      }
+    } catch (error) {
+      console.error('Error toggling bookmark:', error);
+      // Revert optimistic update on error
+      loadBookmarkedCourses();
+    } finally {
+      // Clear loading state
+      setBookmarkLoading(prev => ({ ...prev, [courseId]: false }));
     }
   };
 
@@ -427,9 +480,27 @@ export default function SearchScreen() {
                     </View>
                   </View>
                   
-                  {reviewedCourseIds.has(course.id) && (
-                    <CheckCircle size={24} color={theme.colors.success} />
-                  )}
+                  <View style={styles.courseActions}>
+                    {reviewedCourseIds.has(course.id) && (
+                      <CheckCircle size={24} color={theme.colors.success} style={styles.actionIcon} />
+                    )}
+                    <TouchableOpacity
+                      style={styles.bookmarkButton}
+                      onPress={(e) => {
+                        e.stopPropagation();
+                        handleBookmarkToggle(course.id);
+                      }}
+                      disabled={bookmarkLoading[course.id]}
+                    >
+                      {bookmarkLoading[course.id] ? (
+                        <ActivityIndicator size="small" color={theme.colors.primary} />
+                      ) : bookmarkedCourseIds.has(course.id) ? (
+                        <BookmarkCheck size={24} color={theme.colors.primary} />
+                      ) : (
+                        <Bookmark size={24} color={theme.colors.textSecondary} />
+                      )}
+                    </TouchableOpacity>
+                  </View>
                 </TouchableOpacity>
               ))
             )}
@@ -573,6 +644,16 @@ const styles = StyleSheet.create({
   courseInfo: {
     flex: 1,
     marginRight: 8,
+  },
+  courseActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  actionIcon: {
+    marginRight: 8,
+  },
+  bookmarkButton: {
+    padding: 4,
   },
   courseName: {
     fontSize: 18,
