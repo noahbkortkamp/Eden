@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useCallback, useRef, useMemo } from 'react';
-import { View, StyleSheet, ActivityIndicator, Text, TouchableOpacity, ScrollView, Dimensions, Platform } from 'react-native';
+import { View, StyleSheet, ActivityIndicator, Text, TouchableOpacity, ScrollView, Dimensions, Platform, FlatList } from 'react-native';
 import { useTheme } from '../theme/ThemeProvider';
 import { CourseListTabs } from '../components/CourseListTabs';
 import { Course } from '../types/review';
@@ -11,6 +11,9 @@ import { courseListService } from '../services/courseListService';
 import { usePlayedCourses } from '../context/PlayedCoursesContext';
 import { reviewService } from '../services/reviewService';
 import { PlayedCoursesList } from '../components/PlayedCoursesList';
+import { WantToPlayCoursesList } from '../components/WantToPlayCoursesList';
+import BasicWantToPlayList from '../components/BasicWantToPlayList';
+import { MapPin, X, Bookmark as BookmarkIcon } from 'lucide-react-native';
 
 export default function ListsScreen() {
   const theme = useTheme();
@@ -204,6 +207,15 @@ export default function ListsScreen() {
       setRefreshKey(Date.now());
     }
   }, [userReviewCount]);
+
+  // Add a useEffect to listen for changes in lastUpdateTimestamp
+  useEffect(() => {
+    console.log('🔄 Detected change in lastUpdateTimestamp, refreshing data...');
+    // Only refresh want-to-play courses when that's the current tab
+    if (courseType === 'want-to-play') {
+      fetchWantToPlayCourses();
+    }
+  }, [lastUpdateTimestamp, courseType]);
 
   // Centralized data loading function
   const loadData = async () => {
@@ -507,50 +519,100 @@ export default function ListsScreen() {
     }
   };
 
+  // Fetch Want to Play courses directly from the database, similar to how we fetch played courses
   const fetchWantToPlayCourses = async () => {
+    if (!user) {
+      setWantToPlayCourses([]);
+      return;
+    }
+
+    console.log('🔄 Starting fetchWantToPlayCourses for user', user.id);
+    
     try {
-      // Since the want_to_play table doesn't exist yet, return empty array
-      const testQuery = await supabase
-        .from('want_to_play')
-        .select('course_id')
+      // IMPROVED APPROACH: Use a more efficient join-like query to get both bookmark data and course details
+      // First check if the table exists and has data for this user
+      const { data: bookmarkedCheck, error: checkError } = await supabase
+        .from('want_to_play_courses')
+        .select('id')
+        .eq('user_id', user.id)
         .limit(1);
         
-      // If the table exists, proceed with real data
-      if (!testQuery.error) {
-        // First get want_to_play entries for the user
-        const { data: wantToPlay, error: wantToPlayError } = await supabase
-          .from('want_to_play')
-          .select('course_id')
-          .eq('user_id', user?.id)
+      if (checkError) {
+        console.error('Error checking want_to_play_courses:', checkError);
+        setWantToPlayCourses([]);
+        return;
+      }
+      
+      // Log some diagnostic information
+      console.log(`Found ${bookmarkedCheck?.length || 0} want_to_play_courses records for user`);
+      
+      if (bookmarkedCheck && bookmarkedCheck.length > 0) {
+        // Step 1: Get all bookmarked course IDs
+        const { data: bookmarkedItems, error: bookmarkError } = await supabase
+          .from('want_to_play_courses')
+          .select('course_id, created_at')
+          .eq('user_id', user.id)
           .order('created_at', { ascending: false });
-
-        if (wantToPlayError) throw wantToPlayError;
-        
-        // If no 'want to play' courses, return empty array
-        if (!wantToPlay || wantToPlay.length === 0) {
+          
+        if (bookmarkError) {
+          console.error('Error fetching bookmarked courses:', bookmarkError);
           setWantToPlayCourses([]);
           return;
         }
         
-        // Extract course IDs
-        const courseIds = wantToPlay.map(item => item.course_id);
+        console.log(`Retrieved ${bookmarkedItems?.length || 0} bookmarked course IDs`);
         
-        // Then fetch the actual course details
-        const { data: courses, error: coursesError } = await supabase
+        if (!bookmarkedItems || bookmarkedItems.length === 0) {
+          setWantToPlayCourses([]);
+          return;
+        }
+        
+        // Step 2: Extract the course IDs for the IN query
+        const courseIds = bookmarkedItems.map(item => item.course_id);
+        console.log(`Extracted ${courseIds.length} course IDs`);
+        
+        // Step 3: Get the full course details from the courses table
+        const { data: coursesData, error: coursesError } = await supabase
           .from('courses')
           .select('id, name, location, type, price_level')
           .in('id', courseIds);
-
-        if (coursesError) throw coursesError;
-
-        setWantToPlayCourses(courses || []);
+        
+        if (coursesError) {
+          console.error('Error fetching course details:', coursesError);
+          setWantToPlayCourses([]);
+          return;
+        }
+        
+        console.log(`Retrieved ${coursesData?.length || 0} course details`);
+        
+        // Step 4: Combine the data, keeping the order from bookmarkedItems
+        const sortedWantToPlayCourses = courseIds.map(courseId => {
+          const courseDetails = coursesData.find(course => course.id === courseId);
+          if (!courseDetails) {
+            console.warn(`Missing details for course ID: ${courseId}`);
+            return null;
+          }
+          
+          return {
+            id: courseDetails.id,
+            name: courseDetails.name || 'Unknown Course',
+            location: courseDetails.location || 'Unknown Location',
+            type: courseDetails.type || 'Unknown Type',
+            price_level: courseDetails.price_level || 3
+          };
+        }).filter(course => course !== null);
+        
+        console.log(`Processed ${sortedWantToPlayCourses.length} want to play courses for display`);
+        setWantToPlayCourses(sortedWantToPlayCourses);
       } else {
-        // The table doesn't exist, return empty array
-        console.log('Want to play table does not exist yet, returning empty array');
+        console.log('No want_to_play_courses records found, returning empty array');
         setWantToPlayCourses([]);
       }
-    } catch (error) {
-      console.error('Error fetching want to play courses:', error);
+      
+      // Force refresh the UI
+      setRefreshKey(Date.now());
+    } catch (err) {
+      console.error('Error in fetchWantToPlayCourses:', err);
       setWantToPlayCourses([]);
     }
   };
@@ -698,16 +760,174 @@ export default function ListsScreen() {
     },
   });
 
-  // Memoize the CourseListTabs to prevent unnecessary re-renders
-  const memoizedCourseListTabs = useMemo(() => (
-    <CourseListTabs 
-      playedCourses={playedCourses}
-      wantToPlayCourses={wantToPlayCourses}
-      recommendedCourses={recommendedCourses}
-      onCoursePress={handleCoursePress}
-      reviewCount={userReviewCount}
-    />
-  ), [playedCourses, wantToPlayCourses, recommendedCourses, userReviewCount]);
+  // Update only the Want to Play tab rendering
+  const memoizedCourseListTabs = React.useMemo(() => {
+    console.log('🔄 Creating memoized CourseListTabs with', wantToPlayCourses.length, 'want-to-play courses');
+    return (
+      <CourseListTabs
+        refreshKey={refreshKey}
+        courseType={courseType}
+        setCourseType={setCourseType}
+        playedCourses={playedCourses}
+        wantToPlayCourses={wantToPlayCourses}
+        recommendedCourses={recommendedCourses}
+        handleCoursePress={handleCoursePress}
+        isLoading={isCoursesLoading}
+        reviewCount={userReviewCount || 0}
+        showScores={userReviewCount >= 10}
+        renderWantToPlayScene={() => {
+          console.log('📱 DIRECTLY Rendering Want to Play tab with', wantToPlayCourses.length, 'courses');
+          
+          // Clean, styled component based on the working debug implementation
+          return (
+            <View style={{
+              flex: 1,
+              backgroundColor: 'white',
+              width: '100%',
+            }}>
+              <Text style={{
+                fontSize: 16,
+                fontWeight: '600',
+                marginTop: 16,
+                marginBottom: 8,
+                marginLeft: 16,
+                color: '#666',
+              }}>
+                {wantToPlayCourses.length} Bookmarked {wantToPlayCourses.length === 1 ? 'Course' : 'Courses'}
+              </Text>
+              
+              <FlatList
+                data={wantToPlayCourses}
+                keyExtractor={(item) => item.id.toString()}
+                renderItem={({ item }) => (
+                  <View style={{
+                    flexDirection: 'row',
+                    alignItems: 'center',
+                    paddingVertical: 16,
+                    paddingHorizontal: 16,
+                    borderBottomWidth: 1,
+                    borderBottomColor: 'rgba(0,0,0,0.1)',
+                    width: '100%',
+                  }}>
+                    <TouchableOpacity
+                      style={{
+                        flex: 1,
+                        paddingRight: 8,
+                      }}
+                      onPress={() => handleCoursePress(item)}
+                      activeOpacity={0.7}
+                    >
+                      <Text style={{
+                        fontSize: 17,
+                        fontWeight: '600',
+                        marginBottom: 4,
+                        color: '#000',
+                      }} numberOfLines={1}>
+                        {item.name}
+                      </Text>
+                      <View style={{
+                        flexDirection: 'row',
+                        alignItems: 'center',
+                      }}>
+                        <MapPin size={14} color="#666" />
+                        <Text style={{
+                          fontSize: 14,
+                          marginLeft: 4,
+                          color: '#666',
+                        }} numberOfLines={1}>
+                          {item.location || 'No location data'}
+                        </Text>
+                      </View>
+                    </TouchableOpacity>
+                    
+                    {user && (
+                      <TouchableOpacity
+                        style={{
+                          padding: 10,
+                          marginLeft: 8,
+                        }}
+                        onPress={async () => {
+                          if (!user) return;
+                          
+                          try {
+                            const { error } = await supabase
+                              .from('want_to_play_courses')
+                              .delete()
+                              .match({ 
+                                user_id: user.id, 
+                                course_id: item.id
+                              });
+
+                            if (error) {
+                              console.error('Error removing bookmark:', error);
+                              throw error;
+                            }
+
+                            console.log(`Successfully removed bookmark for course ${item.id}`);
+                            
+                            // Trigger global refresh
+                            setNeedsRefresh();
+                          } catch (error) {
+                            console.error('Error removing bookmark:', error);
+                          }
+                        }}
+                      >
+                        <X size={20} color="#666" />
+                      </TouchableOpacity>
+                    )}
+                  </View>
+                )}
+                contentContainerStyle={{
+                  paddingBottom: 120,
+                }}
+                showsVerticalScrollIndicator={true}
+              />
+              
+              {wantToPlayCourses.length === 0 && (
+                <View style={{
+                  flex: 1,
+                  justifyContent: 'center',
+                  alignItems: 'center',
+                  paddingHorizontal: 24,
+                }}>
+                  <BookmarkIcon size={80} color="#666" style={{opacity: 0.8}} />
+                  <Text style={{
+                    fontSize: 18,
+                    fontWeight: '600',
+                    marginTop: 16,
+                    marginBottom: 8,
+                    textAlign: 'center',
+                    color: '#333',
+                  }}>
+                    No bookmarked courses yet
+                  </Text>
+                  <Text style={{
+                    fontSize: 14,
+                    textAlign: 'center',
+                    marginBottom: 24,
+                    lineHeight: 20,
+                    color: '#666',
+                  }}>
+                    Bookmark courses from the search page
+                  </Text>
+                </View>
+              )}
+            </View>
+          );
+        }}
+      />
+    );
+  }, [
+    refreshKey,
+    courseType,
+    isCoursesLoading,
+    playedCourses,
+    wantToPlayCourses,
+    recommendedCourses,
+    handleCoursePress,
+    userReviewCount,
+    user
+  ]);
 
   if (loading) {
     return (

@@ -154,8 +154,9 @@ export async function createReview(
       const missingTags = tagIds.filter(id => !foundTagIds.has(id));
 
       if (missingTags.length > 0) {
-        console.error('Some tags do not exist:', missingTags);
-        throw new Error(`Tags not found: ${missingTags.join(', ')}`);
+        console.warn('Some tags do not exist and will be skipped:', missingTags);
+        // Filter out the missing tags instead of failing
+        tagIds = tagIds.filter(id => foundTagIds.has(id));
       }
     }
 

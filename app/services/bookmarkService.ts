@@ -14,7 +14,7 @@ export const bookmarkService = {
   async addBookmark(userId: string, courseId: string): Promise<void> {
     try {
       const { error } = await supabase
-        .from('saved_courses')
+        .from('want_to_play_courses')
         .upsert({
           user_id: userId,
           course_id: courseId,
@@ -42,7 +42,7 @@ export const bookmarkService = {
   async removeBookmark(userId: string, courseId: string): Promise<void> {
     try {
       const { error } = await supabase
-        .from('saved_courses')
+        .from('want_to_play_courses')
         .delete()
         .match({ 
           user_id: userId, 
@@ -69,7 +69,7 @@ export const bookmarkService = {
   async getBookmarkedCourseIds(userId: string): Promise<string[]> {
     try {
       const { data, error } = await supabase
-        .from('saved_courses')
+        .from('want_to_play_courses')
         .select('course_id')
         .eq('user_id', userId);
 
@@ -99,7 +99,7 @@ export const bookmarkService = {
   async getBookmarkedCourses(userId: string): Promise<Course[]> {
     try {
       const { data, error } = await supabase
-        .from('saved_courses')
+        .from('want_to_play_courses')
         .select(`
           course_id,
           courses:course_id(*)

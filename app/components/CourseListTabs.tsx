@@ -3,14 +3,11 @@ import { View, Text, StyleSheet, Dimensions, TouchableOpacity, Platform, SafeAre
 import { TabView, SceneMap, TabBar } from 'react-native-tab-view';
 import { useTheme } from '../theme/ThemeProvider';
 import { PlayedCoursesList } from './PlayedCoursesList';
+import { WantToPlayCoursesList } from './WantToPlayCoursesList';
 import { Course } from '../types/review';
 import { usePlayedCourses } from '../context/PlayedCoursesContext';
 
 // Specialized components for each tab
-const WantToPlayList = ({ courses, onCoursePress, reviewCount }: { courses: Course[], onCoursePress: (course: Course) => void, reviewCount?: number }) => {
-  return <PlayedCoursesList courses={courses} onCoursePress={onCoursePress} reviewCount={reviewCount} />;
-};
-
 const RecommendedList = ({ courses, onCoursePress, reviewCount }: { courses: Course[], onCoursePress: (course: Course) => void, reviewCount?: number }) => {
   return <PlayedCoursesList courses={courses} onCoursePress={onCoursePress} reviewCount={reviewCount} />;
 };
@@ -19,8 +16,15 @@ interface CourseListTabsProps {
   playedCourses: Course[];
   wantToPlayCourses: Course[];
   recommendedCourses: Course[];
-  onCoursePress: (course: Course) => void;
+  onCoursePress?: (course: Course) => void;
   reviewCount?: number;
+  courseType?: 'played' | 'recommended' | 'want-to-play';
+  setCourseType?: (courseType: 'played' | 'recommended' | 'want-to-play') => void;
+  showScores?: boolean;
+  isLoading?: boolean;
+  refreshKey?: number;
+  handleCoursePress?: (course: Course) => void;
+  renderWantToPlayScene?: () => React.ReactNode;
 }
 
 // Export as memoized component to prevent unnecessary re-renders
@@ -30,6 +34,13 @@ export const CourseListTabs: React.FC<CourseListTabsProps> = React.memo(({
   recommendedCourses,
   onCoursePress,
   reviewCount = 0,
+  courseType,
+  setCourseType,
+  showScores,
+  isLoading,
+  refreshKey,
+  handleCoursePress,
+  renderWantToPlayScene,
 }) => {
   const theme = useTheme();
   // Access global course state from context
@@ -210,26 +221,68 @@ export const CourseListTabs: React.FC<CourseListTabsProps> = React.memo(({
           : globalRecommendedCourses,
     };
     
+    // Debug log for Want to Play data
+    if (route.key === 'wantToPlay') {
+      console.log('🔍 DIAGNOSTIC - Want to Play Data Flow:', {
+        routeKey: route.key,
+        fromProps: wantToPlayCourses?.length || 0,
+        fromInternalState: internalWantToPlayCourses?.length || 0,
+        fromGlobalContext: globalWantToPlayCourses?.length || 0,
+        finalCount: coursesToRender.wantToPlay?.length || 0,
+        hasCustomRenderer: !!renderWantToPlayScene
+      });
+      
+      // Check first course if available
+      if (coursesToRender.wantToPlay?.length > 0) {
+        const firstCourse = coursesToRender.wantToPlay[0];
+        console.log('🔍 First Want to Play course:', {
+          id: firstCourse.id,
+          name: firstCourse.name,
+          location: firstCourse.location
+        });
+      }
+    }
+    
+    // Safely determine the course press handler
+    const coursePressHandler = (course: Course) => {
+      if (onCoursePress) {
+        onCoursePress(course);
+      } else if (handleCoursePress) {
+        handleCoursePress(course);
+      } else {
+        console.log('No course press handler provided for', course.name);
+      }
+    };
+    
     switch (route.key) {
       case 'played':
         return <PlayedCoursesList 
                  key={`played-${remountKey}`} 
                  courses={coursesToRender.played || []} 
-                 onCoursePress={onCoursePress} 
+                 onCoursePress={coursePressHandler} 
                  reviewCount={reviewCount}
                />;
       case 'wantToPlay':
-        return <WantToPlayList 
+        // Use renderWantToPlayScene prop if provided - DIRECT RETURN
+        if (renderWantToPlayScene) {
+          console.log('→ DIRECT RENDERING: Want to Play tab with custom component');
+          // Return with absolutely no wrapping to avoid any layout issues
+          return renderWantToPlayScene();
+        }
+        
+        // Fall back to direct rendering only if no external renderer is provided
+        console.log('🔄 Rendering fallback WantToPlayCoursesList with', coursesToRender.wantToPlay?.length || 0, 'courses');
+        return <WantToPlayCoursesList 
                  key={`wantToPlay-${remountKey}`} 
                  courses={coursesToRender.wantToPlay || []} 
-                 onCoursePress={onCoursePress} 
+                 onCoursePress={coursePressHandler}
                  reviewCount={reviewCount}
                />;
       case 'recommended':
         return <RecommendedList 
                  key={`recommended-${remountKey}`} 
                  courses={coursesToRender.recommended || []} 
-                 onCoursePress={onCoursePress} 
+                 onCoursePress={coursePressHandler}
                  reviewCount={reviewCount}
                />;
       default:
@@ -246,8 +299,10 @@ export const CourseListTabs: React.FC<CourseListTabsProps> = React.memo(({
     globalWantToPlayCourses,
     globalRecommendedCourses,
     onCoursePress,
+    handleCoursePress,
     remountKey,
-    reviewCount
+    reviewCount,
+    renderWantToPlayScene
   ]);
 
   const renderTabBar = (props: any) => (
@@ -339,19 +394,72 @@ export const CourseListTabs: React.FC<CourseListTabsProps> = React.memo(({
         </View>
       )}
       
-      <TabView
-        key={stableKey}
-        navigationState={{ index, routes }}
-        renderScene={renderScene}
-        onIndexChange={setIndex}
-        initialLayout={layout}
-        renderTabBar={renderTabBar}
-        lazy={false} // Disable lazy loading completely to ensure first tab shows immediately
-        swipeEnabled={true}
-        style={{
-          backgroundColor: theme.colors.background,
-        }}
-      />
+      {/* Debug header message */}
+      <View style={{ padding: 10, backgroundColor: 'rgba(255,255,0,0.2)' }}>
+        <Text style={{ fontSize: 12, fontWeight: 'bold', textAlign: 'center' }}>
+          DEBUGGING MODE: Simple Tab View ({index === 0 ? 'Played' : index === 1 ? 'Want to Play' : 'Recommended'})
+        </Text>
+      </View>
+      
+      {/* Custom tab bar using simple buttons */}
+      <View style={{ 
+        flexDirection: 'row', 
+        backgroundColor: theme.colors.surface,
+        borderBottomWidth: 1,
+        borderBottomColor: theme.colors.border,
+        elevation: 3,
+      }}>
+        {routes.map((route, i) => (
+          <TouchableOpacity
+            key={route.key}
+            style={{
+              flex: 1,
+              paddingVertical: 14,
+              backgroundColor: i === index ? 'rgba(0,0,0,0.05)' : 'transparent',
+              alignItems: 'center',
+              borderBottomWidth: i === index ? 3 : 0,
+              borderBottomColor: theme.colors.primary,
+            }}
+            onPress={() => setIndex(i)}
+          >
+            <Text 
+              style={{
+                color: i === index ? theme.colors.primary : theme.colors.textSecondary,
+                fontWeight: '500',
+              }}
+            >
+              {route.title}
+            </Text>
+          </TouchableOpacity>
+        ))}
+      </View>
+      
+      {/* Simple direct content rendering based on index */}
+      <View style={{ flex: 1, backgroundColor: 'white' }}>
+        {index === 0 && renderScene({ route: { key: 'played' } })}
+        
+        {index === 1 && (
+          <View style={{ 
+            flex: 1, 
+            borderWidth: 5, 
+            borderColor: 'red', 
+            padding: 5,
+            backgroundColor: 'white',
+          }}>
+            <Text style={{ 
+              textAlign: 'center', 
+              backgroundColor: 'lightyellow',
+              padding: 5,
+              marginBottom: 5,
+            }}>
+              WANT TO PLAY TAB (DEBUG MODE)
+            </Text>
+            {renderScene({ route: { key: 'wantToPlay' } })}
+          </View>
+        )}
+        
+        {index === 2 && renderScene({ route: { key: 'recommended' } })}
+      </View>
     </View>
   );
 }); 

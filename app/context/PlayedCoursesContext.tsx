@@ -19,6 +19,8 @@ interface PlayedCoursesContextType {
   lastUpdateTimestamp: number;
   // Function to force a refresh of courses data
   setNeedsRefresh: () => void;
+  // Function to refresh lists after bookmark operations
+  refreshLists: () => void;
 }
 
 // Create the context with a default value
@@ -39,6 +41,14 @@ export function PlayedCoursesProvider({ children }: { children: ReactNode }) {
     console.log('🔄 CONTEXT: Marking courses data for refresh');
     setLastUpdateTimestamp(Date.now());
     setHasLoadedCourses(false);
+  };
+  
+  // Function to refresh lists after bookmark operations
+  const refreshLists = () => {
+    console.log('🔄 CONTEXT: Refreshing lists after bookmark operation');
+    setLastUpdateTimestamp(Date.now());
+    // For immediate UI update, we can also directly filter out the removed course
+    // But we'll rely on the parent component to fully refresh the data
   };
 
   // Log when the state changes to help with debugging
@@ -67,7 +77,8 @@ export function PlayedCoursesProvider({ children }: { children: ReactNode }) {
         hasLoadedCourses,
         setHasLoadedCourses,
         lastUpdateTimestamp,
-        setNeedsRefresh
+        setNeedsRefresh,
+        refreshLists
       }}
     >
       {children}
@@ -75,7 +86,7 @@ export function PlayedCoursesProvider({ children }: { children: ReactNode }) {
   );
 }
 
-// Custom hook to use the context
+// Custom hook for using the context
 export function usePlayedCourses() {
   const context = useContext(PlayedCoursesContext);
   if (context === undefined) {
