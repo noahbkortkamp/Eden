@@ -9,7 +9,15 @@ import { usePlayedCourses } from '../context/PlayedCoursesContext';
 
 // Specialized components for each tab
 const RecommendedList = ({ courses, onCoursePress, reviewCount }: { courses: Course[], onCoursePress: (course: Course) => void, reviewCount?: number }) => {
-  return <PlayedCoursesList courses={courses} onCoursePress={onCoursePress} reviewCount={reviewCount} />;
+  const theme = useTheme();
+  // Return empty state since this functionality isn't built yet
+  return (
+    <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: theme.colors.background }}>
+      <Text style={{ fontSize: 16, color: theme.colors.textSecondary, textAlign: 'center' }}>
+        Coming soon
+      </Text>
+    </View>
+  );
 };
 
 interface CourseListTabsProps {
