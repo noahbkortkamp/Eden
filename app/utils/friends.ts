@@ -109,11 +109,11 @@ export async function getFollowCounts(userId: string): Promise<{followers: numbe
   const [followersResponse, followingResponse] = await Promise.all([
     supabase
       .from('follows')
-      .select('id', { count: 'exact' })
+      .select('*', { count: 'exact', head: true })
       .eq('following_id', userId),
     supabase
       .from('follows')
-      .select('id', { count: 'exact' })
+      .select('*', { count: 'exact', head: true })
       .eq('follower_id', userId)
   ]);
 

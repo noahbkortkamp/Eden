@@ -4,14 +4,16 @@ import { Text, Button, Avatar, Card } from 'react-native-paper';
 import { useAuth } from '../context/AuthContext';
 import { useRouter } from 'expo-router';
 import { getReviewsForUser } from '../utils/reviews';
-import { CourseReview } from '../types/review';
 import { format } from 'date-fns';
 import { getCourse } from '../utils/courses';
+import { getFollowCounts } from '../utils/friends';
+import { bookmarkService } from '../services/bookmarkService';
 import type { Database } from '../utils/database.types';
 
 type Course = Database['public']['Tables']['courses']['Row'];
+type Review = Database['public']['Tables']['reviews']['Row'];
 
-interface ReviewWithCourse extends CourseReview {
+interface ReviewWithCourse extends Review {
   course?: Course;
 }
 
@@ -21,11 +23,24 @@ export default function ProfileScreen() {
   const [reviews, setReviews] = useState<ReviewWithCourse[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [followStats, setFollowStats] = useState({ followers: 0, following: 0 });
+  const [wantToPlayCount, setWantToPlayCount] = useState(0);
 
   const loadReviews = async () => {
     if (!user) return;
     try {
-      const userReviews = await getReviewsForUser(user.id);
+      // Fetch all stats in parallel
+      const [userReviews, followCounts, bookmarkedCourseIds] = await Promise.all([
+        getReviewsForUser(user.id),
+        getFollowCounts(user.id),
+        bookmarkService.getBookmarkedCourseIds(user.id)
+      ]);
+      
+      // Update follow stats
+      setFollowStats(followCounts);
+      
+      // Update bookmarked courses count
+      setWantToPlayCount(bookmarkedCourseIds.length);
       
       // Fetch course details for each review
       const reviewsWithCourses = await Promise.all(
@@ -49,7 +64,7 @@ export default function ProfileScreen() {
       
       setReviews(sortedReviews);
     } catch (error) {
-      console.error('Error loading reviews:', error);
+      console.error('Error loading profile data:', error);
     } finally {
       setIsLoading(false);
       setRefreshing(false);
@@ -98,6 +113,30 @@ export default function ProfileScreen() {
         <Text variant="bodyMedium" style={styles.email}>
           {user.email}
         </Text>
+        
+        {/* Stats Row */}
+        <View style={styles.statsRow}>
+          <View style={styles.statItem}>
+            <Text variant="titleMedium" style={styles.statCount}>{followStats.followers}</Text>
+            <Text variant="bodySmall" style={styles.statLabel}>Followers</Text>
+          </View>
+          
+          <View style={styles.statItem}>
+            <Text variant="titleMedium" style={styles.statCount}>{followStats.following}</Text>
+            <Text variant="bodySmall" style={styles.statLabel}>Following</Text>
+          </View>
+          
+          <View style={styles.statItem}>
+            <Text variant="titleMedium" style={styles.statCount}>{reviews.length}</Text>
+            <Text variant="bodySmall" style={styles.statLabel}>Been</Text>
+          </View>
+          
+          <View style={styles.statItem}>
+            <Text variant="titleMedium" style={styles.statCount}>{wantToPlayCount}</Text>
+            <Text variant="bodySmall" style={styles.statLabel}>Want to Play</Text>
+          </View>
+        </View>
+        
         <Button mode="outlined" onPress={signOut} style={styles.button}>
           Sign Out
         </Button>
@@ -164,6 +203,25 @@ const styles = StyleSheet.create({
   email: {
     marginTop: 4,
     color: '#666',
+  },
+  statsRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    width: '100%',
+    marginTop: 16,
+    marginBottom: 8,
+    paddingHorizontal: 10,
+  },
+  statItem: {
+    alignItems: 'center',
+    minWidth: 60,
+  },
+  statCount: {
+    fontWeight: 'bold',
+  },
+  statLabel: {
+    color: '#666',
+    marginTop: 2,
   },
   button: {
     marginTop: 16,
