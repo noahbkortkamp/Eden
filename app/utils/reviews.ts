@@ -12,7 +12,8 @@ export async function createReview(
   favoriteHoles: number[] | { number: number; reason: string }[],
   photos: string[],
   datePlayed: string,
-  tagIds: string[]
+  tagIds: string[],
+  playingPartners: string[] = []
 ): Promise<Review> {
   // Format favorite holes to be just an array of numbers
   const formattedFavoriteHoles = Array.isArray(favoriteHoles) 
@@ -45,6 +46,7 @@ export async function createReview(
     photos: photos.length + ' photos',
     datePlayed,
     tagIds,
+    playingPartners: playingPartners.length + ' partners',
   });
 
   try {
@@ -171,6 +173,7 @@ export async function createReview(
       photos,
       date_played: datePlayed,
       price_paid: 0, // Default value, can be updated later
+      playing_partners: playingPartners, // Add playing partners
     };
 
     // Try to create the review - progressive fallback approach
@@ -285,9 +288,10 @@ export async function updateReview(
     photos?: string[];
     datePlayed?: string;
     tagIds?: string[];
+    playingPartners?: string[];
   }
 ): Promise<Review> {
-  const { rating, notes, favoriteHoles, photos, datePlayed, tagIds } = updates;
+  const { rating, notes, favoriteHoles, photos, datePlayed, tagIds, playingPartners } = updates;
 
   // If rating is updated, map it to the corresponding sentiment
   let sentiment;
@@ -317,6 +321,7 @@ export async function updateReview(
       favorite_holes: favoriteHoles,
       photos,
       date_played: datePlayed,
+      playing_partners: playingPartners,
       updated_at: new Date().toISOString(),
     })
     .eq('id', reviewId)

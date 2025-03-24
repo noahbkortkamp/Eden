@@ -187,6 +187,7 @@ export interface Database {
           date_played: string
           created_at: string
           updated_at: string
+          playing_partners: string[]
         }
         Insert: {
           id?: string
@@ -199,6 +200,7 @@ export interface Database {
           date_played: string
           created_at?: string
           updated_at?: string
+          playing_partners?: string[]
         }
         Update: {
           id?: string
@@ -211,6 +213,7 @@ export interface Database {
           date_played?: string
           created_at?: string
           updated_at?: string
+          playing_partners?: string[]
         }
       }
       tags: {

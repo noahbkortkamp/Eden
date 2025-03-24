@@ -158,7 +158,7 @@ export default function ListsScreen() {
       // 2. Either:
       //    a. No courses loaded yet OR
       //    b. The data has been marked for refresh
-      if (!usingTestData && (!hasLoadedCourses || !isCoursesLoading)) {
+      if (!usingTestData && (!hasLoadedCourses || setNeedsRefresh)) {
         console.log('Triggering data reload on focus');
         lastRefreshTime.current = now;
         loadData();
@@ -171,7 +171,7 @@ export default function ListsScreen() {
       return () => {
         console.log('Lists tab lost focus');
       };
-    }, [usingTestData, hasLoadedCourses, isCoursesLoading, lastUpdateTimestamp, user])
+    }, [usingTestData, hasLoadedCourses, isCoursesLoading, lastUpdateTimestamp, user, setNeedsRefresh])
   );
 
   // Watch for changes in userReviewCount and update showScores property for all courses

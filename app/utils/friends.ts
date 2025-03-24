@@ -193,4 +193,37 @@ export async function getSuggestedUsers(userId: string, limit: number = 5): Prom
   }
   
   return data || [];
+}
+
+/**
+ * Get users that a user follows
+ * @param userId The ID of the user whose followed users to fetch
+ * @returns Promise<User[]>
+ */
+export async function getFollowingUsers(userId: string): Promise<User[]> {
+  const { data, error } = await supabase
+    .from('follows')
+    .select(`
+      following_id,
+      users:following_id (
+        id,
+        full_name,
+        avatar_url,
+        username
+      )
+    `)
+    .eq('follower_id', userId);
+
+  if (error) {
+    console.error("Error fetching followed users:", error);
+    throw error;
+  }
+
+  // Transform the data to match the User type
+  return (data || []).map(follow => ({
+    id: follow.users.id,
+    username: follow.users.username || '',
+    name: follow.users.full_name || '',
+    profileImage: follow.users.avatar_url || undefined
+  }));
 } 

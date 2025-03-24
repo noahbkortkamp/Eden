@@ -10,6 +10,8 @@ import { TagSelectionModal } from '../components/TagSelectionModal';
 import { Tag, TAGS_BY_CATEGORY } from '../constants/tags';
 import { ChevronRight } from 'lucide-react-native';
 import { FavoriteHolesModal, FavoriteHole } from '../components/FavoriteHolesModal';
+import { PlayingPartnersModal } from '../components/PlayingPartnersModal';
+import { User } from '../../types';
 
 const SENTIMENT_ICONS = {
   liked: '✅',
@@ -33,6 +35,8 @@ export const ReviewScreen: React.FC<ReviewScreenProps> = ({
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [showTagsModal, setShowTagsModal] = useState(false);
   const [showFavoriteHolesModal, setShowFavoriteHolesModal] = useState(false);
+  const [showPlayingPartnersModal, setShowPlayingPartnersModal] = useState(false);
+  const [playingPartners, setPlayingPartners] = useState<User[]>([]);
   const scrollViewRef = useRef<ScrollView>(null);
 
   const handlePhotoUpload = async () => {
@@ -60,6 +64,7 @@ export const ReviewScreen: React.FC<ReviewScreenProps> = ({
       favorite_holes: favoriteHoles,
       photos: photos.length,
       date_played: datePlayed,
+      playing_partners: playingPartners.map(p => p.id),
     });
 
     try {
@@ -71,6 +76,7 @@ export const ReviewScreen: React.FC<ReviewScreenProps> = ({
         favorite_holes: favoriteHoles,
         photos,
         date_played: datePlayed,
+        playing_partners: playingPartners.map(p => p.id),
       });
       console.log('ReviewScreen: Review submitted successfully');
     } catch (error) {
@@ -99,6 +105,11 @@ export const ReviewScreen: React.FC<ReviewScreenProps> = ({
       .map(h => h.number)
       .join(', ');
     return `Holes ${holeNumbers}`;
+  };
+
+  const getPlayingPartnersPreview = () => {
+    if (playingPartners.length === 0) return '';
+    return playingPartners.map(p => p.name).join(', ');
   };
 
   const styles = StyleSheet.create({
@@ -342,6 +353,20 @@ export const ReviewScreen: React.FC<ReviewScreenProps> = ({
           </View>
         </TouchableOpacity>
 
+        {/* Add Playing Partners section */}
+        <TouchableOpacity
+          style={styles.section}
+          onPress={() => setShowPlayingPartnersModal(true)}
+        >
+          <View style={styles.sectionHeader}>
+            <Text style={styles.sectionTitle}>Who did you play with?</Text>
+            <ChevronRight size={20} color={theme.colors.textSecondary} />
+          </View>
+          <Text style={styles.sectionContent}>
+            {playingPartners.length > 0 ? getPlayingPartnersPreview() : 'Select playing partners'}
+          </Text>
+        </TouchableOpacity>
+
         {/* Notes Section */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Notes</Text>
@@ -455,6 +480,13 @@ export const ReviewScreen: React.FC<ReviewScreenProps> = ({
           onSave={setFavoriteHoles}
           selectedHoles={favoriteHoles}
           totalHoles={18}
+        />
+
+        <PlayingPartnersModal
+          visible={showPlayingPartnersModal}
+          onClose={() => setShowPlayingPartnersModal(false)}
+          onSave={setPlayingPartners}
+          selectedUsers={playingPartners}
         />
       </ScrollView>
     </KeyboardAvoidingView>

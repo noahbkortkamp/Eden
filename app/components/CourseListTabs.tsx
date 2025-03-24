@@ -391,6 +391,29 @@ export const CourseListTabs: React.FC<CourseListTabsProps> = React.memo(({
     }
   };
 
+  // Update internal state only when props change
+  useEffect(() => {
+    if (isMounted.current) {
+      setInternalPlayedCourses(playedCourses);
+      setInternalWantToPlayCourses(wantToPlayCourses);
+      setInternalRecommendedCourses(recommendedCourses);
+    }
+  }, [playedCourses, wantToPlayCourses, recommendedCourses]);
+
+  // Handle course type changes
+  useEffect(() => {
+    if (isMounted.current) {
+      setIndex(routes.findIndex(route => route.key === courseType));
+    }
+  }, [courseType, routes]);
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      isMounted.current = false;
+    };
+  }, []);
+
   return !isReady ? null : (
     <View style={{ flex: 1 }} onLayout={onLayout}>
       {/* Add diagnostic info */}

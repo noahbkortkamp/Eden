@@ -57,6 +57,7 @@ export interface ReviewScreenProps {
     photos: string[];
     date_played: Date;
     tags: string[];
+    playing_partners: string[];
   }) => Promise<void>;
   isSubmitting: boolean;
   error?: string;
