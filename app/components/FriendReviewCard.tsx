@@ -64,11 +64,11 @@ export const FriendReviewCard: React.FC<FriendReviewCardProps> = ({ review, onPr
   const sentiment = getSentimentFromRating(review.rating);
   const sentimentConfig = SENTIMENT_RANGES[sentiment];
   const RatingIcon = sentimentConfig.icon;
-  const town = getTownFromLocation(review.course_location);
   
-  // Debug timestamp to verify fresh data
-  const timestamp = new Date().toISOString();
-  const lastFourChars = timestamp.substring(timestamp.length - 7, timestamp.length - 3);
+  // Check if there are playing partners to mention
+  const hasPlayingPartners = review.playing_partners && review.playing_partners.length > 0;
+  // Check if there are photos to display
+  const hasPhotos = review.photos && review.photos.length > 0;
   
   return (
     <TouchableOpacity 
@@ -101,70 +101,28 @@ export const FriendReviewCard: React.FC<FriendReviewCardProps> = ({ review, onPr
         </View>
         
         <View style={[styles.ratingBadge, { backgroundColor: sentimentConfig.color + '20' }]}>
-          <RatingIcon size={16} color={sentimentConfig.color} />
+          <RatingIcon size={20} color={sentimentConfig.color} />
           <Text style={[styles.ratingText, { color: sentimentConfig.color }]}>
             {formatRating(review.rating)}
-            <Text style={{fontSize: 8, opacity: 0.6}}>{" "}{lastFourChars}</Text>
-          </Text>
-        </View>
-      </View>
-      
-      <View style={styles.courseInfo}>
-        <Text style={[styles.courseName, { color: theme.colors.text }]}>
-          {review.course_name}
-        </Text>
-        <View style={styles.locationContainer}>
-          <MapPin size={14} color={theme.colors.textSecondary} />
-          <Text style={[styles.courseLocation, { color: theme.colors.textSecondary }]}>
-            {town}
           </Text>
         </View>
       </View>
 
-      {/* Playing Partners Section */}
-      {review.playing_partners && review.playing_partners.length > 0 ? (
-        <View style={styles.partnersSection}>
-          <View style={styles.partnersHeader}>
-            <Users size={14} color={theme.colors.textSecondary} />
-            <Text style={[styles.partnersTitle, { color: theme.colors.textSecondary }]}>
-              Played with {review.playing_partners.length} {review.playing_partners.length === 1 ? 'person' : 'people'}
-            </Text>
-          </View>
-          <ScrollView 
-            horizontal 
-            showsHorizontalScrollIndicator={false}
-            style={styles.partnersList}
-          >
-            {review.playing_partners.map((partner) => (
-              <View key={partner.id} style={styles.partnerItem}>
-                {partner.avatar_url ? (
-                  <Image 
-                    source={{ uri: partner.avatar_url }} 
-                    style={styles.partnerAvatar}
-                    contentFit="cover"
-                  />
-                ) : (
-                  <View style={[styles.partnerAvatarPlaceholder, { backgroundColor: theme.colors.secondary }]}>
-                    <Text style={styles.partnerAvatarText}>
-                      {partner.full_name?.charAt(0).toUpperCase() || 'U'}
-                    </Text>
-                  </View>
-                )}
-                <Text style={[styles.partnerName, { color: theme.colors.text }]}>
-                  {partner.full_name}
-                </Text>
-              </View>
-            ))}
-          </ScrollView>
-        </View>
-      ) : (
-        <Text style={[styles.soloPlayText, { color: theme.colors.textSecondary }]}>
-          {review.full_name} played {review.course_name}
+      {/* Main content header - "User played Course with X people" */}
+      <Text style={[styles.mainHeader, { color: theme.colors.text }]}>
+        {review.full_name} played {review.course_name}
+        {hasPlayingPartners ? ` with ${review.playing_partners.length} ${review.playing_partners.length === 1 ? 'person' : 'people'}` : ''}
+      </Text>
+      
+      {/* Show review content if available */}
+      {review.notes && (
+        <Text style={[styles.notes, { color: theme.colors.text }]}>
+          {review.notes}
         </Text>
       )}
-
-      {/* Photos Section */}
-      {review.photos && review.photos.length > 0 && (
+      
+      {/* Photos Section - only if photos exist */}
+      {hasPhotos && (
         <ScrollView 
           horizontal 
           showsHorizontalScrollIndicator={false}
@@ -181,44 +139,21 @@ export const FriendReviewCard: React.FC<FriendReviewCardProps> = ({ review, onPr
         </ScrollView>
       )}
       
-      {/* Review Content */}
-      <View style={styles.contentSection}>
-        {review.notes && (
-          <Text style={[styles.notes, { color: theme.colors.text }]}>
-            {review.notes}
-          </Text>
-        )}
-        
-        {review.favorite_holes && review.favorite_holes.length > 0 && (
-          <View style={styles.favoriteHolesContainer}>
-            <Text style={[styles.favoriteHolesTitle, { color: theme.colors.textSecondary }]}>
-              Favorite holes: {review.favorite_holes.join(', ')}
-            </Text>
-          </View>
-        )}
-      </View>
-      
-      <View style={styles.footer}>
-        <Text style={[styles.playedDate, { color: theme.colors.textSecondary }]}>
-          Played on {format(new Date(review.date_played), 'MMM d, yyyy')}
+      {/* Favorite holes */}
+      {review.favorite_holes && review.favorite_holes.length > 0 && (
+        <Text style={[styles.favoriteHoles, { color: theme.colors.textSecondary }]}>
+          Favorite holes: {review.favorite_holes.join(', ')}
         </Text>
-        
-        <TouchableOpacity style={styles.shareButton}>
-          <Share size={16} color={theme.colors.primary} />
-        </TouchableOpacity>
-      </View>
+      )}
     </TouchableOpacity>
   );
 };
 
 const styles = StyleSheet.create({
   container: {
-    borderRadius: 12,
+    borderRadius: 16,
     padding: 16,
-    marginBottom: 12,
-    marginHorizontal: 16,
-    borderWidth: 1,
-    borderColor: '#e2e8f0',
+    marginBottom: 16,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
@@ -266,78 +201,27 @@ const styles = StyleSheet.create({
   ratingBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 4,
-    paddingHorizontal: 8,
-    borderRadius: 16,
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+    borderRadius: 20,
   },
   ratingText: {
-    fontSize: 12,
-    fontFamily: 'Inter-Medium',
-    marginLeft: 4,
-  },
-  courseInfo: {
-    marginBottom: 12,
-  },
-  courseName: {
-    fontSize: 18,
+    fontSize: 16,
     fontFamily: 'Inter-Bold',
-    marginBottom: 4,
+    marginLeft: 6,
   },
-  locationContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  courseLocation: {
-    fontSize: 14,
-    fontFamily: 'Inter-Regular',
-    marginLeft: 4,
-  },
-  partnersSection: {
+  mainHeader: {
+    fontSize: 18,
+    fontWeight: '600',
     marginBottom: 12,
   },
-  partnersHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 8,
+  notes: {
+    fontSize: 16,
+    marginBottom: 12,
+    lineHeight: 22,
   },
-  partnersTitle: {
-    fontSize: 12,
-    fontFamily: 'Inter-Medium',
-    marginLeft: 4,
-  },
-  partnersList: {
-    flexDirection: 'row',
-  },
-  partnerItem: {
-    alignItems: 'center',
-    marginRight: 12,
-  },
-  partnerAvatar: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    marginBottom: 4,
-  },
-  partnerAvatarPlaceholder: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: 4,
-  },
-  partnerAvatarText: {
-    fontSize: 12,
-    fontWeight: 'bold',
-    color: 'white',
-  },
-  partnerName: {
-    fontSize: 12,
-    fontFamily: 'Inter-Regular',
-  },
-  soloPlayText: {
-    fontSize: 12,
-    fontFamily: 'Inter-Regular',
+  favoriteHoles: {
+    fontSize: 14,
     marginBottom: 12,
   },
   photosContainer: {
@@ -348,33 +232,5 @@ const styles = StyleSheet.create({
     height: 120,
     borderRadius: 8,
     marginRight: 8,
-  },
-  contentSection: {
-    marginBottom: 12,
-  },
-  notes: {
-    fontSize: 14,
-    fontFamily: 'Inter-Regular',
-    lineHeight: 20,
-    marginBottom: 8,
-  },
-  favoriteHolesContainer: {
-    marginTop: 4,
-  },
-  favoriteHolesTitle: {
-    fontSize: 12,
-    fontFamily: 'Inter-Regular',
-  },
-  footer: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  playedDate: {
-    fontSize: 12,
-    fontFamily: 'Inter-Regular',
-  },
-  shareButton: {
-    padding: 4,
   },
 }); 
