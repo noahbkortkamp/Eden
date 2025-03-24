@@ -29,8 +29,12 @@ export const FriendsReviewsFeed: React.FC<FriendsReviewsFeedProps> = ({ onFindFr
   const [error, setError] = useState<string | null>(null);
 
   const fetchReviews = useCallback(async (refresh = false) => {
-    if (!user) return;
+    if (!user) {
+      console.log('No user found, skipping review fetch');
+      return;
+    }
     
+    console.log(`Fetching reviews for user ${user.id}, page ${page}, refresh: ${refresh}`);
     const currentPage = refresh ? 1 : page;
     const pageSize = 10;
     
@@ -50,40 +54,38 @@ export const FriendsReviewsFeed: React.FC<FriendsReviewsFeedProps> = ({ onFindFr
           const isExpired = Date.now() - timestamp > CACHE_EXPIRY_TIME;
           
           if (!isExpired) {
+            console.log('Using cached reviews data');
             setReviews(data);
             setLoading(false);
+            setRefreshing(false);
             return;
           }
         }
       }
       
-      const newReviews = await getFriendsReviews(user.id, currentPage, pageSize);
-      console.log(`Loaded ${newReviews.length} reviews for page ${currentPage}`);
+      console.log('Fetching fresh reviews data from API');
+      const reviewsData = await getFriendsReviews(user.id, currentPage, pageSize);
+      console.log(`Fetched ${reviewsData.length} reviews`);
       
-      // Check if we've reached the end
-      const hasMoreReviews = newReviews.length > 0 && newReviews.length >= pageSize;
-      setHasMore(hasMoreReviews);
-      
+      // If this is a refresh or first page, replace all data
       if (refresh || currentPage === 1) {
-        setReviews(newReviews);
-        
-        // Update cache for page 1
+        setReviews(reviewsData);
+        // Update cache for first page
         await AsyncStorage.setItem('friendsReviewsCache', JSON.stringify({
           timestamp: Date.now(),
-          data: newReviews,
+          data: reviewsData,
         }));
       } else {
-        setReviews(prev => [...prev, ...newReviews]);
+        // Append new data for subsequent pages
+        setReviews(prev => [...prev, ...reviewsData]);
       }
       
-      if (refresh || currentPage === 1) {
-        setPage(1);
-      } else {
-        setPage(currentPage + 1);
-      }
+      // Update hasMore based on whether we got a full page of results
+      setHasMore(reviewsData.length === pageSize);
+      setError(null);
     } catch (err) {
-      console.error('Error fetching friend reviews:', err);
-      setError('Failed to load reviews. Please try again.');
+      console.error('Error fetching reviews:', err);
+      setError('Failed to load reviews');
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -93,7 +95,35 @@ export const FriendsReviewsFeed: React.FC<FriendsReviewsFeedProps> = ({ onFindFr
   
   // Initial data load
   useEffect(() => {
-    fetchReviews();
+    // More aggressive cache clearing
+    const clearAllCaches = async () => {
+      try {
+        console.log('AGGRESSIVE CACHE CLEARING: Removing all cached data');
+        
+        // Get all keys from AsyncStorage
+        const allKeys = await AsyncStorage.getAllKeys();
+        const cachesToClear = allKeys.filter(key => key.includes('Cache') || key.includes('cache'));
+        
+        console.log(`Found ${cachesToClear.length} caches to clear:`, cachesToClear);
+        
+        // Clear all cache items
+        if (cachesToClear.length > 0) {
+          await AsyncStorage.multiRemove(cachesToClear);
+        }
+        
+        // Specific cache removal
+        await AsyncStorage.removeItem('friendsReviewsCache');
+        
+        console.log('All caches cleared, forcing refresh');
+        setPage(1);
+        fetchReviews(true);
+      } catch (err) {
+        console.error('Error during aggressive cache clearing:', err);
+        fetchReviews(true);
+      }
+    };
+    
+    clearAllCaches();
   }, [fetchReviews]);
   
   // Set up real-time subscription
@@ -163,10 +193,38 @@ export const FriendsReviewsFeed: React.FC<FriendsReviewsFeedProps> = ({ onFindFr
     }
   };
   
-  // Handle refresh
-  const handleRefresh = () => {
-    fetchReviews(true);
-  };
+  // Handle refresh (called when user pulls to refresh)
+  const handleRefresh = useCallback(() => {
+    console.log('User initiated refresh - AGGRESSIVELY clearing all caches');
+    
+    // Clear all caches
+    const clearAllCaches = async () => {
+      try {
+        // Get all keys from AsyncStorage
+        const allKeys = await AsyncStorage.getAllKeys();
+        const cachesToClear = allKeys.filter(key => key.includes('Cache') || key.includes('cache'));
+        
+        console.log(`Found ${cachesToClear.length} caches to clear:`, cachesToClear);
+        
+        // Clear all cache items
+        if (cachesToClear.length > 0) {
+          await AsyncStorage.multiRemove(cachesToClear);
+        }
+        
+        // Specific cache removal
+        await AsyncStorage.removeItem('friendsReviewsCache');
+        
+        console.log('All caches cleared, forcing refresh');
+        setPage(1);
+        fetchReviews(true);
+      } catch (err) {
+        console.error('Error during aggressive cache clearing:', err);
+        fetchReviews(true);
+      }
+    };
+    
+    clearAllCaches();
+  }, [fetchReviews]);
   
   // Handle review press
   const handleReviewPress = (courseId: string) => {
