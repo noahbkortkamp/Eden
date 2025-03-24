@@ -110,7 +110,15 @@ export const CourseListTabs: React.FC<CourseListTabsProps> = React.memo(({
     });
   }, [internalPlayedCourses, internalWantToPlayCourses, internalRecommendedCourses]);
 
-  const [index, setIndex] = useState(0);
+  const [index, setIndex] = useState(() => {
+    switch (courseType) {
+      case 'played': return 0;
+      case 'want-to-play': return 1;
+      case 'recommended': return 2;
+      default: return 0;
+    }
+  });
+
   const [routes] = useState([
     { key: 'played', title: 'Played' },
     { key: 'wantToPlay', title: 'Want to Play' },
@@ -400,12 +408,18 @@ export const CourseListTabs: React.FC<CourseListTabsProps> = React.memo(({
     }
   }, [playedCourses, wantToPlayCourses, recommendedCourses]);
 
-  // Handle course type changes
+  // Update index when courseType changes
   useEffect(() => {
-    if (isMounted.current) {
-      setIndex(routes.findIndex(route => route.key === courseType));
+    let newIndex;
+    switch (courseType) {
+      case 'played': newIndex = 0; break;
+      case 'want-to-play': newIndex = 1; break;
+      case 'recommended': newIndex = 2; break;
+      default: newIndex = 0;
     }
-  }, [courseType, routes]);
+    setIndex(newIndex);
+    console.log('Tab index updated to:', newIndex, 'for courseType:', courseType);
+  }, [courseType]);
 
   // Cleanup on unmount
   useEffect(() => {
@@ -451,7 +465,15 @@ export const CourseListTabs: React.FC<CourseListTabsProps> = React.memo(({
               borderBottomWidth: i === index ? 3 : 0,
               borderBottomColor: theme.colors.primary,
             }}
-            onPress={() => setIndex(i)}
+            onPress={() => {
+              setIndex(i);
+              // Update courseType when tab is pressed
+              switch (i) {
+                case 0: setCourseType?.('played'); break;
+                case 1: setCourseType?.('want-to-play'); break;
+                case 2: setCourseType?.('recommended'); break;
+              }
+            }}
           >
             <Text 
               style={{
@@ -470,21 +492,7 @@ export const CourseListTabs: React.FC<CourseListTabsProps> = React.memo(({
         {index === 0 && renderScene({ route: { key: 'played' } })}
         
         {index === 1 && (
-          <View style={{ 
-            flex: 1, 
-            borderWidth: 5, 
-            borderColor: 'red', 
-            padding: 5,
-            backgroundColor: 'white',
-          }}>
-            <Text style={{ 
-              textAlign: 'center', 
-              backgroundColor: 'lightyellow',
-              padding: 5,
-              marginBottom: 5,
-            }}>
-              WANT TO PLAY TAB (DEBUG MODE)
-            </Text>
+          <View style={{ flex: 1 }}>
             {renderScene({ route: { key: 'wantToPlay' } })}
           </View>
         )}

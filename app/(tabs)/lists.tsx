@@ -4,7 +4,7 @@ import { useTheme } from '../theme/ThemeProvider';
 import { CourseListTabs } from '../components/CourseListTabs';
 import { Course } from '../types/review';
 import { supabase } from '../utils/supabase';
-import { router, useFocusEffect } from 'expo-router';
+import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { rankingService } from '../services/rankingService';
 import { useAuth } from '../context/AuthContext';
 import { courseListService } from '../services/courseListService';
@@ -18,7 +18,10 @@ import { MapPin, X, Bookmark as BookmarkIcon } from 'lucide-react-native';
 export default function ListsScreen() {
   const theme = useTheme();
   const { user } = useAuth();
-  const [courseType, setCourseType] = useState<'played' | 'recommended' | 'want-to-play'>('played');
+  const { initialTab } = useLocalSearchParams<{ initialTab?: 'played' | 'want-to-play' }>();
+  const [courseType, setCourseType] = useState<'played' | 'recommended' | 'want-to-play'>(
+    initialTab || 'played'
+  );
   const [loading, setLoading] = useState(true);
   const { 
     playedCourses, setPlayedCourses,
@@ -928,6 +931,20 @@ export default function ListsScreen() {
     userReviewCount,
     user
   ]);
+
+  // Handle initial tab selection and data loading
+  useEffect(() => {
+    if (initialTab) {
+      console.log('Setting initial tab to:', initialTab);
+      setCourseType(initialTab);
+      
+      // Force a data refresh when navigating from profile
+      if (!isCoursesLoading && user) {
+        console.log('Loading data for initial tab:', initialTab);
+        loadData();
+      }
+    }
+  }, [initialTab, user]);
 
   if (loading) {
     return (

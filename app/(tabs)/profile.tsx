@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { View, StyleSheet, ScrollView, RefreshControl } from 'react-native';
+import { View, StyleSheet, ScrollView, RefreshControl, TouchableOpacity } from 'react-native';
 import { Text, Button, Avatar, Card } from 'react-native-paper';
 import { useAuth } from '../context/AuthContext';
 import { useRouter } from 'expo-router';
@@ -84,6 +84,13 @@ export default function ProfileScreen() {
     loadReviews();
   }, []);
 
+  const navigateToListsTab = (section: 'played' | 'want-to-play') => {
+    router.push({
+      pathname: '/lists',
+      params: { initialTab: section }
+    });
+  };
+
   if (!user) {
     return (
       <View style={[styles.container, styles.centered]}>
@@ -126,15 +133,21 @@ export default function ProfileScreen() {
             <Text variant="bodySmall" style={styles.statLabel}>Following</Text>
           </View>
           
-          <View style={styles.statItem}>
+          <TouchableOpacity 
+            style={styles.statItem}
+            onPress={() => navigateToListsTab('played')}
+          >
             <Text variant="titleMedium" style={styles.statCount}>{reviews.length}</Text>
             <Text variant="bodySmall" style={styles.statLabel}>Been</Text>
-          </View>
+          </TouchableOpacity>
           
-          <View style={styles.statItem}>
+          <TouchableOpacity 
+            style={styles.statItem}
+            onPress={() => navigateToListsTab('want-to-play')}
+          >
             <Text variant="titleMedium" style={styles.statCount}>{wantToPlayCount}</Text>
             <Text variant="bodySmall" style={styles.statLabel}>Want to Play</Text>
-          </View>
+          </TouchableOpacity>
         </View>
         
         <Button mode="outlined" onPress={signOut} style={styles.button}>
