@@ -5,7 +5,7 @@ import { useFonts, Inter_400Regular, Inter_600SemiBold, Inter_700Bold } from '@e
 import { LinearGradient } from 'expo-linear-gradient';
 import { useState, useEffect } from 'react';
 import * as Location from 'expo-location';
-import { searchCourses, getNearbyCoursesWithinRadius } from '../utils/courses';
+import { getNearbyCoursesWithinRadius } from '../utils/courses';
 import { Database } from '../utils/database.types';
 import { UserSearch } from '../components/UserSearch';
 import { FriendsReviewsFeed } from '../components/FriendsReviewsFeed';
@@ -22,7 +22,6 @@ export default function HomeScreen() {
     'Inter-SemiBold': Inter_600SemiBold,
     'Inter-Bold': Inter_700Bold,
   });
-  const [searchQuery, setSearchQuery] = useState('');
   const [location, setLocation] = useState<string>('Boston, MA');
   const [courses, setCourses] = useState<Course[]>([]);
   const [loading, setLoading] = useState(false);
@@ -60,25 +59,6 @@ export default function HomeScreen() {
     }
   };
 
-  const handleSearch = async () => {
-    if (!searchQuery.trim()) {
-      loadNearbyCourses();
-      return;
-    }
-
-    try {
-      setLoading(true);
-      setError(null);
-      
-      const searchResults = await searchCourses(searchQuery);
-      setCourses(searchResults);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Search failed');
-    } finally {
-      setLoading(false);
-    }
-  };
-
   const handleTabChange = (tab: FeedTab) => {
     setActiveTab(tab);
     
@@ -109,16 +89,17 @@ export default function HomeScreen() {
 
       {/* Search Bar */}
       <View style={styles.searchContainer}>
-        <View style={styles.searchBar}>
+        <Pressable 
+          style={styles.searchBar}
+          onPress={() => router.push('/(tabs)/search')}
+        >
           <Search size={20} color="#64748b" />
-          <TextInput 
-            placeholder="Search courses..."
-            style={styles.searchInput}
-            value={searchQuery}
-            onChangeText={setSearchQuery}
-            onSubmitEditing={handleSearch}
-          />
-        </View>
+          <Text 
+            style={[styles.searchInput, { color: '#64748b' }]}
+          >
+            Search courses...
+          </Text>
+        </Pressable>
         <View style={styles.locationBar}>
           <MapPin size={20} color="#64748b" />
           <Text style={styles.locationText}>{location}</Text>
