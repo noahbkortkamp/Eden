@@ -8,6 +8,8 @@ import { format } from 'date-fns';
 import { getCourse } from '../utils/courses';
 import { getFollowCounts } from '../utils/friends';
 import { bookmarkService } from '../services/bookmarkService';
+import { supabase } from '../utils/supabase';
+import { usePlayedCourses } from '../context/PlayedCoursesContext';
 import type { Database } from '../utils/database.types';
 
 type Course = Database['public']['Tables']['courses']['Row'];
@@ -15,7 +17,22 @@ type Review = Database['public']['Tables']['reviews']['Row'];
 
 interface ReviewWithCourse extends Review {
   course?: Course;
+  relativeScore?: number;
 }
+
+// Get badge color based on rating
+const getBadgeColor = (score: number): string => {
+  if (score >= 7.0) return '#4CAF50'; // Green
+  if (score >= 3.0) return '#FFC107'; // Yellow
+  return '#F44336'; // Red
+};
+
+// Fallback scores by sentiment (only used if we can't get the real relative score)
+const fallbackScores = {
+  'liked': 8.8,
+  'fine': 6.5,
+  'didnt_like': 3.0
+};
 
 export default function ProfileScreen() {
   const { user, signOut } = useAuth();
@@ -25,6 +42,10 @@ export default function ProfileScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [followStats, setFollowStats] = useState({ followers: 0, following: 0 });
   const [wantToPlayCount, setWantToPlayCount] = useState(0);
+  const [hasEnoughReviews, setHasEnoughReviews] = useState(false);
+  
+  // Access the shared played courses context
+  const { playedCourses } = usePlayedCourses();
 
   const loadReviews = async () => {
     if (!user) return;
@@ -42,12 +63,33 @@ export default function ProfileScreen() {
       // Update bookmarked courses count
       setWantToPlayCount(bookmarkedCourseIds.length);
       
+      // Check if user has enough reviews to show scores
+      setHasEnoughReviews(userReviews.length >= 10);
+      
+      // Create a map of courseId -> rating from the played courses context
+      const courseRatingsMap: Record<string, number> = {};
+      if (playedCourses && playedCourses.length > 0) {
+        playedCourses.forEach(course => {
+          if (course.id && course.rating !== undefined) {
+            courseRatingsMap[course.id] = course.rating;
+          }
+        });
+      }
+      
       // Fetch course details for each review
       const reviewsWithCourses = await Promise.all(
         userReviews.map(async (review) => {
           try {
             const course = await getCourse(review.course_id);
-            return { ...review, course };
+            
+            // Get the relative score from the context-provided ratings map
+            const relativeScore = courseRatingsMap[review.course_id];
+            
+            return { 
+              ...review, 
+              course,
+              relativeScore
+            };
           } catch (error) {
             console.error(`Error loading course ${review.course_id}:`, error);
             return review;
@@ -77,7 +119,7 @@ export default function ProfileScreen() {
       return;
     }
     loadReviews();
-  }, [user]);
+  }, [user, playedCourses]); // Re-run when playedCourses changes
 
   const onRefresh = React.useCallback(() => {
     setRefreshing(true);
@@ -165,30 +207,50 @@ export default function ProfileScreen() {
         ) : reviews.length === 0 ? (
           <Text>No reviews yet</Text>
         ) : (
-          reviews.map((review) => (
-            <Card key={review.id} style={styles.reviewCard}>
-              <Card.Content>
-                <Text variant="titleMedium">{review.course?.name || 'Unknown Course'}</Text>
-                <Text variant="bodyMedium" style={styles.location}>
-                  {review.course?.location || 'Location unknown'}
-                </Text>
-                <Text variant="bodyMedium" style={styles.date}>
-                  Played on {format(new Date(review.date_played), 'MMM d, yyyy')}
-                </Text>
-                <Text variant="bodyMedium" style={styles.rating}>
-                  Rating: {review.rating}
-                </Text>
-                {review.notes && (
-                  <Text variant="bodyMedium" style={styles.notes}>
-                    {review.notes}
-                  </Text>
-                )}
-                <Text variant="bodySmall" style={styles.reviewDate}>
-                  Reviewed on {format(new Date(review.created_at), 'MMM d, yyyy')}
-                </Text>
-              </Card.Content>
-            </Card>
-          ))
+          reviews.map((review) => {
+            // Use the actual relative score if available, otherwise fallback to sentiment mapping
+            const score = review.relativeScore !== undefined 
+              ? review.relativeScore 
+              : fallbackScores[review.rating] || 0;
+              
+            const badgeColor = getBadgeColor(score);
+            
+            return (
+              <TouchableOpacity 
+                key={review.id}
+                onPress={() => router.push({
+                  pathname: '/course/[id]',
+                  params: { id: review.course_id }
+                })}
+              >
+                <Card style={styles.reviewCard}>
+                  <Card.Content style={styles.cardContent}>
+                    <View style={styles.reviewInfo}>
+                      <Text style={styles.reviewTitle}>
+                        You ranked {review.course?.name || 'Unknown Course'}
+                      </Text>
+                      <Text style={styles.courseLocation}>
+                        {review.course?.location || 'Unknown Location'}
+                      </Text>
+                      <Text style={styles.courseDatePlayed}>
+                        {format(new Date(review.date_played), 'MMM d, yyyy')}
+                      </Text>
+                      {review.playing_partners && review.playing_partners.length > 0 && (
+                        <Text style={styles.playingPartners}>
+                          with {review.playing_partners.join(', ')}
+                        </Text>
+                      )}
+                    </View>
+                    <View style={[styles.ratingBadge, { backgroundColor: badgeColor }]}>
+                      <Text style={styles.ratingText}>
+                        {hasEnoughReviews ? score.toFixed(1) : '-'}
+                      </Text>
+                    </View>
+                  </Card.Content>
+                </Card>
+              </TouchableOpacity>
+            );
+          })
         )}
       </View>
     </ScrollView>
@@ -247,24 +309,48 @@ const styles = StyleSheet.create({
   },
   reviewCard: {
     marginBottom: 12,
+    borderRadius: 12,
   },
-  location: {
-    marginTop: 4,
+  cardContent: {
+    padding: 16,
+    position: 'relative',
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  reviewInfo: {
+    flex: 1,
+    paddingRight: 50,
+  },
+  reviewTitle: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    marginBottom: 4,
+  },
+  courseLocation: {
+    fontSize: 14,
+    color: '#666',
+    marginBottom: 2,
+  },
+  courseDatePlayed: {
+    fontSize: 14,
+    color: '#666',
+    marginBottom: 2,
+  },
+  playingPartners: {
+    fontSize: 14,
     color: '#666',
   },
-  date: {
-    marginTop: 4,
-    color: '#666',
+  ratingBadge: {
+    borderRadius: 16,
+    width: 40,
+    height: 40,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
-  rating: {
-    marginTop: 4,
-    color: '#666',
-  },
-  notes: {
-    marginTop: 8,
-  },
-  reviewDate: {
-    marginTop: 8,
-    color: '#999',
-  },
+  ratingText: {
+    color: 'white',
+    fontWeight: 'bold',
+    fontSize: 16,
+  }
 }); 
