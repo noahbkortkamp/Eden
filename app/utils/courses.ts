@@ -9,6 +9,8 @@ const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
 
 // Simple in-memory cache
 const courseCache = new Map<string, { data: Course; timestamp: number }>();
+// Add a search cache to avoid redundant searches
+const searchCache = new Map<string, { results: CourseWithRelevance[]; timestamp: number }>();
 
 async function delay(ms: number) {
   return new Promise(resolve => setTimeout(resolve, ms));
@@ -59,12 +61,30 @@ export async function getCourse(courseId: string, retryCount = 0): Promise<Cours
 }
 
 export async function getAllCourses(): Promise<Course[]> {
+  // Check if all courses are already in memory cache and not expired
+  const allCoursesKey = '__all_courses__';
+  const cached = courseCache.get(allCoursesKey);
+  if (cached && Date.now() - cached.timestamp < CACHE_DURATION) {
+    console.log('Using cached data for all courses');
+    return cached.data as unknown as Course[];
+  }
+
+  console.log('Fetching all courses from database');
   const { data, error } = await supabase
     .from('courses')
     .select('*')
     .order('name', { ascending: true });
 
   if (error) throw error;
+  
+  // Cache the result
+  if (data) {
+    courseCache.set(allCoursesKey, { 
+      data: data as unknown as Course, 
+      timestamp: Date.now() 
+    });
+  }
+  
   return data;
 }
 
@@ -132,143 +152,191 @@ export interface CourseWithRelevance extends Course {
 export async function searchCourses(query: string): Promise<CourseWithRelevance[]> {
   // If query is empty, return all courses
   if (!query.trim()) {
-    return getAllCourses();
-  }
-  
-  // Get all courses to perform client-side filtering for more control
-  const { data, error } = await supabase
-    .from('courses')
-    .select('*')
-    .order('name', { ascending: true });
-
-  if (error) throw error;
-  
-  if (!data || data.length === 0) {
-    return [];
+    const courses = await getAllCourses();
+    return courses.map(course => ({ ...course, relevanceScore: 100 }));
   }
   
   // Normalize the query (lowercase, trim)
   const normalizedQuery = query.toLowerCase().trim();
+  
+  // Check cache for this exact search query
+  const cacheKey = `search:${normalizedQuery}`;
+  const cached = searchCache.get(cacheKey);
+  if (cached && Date.now() - cached.timestamp < CACHE_DURATION) {
+    console.log(`Using cached search results for: "${normalizedQuery}"`);
+    return cached.results;
+  }
+  
+  console.log(`Performing search for: "${normalizedQuery}"`);
+  
+  // Get all courses to perform client-side filtering for more control
+  const courses = await getAllCourses();
+  
+  if (!courses || courses.length === 0) {
+    return [];
+  }
+  
+  // Split query into words for better matching
   const words = normalizedQuery.split(/\s+/);
   
-  // Calculate relevance score for each course
-  const scoredCourses = data.map(course => {
-    const name = course.name.toLowerCase();
-    const location = (course.location || '').toLowerCase();
+  // Use a worker or process in batches for large datasets
+  const batchSize = 100;
+  const batches = Math.ceil(courses.length / batchSize);
+  let scoredCourses: CourseWithRelevance[] = [];
+  
+  // Process courses in batches to avoid blocking the main thread
+  for (let i = 0; i < batches; i++) {
+    const start = i * batchSize;
+    const end = Math.min((i + 1) * batchSize, courses.length);
+    const batchCourses = courses.slice(start, end);
     
-    let score = 0;
-    
-    // Check for exact match in name (highest priority)
-    if (name === normalizedQuery) {
-      score += 100;
-    }
-    
-    // Check for name starting with query (high priority)
-    else if (name.startsWith(normalizedQuery)) {
-      score += 80;
-    }
-    
-    // Check for each word in query starting a word in name
-    for (const word of words) {
-      const wordRegex = new RegExp(`\\b${word}`, 'i');
-      if (wordRegex.test(name)) {
-        score += 60;
-      }
-    }
-    
-    // Check for query being contained in name
-    if (name.includes(normalizedQuery)) {
-      score += 40;
-    }
-    
-    // Check for individual words in the query being in the name
-    for (const word of words) {
-      if (word.length > 1 && name.includes(word)) {
-        score += 20;
-      }
-    }
-    
-    // Lower priority checks for location
-    if (location) {
-      // Exact location match
-      if (location === normalizedQuery) {
-        score += 30;
+    // Calculate relevance score for each course in this batch
+    const batchResults = batchCourses.map(course => {
+      const name = course.name.toLowerCase();
+      const location = (course.location || '').toLowerCase();
+      
+      let score = 0;
+      
+      // Quick exact match check first (short-circuit for performance)
+      if (name === normalizedQuery) {
+        return { ...course, relevanceScore: 100 };
       }
       
-      // Location starts with query
-      else if (location.startsWith(normalizedQuery)) {
-        score += 25;
+      // Check for name starting with query (high priority)
+      if (name.startsWith(normalizedQuery)) {
+        score += 80;
       }
       
-      // Query is contained in location
-      else if (location.includes(normalizedQuery)) {
-        score += 15;
-      }
+      // Check for words in query starting words in name
+      let nameWordMatches = 0;
+      const nameWords = name.split(/\s+/);
       
-      // Words in query are in location
       for (const word of words) {
-        if (word.length > 1 && location.includes(word)) {
-          score += 10;
-        }
-      }
-    }
-    
-    // Fuzzy matching for typo tolerance (especially valuable for longer words)
-    if (score === 0 && normalizedQuery.length > 3) {
-      // Try fuzzy matching for the course name
-      const nameParts = name.split(/\s+/);
-      
-      for (const part of nameParts) {
-        if (part.length > 3) { // Only consider longer words worth fuzzy matching
-          const fuzzyScore = calculateFuzzyScore(normalizedQuery, part);
-          
-          // If it's a good fuzzy match (more than 70% similar)
-          if (fuzzyScore > 70) {
-            score += Math.floor(fuzzyScore / 10); // Scale down the fuzzy score
-            break; // Found a good fuzzy match, no need to check others
+        if (word.length < 2) continue; // Skip single letter words
+        
+        for (const nameWord of nameWords) {
+          if (nameWord.startsWith(word)) {
+            nameWordMatches++;
+            break;
           }
         }
       }
       
-      // If still no match and we have location data, try fuzzy matching there
-      if (score === 0 && location) {
-        const locationParts = location.split(/[\s,]+/);
+      // Reward matching all search terms
+      if (nameWordMatches === words.length && words.length > 0) {
+        score += 70;
+      } else if (nameWordMatches > 0) {
+        // Partial matches get proportional scores
+        score += 40 * (nameWordMatches / words.length);
+      }
+      
+      // Check for query being contained in name
+      if (name.includes(normalizedQuery)) {
+        score += 40;
+      }
+      
+      // Check for individual words in the query being in the name
+      for (const word of words) {
+        if (word.length > 1 && name.includes(word)) {
+          score += 15;
+        }
+      }
+      
+      // Lower priority checks for location
+      if (location) {
+        // Exact location match
+        if (location === normalizedQuery) {
+          score += 30;
+        }
         
-        for (const part of locationParts) {
+        // Location starts with query
+        else if (location.startsWith(normalizedQuery)) {
+          score += 25;
+        }
+        
+        // Query is contained in location
+        else if (location.includes(normalizedQuery)) {
+          score += 15;
+        }
+        
+        // Words in query are in location
+        for (const word of words) {
+          if (word.length > 1 && location.includes(word)) {
+            score += 10;
+          }
+        }
+      }
+      
+      // Fuzzy matching for typo tolerance - only if we haven't found a good match
+      if (score < 20 && normalizedQuery.length > 3) {
+        // Use a lighter fuzzy matching for better performance
+        const nameParts = name.split(/\s+/);
+        
+        // Only check first few words for performance
+        for (let i = 0; i < Math.min(nameParts.length, 3); i++) {
+          const part = nameParts[i];
           if (part.length > 3) {
             const fuzzyScore = calculateFuzzyScore(normalizedQuery, part);
             
             if (fuzzyScore > 70) {
-              score += Math.floor(fuzzyScore / 20); // Lower priority than name
+              score += Math.floor(fuzzyScore / 10);
               break;
             }
           }
         }
+        
+        // If still no match, check location, but only if we need to
+        if (score < 10 && location) {
+          const locationParts = location.split(/[\s,]+/);
+          
+          // Only check first few words for performance
+          for (let i = 0; i < Math.min(locationParts.length, 2); i++) {
+            const part = locationParts[i];
+            if (part.length > 3) {
+              const fuzzyScore = calculateFuzzyScore(normalizedQuery, part);
+              
+              if (fuzzyScore > 70) {
+                score += Math.floor(fuzzyScore / 20);
+                break;
+              }
+            }
+          }
+        }
       }
-    }
+      
+      return {
+        ...course,
+        relevanceScore: Math.max(score, 1) // Ensure at least a minimal score
+      };
+    });
     
-    // If still no match found, check for substring match anywhere (lowest priority)
-    if (score === 0 && (name.includes(normalizedQuery) || location.includes(normalizedQuery))) {
-      score = 1;
-    }
-    
-    return { 
-      ...course, 
-      relevanceScore: score 
-    } as CourseWithRelevance;
+    scoredCourses = scoredCourses.concat(batchResults);
+  }
+  
+  // Sort by relevance score
+  scoredCourses.sort((a, b) => b.relevanceScore - a.relevanceScore);
+  
+  // Filter out zero scores
+  const filteredResults = scoredCourses.filter(course => course.relevanceScore > 5);
+  
+  // Cache the results
+  searchCache.set(cacheKey, {
+    results: filteredResults,
+    timestamp: Date.now()
   });
   
-  // Filter out courses with no relevance
-  const relevantCourses = scoredCourses.filter(item => item.relevanceScore > 0);
+  // Prevent caching too many searches
+  if (searchCache.size > 30) {
+    // Remove oldest cache entries
+    const keysToDelete = Array.from(searchCache.entries())
+      .sort((a, b) => a[1].timestamp - b[1].timestamp)
+      .slice(0, 10)
+      .map(entry => entry[0]);
+      
+    keysToDelete.forEach(key => searchCache.delete(key));
+  }
   
-  // Sort by relevance score (highest first)
-  relevantCourses.sort((a, b) => b.relevanceScore - a.relevanceScore);
-  
-  // Log search scoring for debugging
-  logSearchScoring(query, relevantCourses);
-  
-  // Return the courses with relevance scores included
-  return relevantCourses;
+  return filteredResults;
 }
 
 export async function createCourse(
