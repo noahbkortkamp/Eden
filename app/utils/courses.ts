@@ -5,12 +5,16 @@ type Course = Database['public']['Tables']['courses']['Row'];
 
 const MAX_RETRIES = 3;
 const RETRY_DELAY = 1000; // 1 second
-const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
+const CACHE_DURATION = 10 * 60 * 1000; // Extend to 10 minutes
 
 // Simple in-memory cache
 const courseCache = new Map<string, { data: Course; timestamp: number }>();
 // Add a search cache to avoid redundant searches
 const searchCache = new Map<string, { results: CourseWithRelevance[]; timestamp: number }>();
+// Add a batch request queue to combine requests
+const batchQueue: { id: string; resolve: (course: Course) => void; reject: (error: Error) => void }[] = [];
+let batchTimeout: NodeJS.Timeout | null = null;
+const BATCH_WAIT = 50; // ms to wait for batching requests
 
 async function delay(ms: number) {
   return new Promise(resolve => setTimeout(resolve, ms));
@@ -24,39 +28,115 @@ export async function getCourse(courseId: string, retryCount = 0): Promise<Cours
     return cached.data;
   }
 
-  console.log(`Fetching course with ID: ${courseId} (attempt ${retryCount + 1}/${MAX_RETRIES})`);
+  // Return a promise that will be resolved when the course is fetched
+  return new Promise((resolve, reject) => {
+    // Add this request to the batch queue
+    batchQueue.push({ id: courseId, resolve, reject });
+    
+    // If there's already a batch timeout, let it handle this request
+    if (batchTimeout) return;
+    
+    // Otherwise, set a new timeout to process the batch
+    batchTimeout = setTimeout(() => processBatchQueue(retryCount), BATCH_WAIT);
+  });
+}
+
+// Process all queued course requests in a single batch
+async function processBatchQueue(retryCount = 0) {
+  const currentBatch = [...batchQueue];
+  batchQueue.length = 0; // Clear the queue
+  batchTimeout = null;
+  
+  if (currentBatch.length === 0) return;
+  
+  const uniqueIds = [...new Set(currentBatch.map(item => item.id))];
+  console.log(`Processing batch of ${uniqueIds.length} unique course IDs (from ${currentBatch.length} requests)`);
   
   try {
-    const { data, error } = await supabase
-      .from('courses')
-      .select('*')
-      .eq('id', courseId)
-      .single();
-
-    if (error) {
-      console.error('Supabase error fetching course:', error);
-      throw error;
+    // For single course, use simpler query
+    if (uniqueIds.length === 1) {
+      const id = uniqueIds[0];
+      console.log(`Fetching single course with ID: ${id} (attempt ${retryCount + 1}/${MAX_RETRIES})`);
+      
+      const { data, error } = await supabase
+        .from('courses')
+        .select('*')
+        .eq('id', id)
+        .single();
+      
+      if (error) {
+        throw error;
+      }
+      
+      if (!data) {
+        throw new Error(`Course not found: ${id}`);
+      }
+      
+      // Cache the result
+      courseCache.set(id, { data, timestamp: Date.now() });
+      console.log(`Successfully fetched course: ${data.name}`);
+      
+      // Resolve all requests for this ID
+      currentBatch.forEach(item => {
+        if (item.id === id) {
+          item.resolve(data);
+        }
+      });
+    } else {
+      // For multiple courses, use IN query
+      console.log(`Batch fetching ${uniqueIds.length} courses (attempt ${retryCount + 1}/${MAX_RETRIES})`);
+      
+      const { data, error } = await supabase
+        .from('courses')
+        .select('*')
+        .in('id', uniqueIds);
+      
+      if (error) {
+        throw error;
+      }
+      
+      if (!data || data.length === 0) {
+        throw new Error(`No courses found for IDs: ${uniqueIds.join(', ')}`);
+      }
+      
+      // Create a map for quick lookups
+      const courseMap: Record<string, Course> = {};
+      data.forEach(course => {
+        courseMap[course.id] = course;
+        // Also cache each course individually
+        courseCache.set(course.id, { data: course, timestamp: Date.now() });
+      });
+      
+      console.log(`Successfully fetched ${data.length} courses`);
+      
+      // Resolve each request
+      currentBatch.forEach(item => {
+        const course = courseMap[item.id];
+        if (course) {
+          item.resolve(course);
+        } else {
+          item.reject(new Error(`Course not found: ${item.id}`));
+        }
+      });
     }
-
-    if (!data) {
-      console.error('No course found with ID:', courseId);
-      throw new Error(`Course not found: ${courseId}`);
-    }
-
-    // Cache the result
-    courseCache.set(courseId, { data, timestamp: Date.now() });
-    console.log(`Successfully fetched course: ${data.name}`);
-    return data;
   } catch (err) {
-    console.error(`Attempt ${retryCount + 1} failed:`, err);
+    console.error(`Batch fetch attempt ${retryCount + 1} failed:`, err);
     
-    if (retryCount < MAX_RETRIES - 1 && err instanceof Error && err.message.includes('Network request failed')) {
+    if (retryCount < MAX_RETRIES - 1 && err instanceof Error && 
+        (err.message.includes('Network request failed') || 
+         err.message.includes('connection'))) {
       console.log(`Retrying in ${RETRY_DELAY}ms...`);
       await delay(RETRY_DELAY);
-      return getCourse(courseId, retryCount + 1);
+      
+      // Put the requests back in the queue and retry
+      batchQueue.push(...currentBatch);
+      processBatchQueue(retryCount + 1);
+    } else {
+      // Give up and reject all requests
+      currentBatch.forEach(item => {
+        item.reject(err instanceof Error ? err : new Error(String(err)));
+      });
     }
-    
-    throw err;
   }
 }
 

@@ -8,6 +8,7 @@ import { format } from 'date-fns';
 import { reviewService } from '../../services/reviewService';
 import { rankingService } from '../../services/rankingService';
 import { supabase } from '../../utils/supabase';
+import { getCourse } from '../../utils/courses';
 
 interface ReviewContextType {
   submitReview: (review: Omit<CourseReview, 'review_id' | 'user_id' | 'created_at' | 'updated_at'>) => Promise<void>;
@@ -61,12 +62,8 @@ export const ReviewProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     setError(null);
 
     try {
-      // Verify user profile exists before submitting review
-      const profileExists = await verifyUserProfile(user.id);
-      if (!profileExists) {
-        console.log('Attempting to create profile before review submission');
-        // Still continue even if this fails - the server-side logic should handle it
-      }
+      // Start profile verification in parallel with other operations
+      const profileVerificationPromise = verifyUserProfile(user.id);
       
       // Create the review
       const createdReview = await createReview(
@@ -86,18 +83,35 @@ export const ReviewProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         rating: createdReview.rating
       });
 
-      // Check if user has reached 10 reviews
-      const reviewCount = await reviewService.getUserReviewCount(user.id);
-      if (reviewCount === 10) {
-        console.log('🎉 User has reached 10 reviews! Score visibility is now ENABLED');
+      // Await profile verification result (should be done by now)
+      const profileExists = await profileVerificationPromise;
+      if (!profileExists) {
+        console.log('Profile verification completed after review submission');
       }
 
-      // Mark played courses as needing refresh when user returns to Lists tab
-      setNeedsRefresh();
-      console.log('ReviewContext: Marked played courses for refresh');
+      // Start these non-blocking operations in parallel
+      const promises = [
+        // Check review count
+        reviewService.getUserReviewCount(user.id).then(count => {
+          if (count === 10) {
+            console.log('🎉 User has reached 10 reviews! Score visibility is now ENABLED');
+          }
+          return count;
+        }),
+        
+        // Mark played courses as needing refresh
+        (async () => {
+          setNeedsRefresh();
+          console.log('ReviewContext: Marked played courses for refresh');
+        })(),
+        
+        // Get user's reviewed courses with matching sentiment for comparison
+        getReviewsForUser(user.id)
+      ];
 
-      // Get user's reviewed courses with matching sentiment for comparison
-      const userReviews = await getReviewsForUser(user.id);
+      // Wait for all parallel operations to complete
+      const [reviewCount, _, userReviews] = await Promise.all(promises);
+      
       const reviewedCoursesWithSentiment = userReviews.filter(r => r.rating === review.rating);
 
       console.log('ReviewContext: Found matching sentiment reviews:', {
@@ -108,7 +122,7 @@ export const ReviewProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       // Check if course already has a ranking
       const rankings = await rankingService.getUserRankings(user.id, review.rating);
       const existingRanking = rankings.find(r => r.course_id === review.course_id);
-      
+
       console.log('ReviewContext: Checking existing ranking:', {
         hasExistingRanking: !!existingRanking,
         totalRankings: rankings.length
@@ -117,12 +131,17 @@ export const ReviewProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       if (!existingRanking) {
         // Add initial ranking for the new course only if it doesn't exist
         const initialRankPosition = rankings.length + 1;
-        await rankingService.addCourseRanking(
-          user.id,
-          review.course_id,
-          review.rating,
-          initialRankPosition
-        );
+        try {
+          await rankingService.addCourseRanking(
+            user.id,
+            review.course_id,
+            review.rating,
+            initialRankPosition
+          );
+        } catch (rankingError) {
+          console.error('Error adding initial ranking, continuing anyway:', rankingError);
+          // Continue with the flow anyway
+        }
       }
 
       // Filter out the current course from potential comparison courses
@@ -131,8 +150,18 @@ export const ReviewProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       );
 
       if (otherCoursesWithSentiment.length > 0) {
-        // Close the review modal first
-        router.back();
+        // Start preloading courses for comparison to improve loading times
+        const randomCourse = otherCoursesWithSentiment[
+          Math.floor(Math.random() * otherCoursesWithSentiment.length)
+        ];
+        
+        // Preload the courses data in the background
+        Promise.all([
+          getCourse(review.course_id),
+          getCourse(randomCourse.course_id)
+        ]).catch(err => {
+          console.warn('Failed to preload courses, will load on demand:', err);
+        });
         
         // Store the original reviewed course ID and reset comparison results
         setOriginalReviewedCourseId(review.course_id);
@@ -142,10 +171,11 @@ export const ReviewProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         const totalComparisons = Math.min(otherCoursesWithSentiment.length, MAX_COMPARISONS);
         setComparisonsRemaining(totalComparisons);
 
-        // Get a random course for the first comparison
-        const randomCourse = otherCoursesWithSentiment[
-          Math.floor(Math.random() * otherCoursesWithSentiment.length)
-        ];
+        // Now close the review modal before opening the comparison modal
+        router.back();
+        
+        // Short delay to ensure the navigation is smooth
+        await new Promise(resolve => setTimeout(resolve, 100));
 
         // Then open the comparison modal with the just-reviewed course and a random match
         router.push({
@@ -158,6 +188,8 @@ export const ReviewProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         });
       } else {
         // No other courses with same sentiment, end the flow
+        router.back(); // Close review modal
+        await new Promise(resolve => setTimeout(resolve, 100));
         router.replace('/(tabs)');
       }
     } catch (err) {
