@@ -149,76 +149,15 @@ export default function HomeScreen() {
           <FriendsReviewsFeed onFindFriendsPress={handleFindFriendsPress} />
         </View>
       ) : (
-        // Only Trending feed now
-        <ScrollView style={styles.content}>
-          {/* Featured Courses */}
-          <View style={styles.section}>
-            <View style={styles.sectionHeader}>
-              <Text style={styles.sectionTitle}>Featured Courses</Text>
-              <Text style={styles.seeAll}>See All</Text>
-            </View>
-
-            <ScrollView 
-              horizontal 
-              showsHorizontalScrollIndicator={false}
-              contentContainerStyle={styles.featuredContainer}>
-              <Pressable style={styles.featuredCard}>
-                <Image 
-                  source={{ uri: 'https://images.unsplash.com/photo-1587174486073-ae5e5cff23aa?q=80&w=3270&auto=format&fit=crop' }}
-                  style={styles.featuredImage}
-                />
-                <LinearGradient
-                  colors={['transparent', 'rgba(0,0,0,0.8)']}
-                  style={styles.gradient}>
-                  <Text style={styles.featuredTitle}>Top 10 Public Courses</Text>
-                  <Text style={styles.featuredSubtitle}>You've played 3 of 10</Text>
-                </LinearGradient>
-              </Pressable>
-              <Pressable style={styles.featuredCard}>
-                <Image 
-                  source={{ uri: 'https://images.unsplash.com/photo-1600740288397-83cae0357539?q=80&w=3270&auto=format&fit=crop' }}
-                  style={styles.featuredImage}
-                />
-                <LinearGradient
-                  colors={['transparent', 'rgba(0,0,0,0.8)']}
-                  style={styles.gradient}>
-                  <Text style={styles.featuredTitle}>Best Value Courses</Text>
-                  <Text style={styles.featuredSubtitle}>Under $60 green fees</Text>
-                </LinearGradient>
-              </Pressable>
-            </ScrollView>
-          </View>
-
-          {/* Course List */}
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Trending Courses</Text>
-            {loading ? (
-              <ActivityIndicator style={styles.loader} color="#2563eb" />
-            ) : error ? (
-              <Text style={styles.errorText}>{error}</Text>
-            ) : (
-              <View style={styles.courseList}>
-                {courses.map((course) => (
-                  <Pressable 
-                    key={course.id} 
-                    style={styles.courseItem}
-                    onPress={() => router.push({
-                      pathname: '/(modals)/course-details',
-                      params: { courseId: course.id }
-                    })}>
-                    <View style={styles.courseInfo}>
-                      <Text style={styles.courseName}>{course.name}</Text>
-                      <Text style={styles.courseLocation}>{course.location}</Text>
-                    </View>
-                    <View style={styles.ratingBadge}>
-                      <Text style={styles.ratingText}>{(course.rating ?? 0).toFixed(1)}</Text>
-                    </View>
-                  </Pressable>
-                ))}
-              </View>
-            )}
-          </View>
-        </ScrollView>
+        // Trending feed - Coming Soon placeholder
+        <View style={styles.comingSoonContainer}>
+          <TrendingUp size={60} color="#CBD5E1" />
+          <Text style={styles.comingSoonTitle}>Trending Coming Soon</Text>
+          <Text style={styles.comingSoonText}>
+            We're working on bringing you the most popular courses in your area.
+            Check back later!
+          </Text>
+        </View>
       )}
 
       {/* User Search Modal */}
@@ -446,5 +385,26 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#fff',
     zIndex: 1,
+  },
+  comingSoonContainer: {
+    flex: 1,
+    backgroundColor: '#f8fafc',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 32,
+  },
+  comingSoonTitle: {
+    fontSize: 22,
+    fontFamily: 'Inter-Bold',
+    color: '#334155',
+    marginTop: 16,
+    marginBottom: 8,
+  },
+  comingSoonText: {
+    fontSize: 16,
+    fontFamily: 'Inter-Regular',
+    color: '#64748B',
+    textAlign: 'center',
+    lineHeight: 24,
   },
 });
