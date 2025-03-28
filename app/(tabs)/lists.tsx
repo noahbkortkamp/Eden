@@ -688,7 +688,10 @@ export default function ListsScreen() {
   };
 
   const handleCoursePress = (course: Course) => {
-    router.push(`/course/${course.id}`);
+    router.push({
+      pathname: '/(modals)/course-details',
+      params: { courseId: course.id }
+    });
   };
 
   const styles = StyleSheet.create({
