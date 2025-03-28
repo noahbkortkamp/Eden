@@ -25,7 +25,7 @@ import {
   Bookmark,
   BookmarkCheck,
 } from 'lucide-react-native';
-import { useRouter } from 'expo-router';
+import { useRouter, useLocalSearchParams } from 'expo-router';
 import { useTheme } from '../theme/ThemeProvider';
 import { searchCourses, getAllCourses } from '../utils/courses';
 import { useDebouncedCallback } from 'use-debounce';
@@ -59,6 +59,7 @@ const CACHE_EXPIRY = 5 * 60 * 1000; // 5 minutes
 
 export default function SearchScreen() {
   const router = useRouter();
+  const params = useLocalSearchParams();
   const theme = useTheme();
   const { user } = useAuth();
   const [searchQuery, setSearchQuery] = useState('');
@@ -68,7 +69,10 @@ export default function SearchScreen() {
   const [error, setError] = useState<string | null>(null);
   const [isSearchFocused, setIsSearchFocused] = useState(false);
   const [reviewedCourseIds, setReviewedCourseIds] = useState<Set<string>>(new Set());
-  const [activeTab, setActiveTab] = useState<SearchTab>('courses');
+  const [activeTab, setActiveTab] = useState<SearchTab>(() => {
+    // Initialize tab based on URL parameter if present
+    return params.tab === 'members' ? 'members' : 'courses';
+  });
   const [followingStatus, setFollowingStatus] = useState<{[key: string]: boolean}>({});
   const [followLoading, setFollowLoading] = useState<{[key: string]: boolean}>({});
   const [bookmarkedCourseIds, setBookmarkedCourseIds] = useState<Set<string>>(new Set());
@@ -189,6 +193,13 @@ export default function SearchScreen() {
       loadAllData();
     }
   }, [activeTab, loadCourses, loadReviewedCourses, loadBookmarkedCourses]);
+
+  // Check for tab parameter changes
+  useEffect(() => {
+    if (params.tab === 'members' && activeTab !== 'members') {
+      setActiveTab('members');
+    }
+  }, [params.tab]);
 
   // Debounce the search to prevent too many API calls
   const debouncedSearch = useDebouncedCallback(async (query: string) => {

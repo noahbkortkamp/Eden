@@ -7,7 +7,6 @@ import { useState, useEffect } from 'react';
 import * as Location from 'expo-location';
 import { getNearbyCoursesWithinRadius } from '../utils/courses';
 import { Database } from '../utils/database.types';
-import { UserSearch } from '../components/UserSearch';
 import { FriendsReviewsFeed } from '../components/FriendsReviewsFeed';
 
 type Course = Database['public']['Tables']['courses']['Row'];
@@ -27,7 +26,6 @@ export default function HomeScreen() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<FeedTab>('friends');
-  const [showUserSearch, setShowUserSearch] = useState(false);
 
   useEffect(() => {
     loadNearbyCourses();
@@ -61,15 +59,16 @@ export default function HomeScreen() {
 
   const handleTabChange = (tab: FeedTab) => {
     setActiveTab(tab);
-    
-    // If switching to "Friends" tab and search is shown, hide it
-    if (tab === 'friends' && showUserSearch) {
-      setShowUserSearch(false);
-    }
   };
 
   const handleFindFriendsPress = () => {
-    setShowUserSearch(true);
+    // Navigate to the search tab with members tab active
+    router.push('/(tabs)/search');
+    // We'll need to update the search tab to check for this parameter
+    setTimeout(() => {
+      // The timeout ensures the navigation completes first
+      router.setParams({ tab: 'members' });
+    }, 100);
   };
 
   if (!fontsLoaded) {
@@ -159,15 +158,6 @@ export default function HomeScreen() {
           </Text>
         </View>
       )}
-
-      {/* User Search Modal */}
-      <Modal
-        visible={showUserSearch}
-        animationType="slide"
-        onRequestClose={() => setShowUserSearch(false)}
-      >
-        <UserSearch onClose={() => setShowUserSearch(false)} />
-      </Modal>
     </View>
   );
 }
