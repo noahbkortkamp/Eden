@@ -7,12 +7,9 @@ export default function OnboardingLayout() {
         headerShown: false,
         contentStyle: { backgroundColor: '#ffffff' },
       }}>
-      <Stack.Screen name="welcome" />
-      <Stack.Screen name="signup" />
-      <Stack.Screen name="profile" />
-      <Stack.Screen name="preferences" />
-      <Stack.Screen name="location" />
-      <Stack.Screen name="first-course" />
+      <Stack.Screen name="frequency" options={{ gestureEnabled: false }} />
+      <Stack.Screen name="course" options={{ gestureEnabled: false }} />
+      <Stack.Screen name="done" options={{ gestureEnabled: false }} />
     </Stack>
   );
 }

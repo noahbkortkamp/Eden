@@ -59,6 +59,7 @@ export const signUp = async ({ email, password, name }: SignUpData) => {
       options: {
         data: {
           name: name.toString(),
+          onboardingComplete: false,
         },
         emailRedirectTo: redirectTo,
       },

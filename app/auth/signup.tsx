@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
-import { View, StyleSheet } from 'react-native';
+import { View, StyleSheet, TouchableOpacity } from 'react-native';
 import { Text, TextInput, Button } from 'react-native-paper';
-import { Link } from 'expo-router';
+import { Link, useRouter } from 'expo-router';
 import { useAuth } from '../context/AuthContext';
+import { MaterialIcons } from '@expo/vector-icons';
 
 const isValidEmail = (email: string) => {
   const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -16,6 +17,8 @@ export default function SignUpScreen() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [confirmationSent, setConfirmationSent] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
+  const router = useRouter();
   const { signUp } = useAuth();
 
   const handleSignUp = async () => {
@@ -50,7 +53,8 @@ export default function SignUpScreen() {
       });
       
       // If we get here, signup was successful
-      setConfirmationSent(true);
+      // Navigate to onboarding instead of showing confirmation screen
+      router.replace('/onboarding/frequency');
     } catch (err) {
       console.error('Signup error:', err);
       setError(err instanceof Error ? err.message : 'An error occurred during sign up');
@@ -70,7 +74,11 @@ export default function SignUpScreen() {
           After confirming your email, you can return to the app and log in.
         </Text>
         <Link href="/auth/login" asChild>
-          <Button mode="contained" style={styles.button}>
+          <Button 
+            mode="contained" 
+            style={styles.button}
+            buttonColor="#245E2C"
+          >
             Return to Login
           </Button>
         </Link>
@@ -80,16 +88,19 @@ export default function SignUpScreen() {
 
   return (
     <View style={styles.container}>
-      <Text variant="headlineMedium" style={styles.title}>Create Account</Text>
+      <Text variant="headlineLarge" style={styles.title}>Create your account</Text>
       
       {error ? <Text style={styles.error}>{error}</Text> : null}
 
       <TextInput
-        label="Name"
+        label="Full Name"
         value={name}
         onChangeText={setName}
         style={styles.input}
         disabled={loading}
+        mode="outlined"
+        outlineColor="#ddd"
+        activeOutlineColor="#245E2C"
       />
 
       <TextInput
@@ -103,6 +114,9 @@ export default function SignUpScreen() {
         keyboardType="email-address"
         style={styles.input}
         disabled={loading}
+        mode="outlined"
+        outlineColor="#ddd"
+        activeOutlineColor="#245E2C"
       />
 
       <TextInput
@@ -112,9 +126,18 @@ export default function SignUpScreen() {
           setPassword(text);
           setError('');
         }}
-        secureTextEntry
+        secureTextEntry={!showPassword}
         style={styles.input}
         disabled={loading}
+        mode="outlined"
+        outlineColor="#ddd"
+        activeOutlineColor="#245E2C"
+        right={
+          <TextInput.Icon 
+            icon={showPassword ? 'eye-off' : 'eye'} 
+            onPress={() => setShowPassword(!showPassword)}
+          />
+        }
       />
 
       <Button
@@ -123,14 +146,19 @@ export default function SignUpScreen() {
         loading={loading}
         disabled={loading}
         style={styles.button}
+        buttonColor="#245E2C"
       >
-        Sign Up
+        Continue
       </Button>
+      
+      <Text style={styles.terms}>
+        By signing up, you agree to the Terms and Privacy Policy
+      </Text>
 
       <View style={styles.footer}>
         <Text>Already have an account? </Text>
         <Link href="/auth/login">
-          <Text style={styles.link}>Log In</Text>
+          <Text style={styles.link}>Sign In</Text>
         </Link>
       </View>
     </View>
@@ -140,31 +168,37 @@ export default function SignUpScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    padding: 20,
+    padding: 24,
+    backgroundColor: '#fff',
     justifyContent: 'center',
   },
   title: {
     textAlign: 'center',
-    marginBottom: 24,
+    marginBottom: 32,
+    fontWeight: 'bold',
   },
   input: {
-    marginBottom: 16,
+    marginBottom: 20,
+    backgroundColor: '#fff',
   },
   button: {
-    marginTop: 8,
+    marginTop: 16,
+    borderRadius: 8,
+    paddingVertical: 6,
   },
   error: {
     color: 'red',
-    marginBottom: 16,
+    marginBottom: 20,
     textAlign: 'center',
   },
   footer: {
     flexDirection: 'row',
     justifyContent: 'center',
-    marginTop: 24,
+    marginTop: 32,
   },
   link: {
-    color: '#2196F3',
+    color: '#245E2C',
+    fontWeight: '600',
   },
   message: {
     textAlign: 'center',
@@ -176,5 +210,11 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginBottom: 24,
     color: '#666',
+  },
+  terms: {
+    fontSize: 12,
+    color: '#666',
+    textAlign: 'center',
+    marginTop: 16,
   },
 }); 

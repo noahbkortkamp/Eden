@@ -38,6 +38,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     try {
       const user = await authService.getCurrentUser();
       setUser(user);
+      
+      // Only show onboarding for new users who explicitly have onboardingComplete set to false
+      // This assumes existing users don't need to go through onboarding
+      if (user && user.user_metadata?.onboardingComplete === false) {
+        router.replace('/onboarding/frequency');
+      }
     } catch (error) {
       console.error('Error checking user:', error);
     } finally {
@@ -49,7 +55,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     try {
       const { user } = await authService.signIn({ email, password });
       setUser(user);
-      router.replace('/(tabs)');
+      
+      // Only redirect to onboarding if explicitly marked as incomplete
+      // This assumes existing users don't need to go through onboarding
+      if (user && user.user_metadata?.onboardingComplete === false) {
+        router.replace('/onboarding/frequency');
+      } else {
+        // Direct users to the search tab
+        router.replace('/(tabs)/search');
+      }
     } catch (error) {
       console.error('Error signing in:', error);
       throw error;

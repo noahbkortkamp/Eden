@@ -9,6 +9,7 @@ export default function LoginScreen() {
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const { signIn } = useAuth();
 
   const handleLogin = async () => {
@@ -39,7 +40,7 @@ export default function LoginScreen() {
 
   return (
     <View style={styles.container}>
-      <Text variant="headlineMedium" style={styles.title}>Welcome Back</Text>
+      <Text variant="headlineLarge" style={styles.title}>Welcome Back</Text>
       
       {error ? <Text style={styles.error}>{error}</Text> : null}
 
@@ -50,14 +51,26 @@ export default function LoginScreen() {
         autoCapitalize="none"
         keyboardType="email-address"
         style={styles.input}
+        mode="outlined"
+        outlineColor="#ddd"
+        activeOutlineColor="#245E2C"
       />
 
       <TextInput
         label="Password"
         value={password}
         onChangeText={setPassword}
-        secureTextEntry
+        secureTextEntry={!showPassword}
         style={styles.input}
+        mode="outlined"
+        outlineColor="#ddd"
+        activeOutlineColor="#245E2C"
+        right={
+          <TextInput.Icon 
+            icon={showPassword ? 'eye-off' : 'eye'} 
+            onPress={() => setShowPassword(!showPassword)}
+          />
+        }
       />
 
       <Button
@@ -66,8 +79,9 @@ export default function LoginScreen() {
         loading={loading}
         disabled={loading}
         style={styles.button}
+        buttonColor="#245E2C"
       >
-        Log In
+        Sign In
       </Button>
 
       <View style={styles.footer}>
@@ -83,30 +97,36 @@ export default function LoginScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    padding: 20,
+    padding: 24,
+    backgroundColor: '#fff',
     justifyContent: 'center',
   },
   title: {
     textAlign: 'center',
-    marginBottom: 24,
+    marginBottom: 32,
+    fontWeight: 'bold',
   },
   input: {
-    marginBottom: 16,
+    marginBottom: 20,
+    backgroundColor: '#fff',
   },
   button: {
-    marginTop: 8,
+    marginTop: 16,
+    borderRadius: 8,
+    paddingVertical: 6,
   },
   error: {
     color: 'red',
-    marginBottom: 16,
+    marginBottom: 20,
     textAlign: 'center',
   },
   footer: {
     flexDirection: 'row',
     justifyContent: 'center',
-    marginTop: 24,
+    marginTop: 32,
   },
   link: {
-    color: '#2196F3',
+    color: '#245E2C',
+    fontWeight: '600',
   },
 }); 
