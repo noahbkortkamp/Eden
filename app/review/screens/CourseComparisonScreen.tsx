@@ -1,6 +1,5 @@
-import React from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, Dimensions, ActivityIndicator } from 'react-native';
-import { Image } from 'expo-image';
+import React, { useState, useEffect } from 'react';
+import { View, Text, StyleSheet, Dimensions, ActivityIndicator, Pressable } from 'react-native';
 import { CourseComparisonProps } from '../../types/review';
 import { useTheme } from '../../theme/ThemeProvider';
 
@@ -13,6 +12,14 @@ export const CourseComparisonScreen: React.FC<CourseComparisonProps> = ({
   onSkip,
 }) => {
   const theme = useTheme();
+  const [isSelecting, setIsSelecting] = useState(false);
+  
+  // Reset selecting state when courses change
+  useEffect(() => {
+    if (courseA && courseB) {
+      setIsSelecting(false);
+    }
+  }, [courseA?.id, courseB?.id]);
 
   if (!courseA || !courseB) {
     return (
@@ -24,176 +31,195 @@ export const CourseComparisonScreen: React.FC<CourseComparisonProps> = ({
 
   const handleSelect = async (selectedId: string, notSelectedId: string) => {
     try {
+      // Prevent double-selection
+      if (isSelecting) return;
+      
+      setIsSelecting(true);
+      
       console.log('Selecting course:', {
         selectedId,
         notSelectedId,
-        selectedCourse: courseA?.name,
-        notSelectedCourse: courseB?.name
       });
+      
+      // Directly call onSelect which will navigate to the next comparison
       await onSelect(selectedId, notSelectedId);
     } catch (error) {
       console.error('Failed to submit comparison:', error);
+      setIsSelecting(false);
     }
   };
 
   const handleSkip = async () => {
     try {
+      if (isSelecting) return;
+      
+      setIsSelecting(true);
+      
       console.log('Skipping comparison:', {
         courseAId: courseA?.id,
         courseBId: courseB?.id,
-        courseAName: courseA?.name,
-        courseBName: courseB?.name
       });
+      
       await onSkip(courseA.id, courseB.id);
     } catch (error) {
       console.error('Failed to skip comparison:', error);
+      setIsSelecting(false);
     }
   };
 
-  // Add debug logging for course data
-  console.log('Course data:', {
-    courseA: {
-      id: courseA?.id,
-      name: courseA?.name
+  const styles = StyleSheet.create({
+    container: {
+      flex: 1,
+      padding: theme.spacing.md,
+      backgroundColor: theme.colors.background,
     },
-    courseB: {
-      id: courseB?.id,
-      name: courseB?.name
+    centered: {
+      justifyContent: 'center',
+      alignItems: 'center',
+    },
+    header: {
+      marginTop: theme.spacing.md,
+      marginBottom: theme.spacing.xl,
+    },
+    title: {
+      fontSize: 28,
+      fontWeight: '700',
+      textAlign: 'center',
+      color: theme.colors.text,
+    },
+    subtitle: {
+      fontSize: 16,
+      color: theme.colors.textSecondary,
+      textAlign: 'center',
+      marginTop: theme.spacing.xs,
+    },
+    coursesContainer: {
+      flex: 1,
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: theme.spacing.xl,
+    },
+    courseCard: {
+      width: width - 32,
+      borderRadius: theme.borderRadius.lg,
+      padding: theme.spacing.lg,
+      elevation: 3,
+      shadowColor: '#000',
+      shadowOffset: { width: 0, height: 2 },
+      shadowOpacity: 0.1,
+      shadowRadius: 8,
+      backgroundColor: theme.colors.surface,
+      borderWidth: 1,
+      borderColor: 'rgba(0,0,0,0.05)',
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    courseCardPressed: {
+      borderColor: theme.colors.primary,
+      borderWidth: 2,
+      transform: [{ scale: 0.98 }],
+      backgroundColor: `${theme.colors.primary}10`,
+    },
+    courseName: {
+      fontSize: 26,
+      fontWeight: '700',
+      color: theme.colors.text,
+      textAlign: 'center',
+      marginVertical: theme.spacing.md,
+    },
+    vsContainer: {
+      width: 40,
+      height: 40,
+      borderRadius: 20,
+      backgroundColor: theme.colors.primary,
+      justifyContent: 'center',
+      alignItems: 'center',
+      marginVertical: -theme.spacing.lg,
+      zIndex: 1,
+      shadowColor: '#000',
+      shadowOffset: { width: 0, height: 2 },
+      shadowOpacity: 0.1,
+      shadowRadius: 4,
+      elevation: 2,
+    },
+    vsText: {
+      fontSize: 16,
+      fontWeight: '700',
+      color: '#ffffff',
+    },
+    skipButton: {
+      paddingVertical: theme.spacing.md,
+      paddingHorizontal: theme.spacing.lg,
+      borderRadius: theme.borderRadius.lg,
+      alignSelf: 'center',
+      marginBottom: theme.spacing.md,
+      marginTop: theme.spacing.xl,
+      backgroundColor: 'rgba(0,0,0,0.05)',
+    },
+    skipButtonText: {
+      fontSize: 16,
+      fontWeight: '500',
+      color: theme.colors.textSecondary,
     }
   });
 
   return (
-    <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
-      <Text style={[styles.title, { color: theme.colors.text }]}>
-        Which course do you prefer?
-      </Text>
+    <View style={styles.container}>
+      <View style={styles.header}>
+        <Text style={styles.title}>
+          Which course do you prefer?
+        </Text>
+        <Text style={styles.subtitle}>Tap on your favorite</Text>
+      </View>
       
       <View style={styles.coursesContainer}>
         {/* Course A */}
-        <TouchableOpacity
-          style={[styles.courseCard, { backgroundColor: theme.colors.surface }]}
+        <Pressable
+          style={({pressed}) => [
+            styles.courseCard, 
+            pressed && styles.courseCardPressed
+          ]}
           onPress={() => handleSelect(courseA.id, courseB.id)}
+          android_ripple={{ color: `${theme.colors.primary}30` }}
+          disabled={isSelecting}
         >
-          <View style={styles.courseInfo}>
-            <Text style={[styles.courseName, { color: theme.colors.text }]}>
-              {courseA.name}
-            </Text>
-            <Text style={[styles.courseLocation, { color: theme.colors.textSecondary }]}>
-              {courseA.location}
-            </Text>
-            <View style={styles.statsContainer}>
-              <Text style={[styles.statText, { color: theme.colors.textSecondary }]}>
-                ⭐️ {courseA.average_rating?.toFixed(1) || 'N/A'}
-              </Text>
-              <Text style={[styles.statText, { color: theme.colors.textSecondary }]}>
-                📝 {courseA.total_reviews || 0} reviews
-              </Text>
-            </View>
-          </View>
-        </TouchableOpacity>
+          <Text style={styles.courseName}>
+            {courseA.name}
+          </Text>
+        </Pressable>
 
-        <Text style={[styles.vsText, { color: theme.colors.textSecondary }]}>VS</Text>
+        <View style={styles.vsContainer}>
+          <Text style={styles.vsText}>VS</Text>
+        </View>
 
         {/* Course B */}
-        <TouchableOpacity
-          style={[styles.courseCard, { backgroundColor: theme.colors.surface }]}
+        <Pressable
+          style={({pressed}) => [
+            styles.courseCard, 
+            pressed && styles.courseCardPressed
+          ]}
           onPress={() => handleSelect(courseB.id, courseA.id)}
+          android_ripple={{ color: `${theme.colors.primary}30` }}
+          disabled={isSelecting}
         >
-          <View style={styles.courseInfo}>
-            <Text style={[styles.courseName, { color: theme.colors.text }]}>
-              {courseB.name}
-            </Text>
-            <Text style={[styles.courseLocation, { color: theme.colors.textSecondary }]}>
-              {courseB.location}
-            </Text>
-            <View style={styles.statsContainer}>
-              <Text style={[styles.statText, { color: theme.colors.textSecondary }]}>
-                ⭐️ {courseB.average_rating?.toFixed(1) || 'N/A'}
-              </Text>
-              <Text style={[styles.statText, { color: theme.colors.textSecondary }]}>
-                📝 {courseB.total_reviews || 0} reviews
-              </Text>
-            </View>
-          </View>
-        </TouchableOpacity>
+          <Text style={styles.courseName}>
+            {courseB.name}
+          </Text>
+        </Pressable>
       </View>
-
-      <TouchableOpacity 
-        style={[styles.skipButton, { backgroundColor: theme.colors.surface }]} 
-        onPress={() => onSkip(courseA.id, courseB.id)}
+      
+      <Pressable 
+        style={({pressed}) => [
+          styles.skipButton,
+          pressed && { opacity: 0.8 }
+        ]} 
+        onPress={handleSkip}
+        disabled={isSelecting}
       >
-        <Text style={[styles.skipButtonText, { color: theme.colors.textSecondary }]}>
+        <Text style={styles.skipButtonText}>
           Too tough to choose
         </Text>
-      </TouchableOpacity>
+      </Pressable>
     </View>
   );
-};
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    padding: 16,
-  },
-  centered: {
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  title: {
-    fontSize: 28,
-    fontWeight: '600',
-    textAlign: 'center',
-    marginBottom: 32,
-  },
-  coursesContainer: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'flex-start',
-    gap: 16,
-  },
-  courseCard: {
-    width: width - 32,
-    borderRadius: 16,
-    padding: 20,
-    elevation: 2,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-  },
-  courseInfo: {
-    gap: 4,
-  },
-  courseName: {
-    fontSize: 24,
-    fontWeight: '600',
-  },
-  courseLocation: {
-    fontSize: 16,
-    marginBottom: 8,
-  },
-  statsContainer: {
-    flexDirection: 'row',
-    gap: 16,
-    marginTop: 4,
-  },
-  statText: {
-    fontSize: 14,
-  },
-  vsText: {
-    fontSize: 20,
-    fontWeight: '600',
-  },
-  skipButton: {
-    paddingVertical: 16,
-    paddingHorizontal: 24,
-    borderRadius: 12,
-    alignSelf: 'center',
-    marginTop: 'auto',
-    marginBottom: 16,
-  },
-  skipButtonText: {
-    fontSize: 16,
-    fontWeight: '500',
-  },
-}); 
+}; 

@@ -112,6 +112,17 @@ export const ReviewScreen: React.FC<ReviewScreenProps> = ({
     return playingPartners.map(p => p.name).join(', ');
   };
 
+  // Generate a unique ID for the input accessory view
+  const inputAccessoryViewID = 'notesInput';
+
+  // Scroll to notes section when focused
+  const handleNotesFocus = () => {
+    // Use a small delay to ensure the keyboard has started to appear
+    setTimeout(() => {
+      scrollViewRef.current?.scrollToEnd({ animated: true });
+    }, 100);
+  };
+
   const styles = StyleSheet.create({
     container: {
       flex: 1,
@@ -119,27 +130,42 @@ export const ReviewScreen: React.FC<ReviewScreenProps> = ({
     },
     header: {
       padding: theme.spacing.md,
-      backgroundColor: theme.colors.surface,
-      borderBottomWidth: 1,
-      borderBottomColor: theme.colors.border,
+      backgroundColor: theme.colors.primary,
+      borderBottomLeftRadius: theme.borderRadius.lg,
+      borderBottomRightRadius: theme.borderRadius.lg,
+      marginBottom: theme.spacing.md,
+      paddingVertical: theme.spacing.lg,
+      shadowColor: '#000',
+      shadowOffset: { width: 0, height: 2 },
+      shadowOpacity: 0.1,
+      shadowRadius: 4,
+      elevation: 3,
     },
     courseName: {
       ...theme.typography.h2,
       marginBottom: theme.spacing.xs,
-      color: theme.colors.text,
+      color: '#ffffff',
+      fontWeight: '700',
     },
     location: {
       ...theme.typography.body,
-      color: theme.colors.textSecondary,
+      color: 'rgba(255, 255, 255, 0.9)',
     },
-    section: {
+    sectionCard: {
+      backgroundColor: theme.colors.surface,
+      borderRadius: theme.borderRadius.lg,
       padding: theme.spacing.md,
-      borderBottomWidth: 1,
-      borderBottomColor: theme.colors.border,
+      marginHorizontal: theme.spacing.md,
+      marginBottom: theme.spacing.md,
+      shadowColor: '#000',
+      shadowOffset: { width: 0, height: 1 },
+      shadowOpacity: 0.05,
+      shadowRadius: 2,
+      elevation: 1,
     },
     sectionTitle: {
       ...theme.typography.h3,
-      marginBottom: theme.spacing.sm,
+      marginBottom: theme.spacing.md,
       color: theme.colors.text,
     },
     sectionContent: {
@@ -152,20 +178,25 @@ export const ReviewScreen: React.FC<ReviewScreenProps> = ({
     },
     sentimentButton: {
       alignItems: 'center',
-      padding: theme.spacing.sm,
-      borderRadius: theme.borderRadius.md,
-      backgroundColor: theme.colors.surface,
+      padding: theme.spacing.md,
+      borderRadius: theme.borderRadius.lg,
+      backgroundColor: 'rgba(0, 0, 0, 0.03)',
+      width: '30%',
     },
     selectedSentiment: {
-      backgroundColor: theme.colors.primary + '20',
+      backgroundColor: `${theme.colors.primary}20`,
+      borderWidth: 1,
+      borderColor: theme.colors.primary,
     },
     sentimentIcon: {
-      fontSize: 24,
-      marginBottom: theme.spacing.xs,
+      fontSize: 28,
+      marginBottom: theme.spacing.sm,
     },
     sentimentText: {
-      ...theme.typography.caption,
-      color: theme.colors.textSecondary,
+      ...theme.typography.body,
+      fontWeight: '500',
+      color: theme.colors.text,
+      textTransform: 'capitalize',
     },
     photoGrid: {
       flexDirection: 'row',
@@ -175,13 +206,13 @@ export const ReviewScreen: React.FC<ReviewScreenProps> = ({
     photoThumbnail: {
       width: 80,
       height: 80,
-      borderRadius: theme.borderRadius.sm,
+      borderRadius: theme.borderRadius.md,
     },
     addPhotoButton: {
       width: 80,
       height: 80,
-      borderRadius: theme.borderRadius.sm,
-      backgroundColor: theme.colors.surface,
+      borderRadius: theme.borderRadius.md,
+      backgroundColor: 'rgba(0, 0, 0, 0.03)',
       justifyContent: 'center',
       alignItems: 'center',
       borderWidth: 1,
@@ -194,12 +225,18 @@ export const ReviewScreen: React.FC<ReviewScreenProps> = ({
     },
     submitButton: {
       margin: theme.spacing.md,
+      marginTop: theme.spacing.lg,
       padding: theme.spacing.md,
       backgroundColor: theme.colors.primary,
-      borderRadius: theme.borderRadius.md,
+      borderRadius: theme.borderRadius.lg,
       alignItems: 'center',
       flexDirection: 'row',
       justifyContent: 'center',
+      shadowColor: '#000',
+      shadowOffset: { width: 0, height: 2 },
+      shadowOpacity: 0.1,
+      shadowRadius: 4,
+      elevation: 2,
     },
     submitButtonDisabled: {
       backgroundColor: theme.colors.textSecondary,
@@ -209,6 +246,7 @@ export const ReviewScreen: React.FC<ReviewScreenProps> = ({
       color: theme.colors.background,
       fontWeight: '600',
       marginRight: isSubmitting ? theme.spacing.sm : 0,
+      fontSize: 16,
     },
     errorText: {
       color: theme.colors.error,
@@ -218,11 +256,11 @@ export const ReviewScreen: React.FC<ReviewScreenProps> = ({
     notesInput: {
       borderWidth: 1,
       borderColor: theme.colors.border,
-      borderRadius: theme.borderRadius.sm,
-      padding: theme.spacing.sm,
-      minHeight: 100,
+      borderRadius: theme.borderRadius.lg,
+      padding: theme.spacing.md,
+      minHeight: 120,
       color: theme.colors.text,
-      backgroundColor: theme.colors.surface,
+      backgroundColor: 'rgba(0, 0, 0, 0.03)',
       ...theme.typography.body,
     },
     keyboardAccessory: {
@@ -241,48 +279,35 @@ export const ReviewScreen: React.FC<ReviewScreenProps> = ({
       fontWeight: '600',
       fontSize: 16,
     },
-    tagsPreview: {
+    selectorRow: {
       flexDirection: 'row',
       alignItems: 'center',
       justifyContent: 'space-between',
+      backgroundColor: 'rgba(0, 0, 0, 0.03)',
+      borderRadius: theme.borderRadius.lg,
+      padding: theme.spacing.md,
     },
-    tagsText: {
+    selectorText: {
       ...theme.typography.body,
       color: theme.colors.text,
       flex: 1,
       marginRight: theme.spacing.sm,
     },
-    tagsPlaceholder: {
+    placeholderText: {
       ...theme.typography.body,
       color: theme.colors.textSecondary,
     },
-    favoriteHolesPreview: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      justifyContent: 'space-between',
+    dateRow: {
+      backgroundColor: 'rgba(0, 0, 0, 0.03)',
+      borderRadius: theme.borderRadius.lg,
+      padding: theme.spacing.md,
     },
-    favoriteHolesText: {
+    dateText: {
       ...theme.typography.body,
       color: theme.colors.text,
-      flex: 1,
-      marginRight: theme.spacing.sm,
-    },
-    favoriteHolesPlaceholder: {
-      ...theme.typography.body,
-      color: theme.colors.textSecondary,
+      fontWeight: '500',
     },
   });
-
-  // Generate a unique ID for the input accessory view
-  const inputAccessoryViewID = 'notesInput';
-
-  // Scroll to notes section when focused
-  const handleNotesFocus = () => {
-    // Use a small delay to ensure the keyboard has started to appear
-    setTimeout(() => {
-      scrollViewRef.current?.scrollToEnd({ animated: true });
-    }, 100);
-  };
 
   return (
     <KeyboardAvoidingView 
@@ -295,6 +320,7 @@ export const ReviewScreen: React.FC<ReviewScreenProps> = ({
         style={styles.container} 
         keyboardShouldPersistTaps="handled"
         keyboardDismissMode="interactive"
+        showsVerticalScrollIndicator={false}
       >
         {/* Course Header */}
         <View style={styles.header}>
@@ -303,7 +329,7 @@ export const ReviewScreen: React.FC<ReviewScreenProps> = ({
         </View>
 
         {/* Sentiment Rating */}
-        <View style={styles.section}>
+        <View style={styles.sectionCard}>
           <Text style={styles.sectionTitle}>How was your experience?</Text>
           <View style={styles.sentimentContainer}>
             {Object.entries(SENTIMENT_ICONS).map(([key, icon]) => (
@@ -317,58 +343,87 @@ export const ReviewScreen: React.FC<ReviewScreenProps> = ({
                 disabled={isSubmitting}
               >
                 <Text style={styles.sentimentIcon}>{icon}</Text>
-                <Text style={styles.sentimentText}>{key}</Text>
+                <Text style={styles.sentimentText}>{key.replace('_', ' ')}</Text>
               </TouchableOpacity>
             ))}
           </View>
         </View>
 
         {/* Tags Section */}
-        <TouchableOpacity 
-          style={styles.section}
-          onPress={() => setShowTagsModal(true)}
-          disabled={isSubmitting}
-        >
+        <View style={styles.sectionCard}>
           <Text style={styles.sectionTitle}>Tags</Text>
-          <View style={styles.tagsPreview}>
-            <Text style={tags.length > 0 ? styles.tagsText : styles.tagsPlaceholder}>
+          <TouchableOpacity 
+            style={styles.selectorRow}
+            onPress={() => setShowTagsModal(true)}
+            disabled={isSubmitting}
+          >
+            <Text style={tags.length > 0 ? styles.selectorText : styles.placeholderText}>
               {tags.length > 0 ? getSelectedTagNames() : 'Select course tags'}
             </Text>
             <ChevronRight size={20} color={theme.colors.textSecondary} />
-          </View>
-        </TouchableOpacity>
+          </TouchableOpacity>
+        </View>
 
         {/* Favorite Holes Section */}
-        <TouchableOpacity 
-          style={styles.section}
-          onPress={() => setShowFavoriteHolesModal(true)}
-          disabled={isSubmitting}
-        >
+        <View style={styles.sectionCard}>
           <Text style={styles.sectionTitle}>Favorite Holes</Text>
-          <View style={styles.favoriteHolesPreview}>
-            <Text style={favoriteHoles.length > 0 ? styles.favoriteHolesText : styles.favoriteHolesPlaceholder}>
+          <TouchableOpacity 
+            style={styles.selectorRow}
+            onPress={() => setShowFavoriteHolesModal(true)}
+            disabled={isSubmitting}
+          >
+            <Text style={favoriteHoles.length > 0 ? styles.selectorText : styles.placeholderText}>
               {favoriteHoles.length > 0 ? getFavoriteHolesPreview() : 'Select your favorite holes'}
             </Text>
             <ChevronRight size={20} color={theme.colors.textSecondary} />
-          </View>
-        </TouchableOpacity>
+          </TouchableOpacity>
+        </View>
 
         {/* Add Playing Partners section */}
-        <TouchableOpacity
-          style={styles.section}
-          onPress={() => setShowPlayingPartnersModal(true)}
-        >
-          <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>Who did you play with?</Text>
+        <View style={styles.sectionCard}>
+          <Text style={styles.sectionTitle}>Who did you play with?</Text>
+          <TouchableOpacity
+            style={styles.selectorRow}
+            onPress={() => setShowPlayingPartnersModal(true)}
+            disabled={isSubmitting}
+          >
+            <Text style={playingPartners.length > 0 ? styles.selectorText : styles.placeholderText}>
+              {playingPartners.length > 0 ? getPlayingPartnersPreview() : 'Select playing partners'}
+            </Text>
             <ChevronRight size={20} color={theme.colors.textSecondary} />
-          </View>
-          <Text style={styles.sectionContent}>
-            {playingPartners.length > 0 ? getPlayingPartnersPreview() : 'Select playing partners'}
-          </Text>
-        </TouchableOpacity>
+          </TouchableOpacity>
+        </View>
+
+        {/* Date Played */}
+        <View style={styles.sectionCard}>
+          <Text style={styles.sectionTitle}>Date Played</Text>
+          <TouchableOpacity
+            style={styles.dateRow}
+            onPress={() => setShowDatePicker(true)}
+            disabled={isSubmitting}
+          >
+            <Text style={styles.dateText}>
+              {format(datePlayed, 'MMMM d, yyyy')}
+            </Text>
+          </TouchableOpacity>
+
+          {showDatePicker && (
+            <DateTimePicker
+              value={datePlayed}
+              mode="date"
+              display="default"
+              onChange={(event, selectedDate) => {
+                setShowDatePicker(false);
+                if (selectedDate) {
+                  setDatePlayed(selectedDate);
+                }
+              }}
+            />
+          )}
+        </View>
 
         {/* Notes Section */}
-        <View style={styles.section}>
+        <View style={styles.sectionCard}>
           <Text style={styles.sectionTitle}>Notes</Text>
           <TextInput
             style={styles.notesInput}
@@ -398,34 +453,8 @@ export const ReviewScreen: React.FC<ReviewScreenProps> = ({
           </InputAccessoryView>
         )}
 
-        {/* Date Played */}
-        <TouchableOpacity
-          style={styles.section}
-          onPress={() => setShowDatePicker(true)}
-          disabled={isSubmitting}
-        >
-          <Text style={styles.sectionTitle}>Date Played</Text>
-          <Text style={styles.sectionContent}>
-            {format(datePlayed, 'MMMM d, yyyy')}
-          </Text>
-        </TouchableOpacity>
-
-        {showDatePicker && (
-          <DateTimePicker
-            value={datePlayed}
-            mode="date"
-            display="default"
-            onChange={(event, selectedDate) => {
-              setShowDatePicker(false);
-              if (selectedDate) {
-                setDatePlayed(selectedDate);
-              }
-            }}
-          />
-        )}
-
         {/* Photos */}
-        <View style={styles.section}>
+        <View style={styles.sectionCard}>
           <Text style={styles.sectionTitle}>Photos</Text>
           <View style={styles.photoGrid}>
             {photos.map((photo, index) => (
