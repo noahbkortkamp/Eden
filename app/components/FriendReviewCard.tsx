@@ -1,9 +1,9 @@
-import React from 'react';
+import React, { memo } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from 'react-native';
 import { Image } from 'expo-image';
 import { format } from 'date-fns';
 import { useTheme } from '../theme/ThemeProvider';
-import { ThumbsUp, ThumbsDown, Minus, Share, MapPin, Users } from 'lucide-react-native';
+import { ThumbsUp, ThumbsDown, Minus } from 'lucide-react-native';
 
 // Define sentiment ranges with their colors and icons
 const SENTIMENT_RANGES = {
@@ -58,7 +58,11 @@ interface FriendReviewCardProps {
   onPress?: () => void;
 }
 
-export const FriendReviewCard: React.FC<FriendReviewCardProps> = ({ review, onPress }) => {
+// Placeholder image for avatar
+const PLACEHOLDER_IMAGE = { uri: 'https://via.placeholder.com/40' };
+
+// Using memo to prevent unnecessary re-renders
+const FriendReviewCard = memo<FriendReviewCardProps>(({ review, onPress }) => {
   const theme = useTheme();
   // Use the numeric rating to determine sentiment and styling
   const sentiment = getSentimentFromRating(review.rating);
@@ -70,6 +74,9 @@ export const FriendReviewCard: React.FC<FriendReviewCardProps> = ({ review, onPr
   // Check if there are photos to display
   const hasPhotos = review.photos && review.photos.length > 0;
   
+  // Get first letter for avatar placeholder
+  const firstLetter = review.full_name?.charAt(0).toUpperCase() || 'U';
+  
   return (
     <TouchableOpacity 
       style={[styles.container, { backgroundColor: theme.colors.surface }]}
@@ -80,13 +87,17 @@ export const FriendReviewCard: React.FC<FriendReviewCardProps> = ({ review, onPr
           {review.avatar_url ? (
             <Image 
               source={{ uri: review.avatar_url }} 
+              placeholder={PLACEHOLDER_IMAGE}
               style={styles.avatar}
               contentFit="cover"
+              cachePolicy="memory-disk"
+              recyclingKey={`avatar-${review.user_id}`}
+              transition={200}
             />
           ) : (
             <View style={[styles.avatarPlaceholder, { backgroundColor: theme.colors.secondary }]}>
               <Text style={styles.avatarText}>
-                {review.full_name?.charAt(0).toUpperCase() || 'U'}
+                {firstLetter}
               </Text>
             </View>
           )}
@@ -109,19 +120,22 @@ export const FriendReviewCard: React.FC<FriendReviewCardProps> = ({ review, onPr
       </View>
 
       {/* Main content header - "User played Course with X people" */}
-      <Text style={[styles.mainHeader, { color: theme.colors.text }]}>
+      <Text style={[styles.mainHeader, { color: theme.colors.text }]} numberOfLines={2}>
         {review.full_name} played {review.course_name}
         {hasPlayingPartners ? ` with ${review.playing_partners.length} ${review.playing_partners.length === 1 ? 'person' : 'people'}` : ''}
       </Text>
       
-      {/* Show review content if available */}
+      {/* Show review content if available - with max lines */}
       {review.notes && (
-        <Text style={[styles.notes, { color: theme.colors.text }]}>
+        <Text 
+          style={[styles.notes, { color: theme.colors.text }]} 
+          numberOfLines={3}
+        >
           {review.notes}
         </Text>
       )}
       
-      {/* Photos Section - only if photos exist */}
+      {/* Photos Section - only if photos exist - using optimized rendering */}
       {hasPhotos && (
         <ScrollView 
           horizontal 
@@ -130,16 +144,20 @@ export const FriendReviewCard: React.FC<FriendReviewCardProps> = ({ review, onPr
         >
           {review.photos.map((photo, index) => (
             <Image 
-              key={index}
+              key={`${review.id}-photo-${index}-${photo.substring(photo.lastIndexOf('/') + 1)}`}
               source={{ uri: photo }}
               style={styles.photo}
               contentFit="cover"
+              cachePolicy="memory-disk"
+              recyclingKey={`review-photo-${review.id}-${index}`}
+              placeholder={PLACEHOLDER_IMAGE}
+              transition={300}
             />
           ))}
         </ScrollView>
       )}
       
-      {/* Favorite holes */}
+      {/* Favorite holes - only if present */}
       {review.favorite_holes && review.favorite_holes.length > 0 && (
         <Text style={[styles.favoriteHoles, { color: theme.colors.textSecondary }]}>
           Favorite holes: {review.favorite_holes.join(', ')}
@@ -147,7 +165,10 @@ export const FriendReviewCard: React.FC<FriendReviewCardProps> = ({ review, onPr
       )}
     </TouchableOpacity>
   );
-};
+});
+
+// Add display name for debugging
+FriendReviewCard.displayName = 'FriendReviewCard';
 
 const styles = StyleSheet.create({
   container: {
@@ -233,4 +254,6 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     marginRight: 8,
   },
-}); 
+});
+
+export { FriendReviewCard }; 

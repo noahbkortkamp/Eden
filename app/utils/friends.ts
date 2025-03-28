@@ -171,6 +171,31 @@ const sentimentToRating = (sentiment: string): number => {
   }
 };
 
+// Sanitize review data to ensure consistent format
+const sanitizeReview = (review: any) => {
+  if (!review) return review;
+  
+  // Ensure created_at is in a consistent format
+  if (review.created_at) {
+    try {
+      // Normalize date format
+      const date = new Date(review.created_at);
+      review.created_at = date.toISOString();
+    } catch (e) {
+      // If date parsing fails, keep original
+      console.warn('Error parsing date:', review.created_at);
+    }
+  }
+  
+  // Ensure other fields exist
+  return {
+    ...review,
+    id: review.id || `generated-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`,
+    course_id: review.course_id || 'unknown',
+    user_id: review.user_id || 'unknown',
+  };
+};
+
 /**
  * Get reviews from followed users
  * @param userId The ID of the user whose followed users' reviews to fetch
@@ -179,45 +204,10 @@ const sentimentToRating = (sentiment: string): number => {
  * @returns Promise with reviews from followed users
  */
 export async function getFriendsReviews(userId: string, page: number = 1, limit: number = 10) {
-  console.log(`[FETCH] Getting reviews for user ${userId}, page ${page}, limit ${limit}, TIME=${new Date().toISOString()}`);
   const offset = (page - 1) * limit;
   
   try {
-    // First check if the user is following anyone
-    const { data: follows, error: followsError } = await supabase
-      .from('follows')
-      .select('following_id')
-      .eq('follower_id', userId);
-      
-    if (followsError) {
-      console.error('[FETCH] Error checking follows:', followsError);
-      throw followsError;
-    }
-    
-    console.log(`[FETCH] User is following ${follows?.length || 0} users`);
-    const followingIds = follows?.map(f => f.following_id) || [];
-    console.log('[FETCH] Following IDs:', followingIds);
-    
-    if (!follows || follows.length === 0) {
-      console.log('[FETCH] User is not following anyone, returning empty array');
-      return [];
-    }
-    
-    // First try to debug the RPC function - make a simple direct call
-    console.log('[FETCH] Testing RPC function directly...');
-    const { data: testRPC, error: testRPCError } = await supabase
-      .rpc('get_course_ranking_by_ids', { 
-        user_id_param: follows[0].following_id, 
-        course_id_param: '00000000-0000-0000-0000-000000000000' // dummy ID to test function
-      });
-    
-    if (testRPCError) {
-      console.error('[FETCH] RPC test error:', testRPCError);
-    } else {
-      console.log('[FETCH] RPC test succeeded - function exists');
-    }
-    
-    // Get reviews from followed users
+    // First fetch the reviews data - no inner join with course_rankings
     const { data: reviewsData, error: reviewsError } = await supabase
       .from('followed_users_reviews')
       .select('*')
@@ -226,179 +216,109 @@ export async function getFriendsReviews(userId: string, page: number = 1, limit:
       .range(offset, offset + limit - 1);
 
     if (reviewsError) {
-      console.error('[FETCH] Error fetching friend reviews:', reviewsError);
+      console.error('Error fetching friend reviews:', reviewsError);
       throw reviewsError;
     }
 
-    console.log(`[FETCH] Found ${reviewsData?.length || 0} reviews from followed users`);
-    if (reviewsData && reviewsData.length > 0) {
-      console.log('[FETCH] First review:', JSON.stringify(reviewsData[0]).substring(0, 500));
-      
-      // Extract user and course IDs for debugging
-      const userIds = [...new Set(reviewsData.map(r => r.user_id))];
-      const courseIds = [...new Set(reviewsData.map(r => r.course_id))];
-      console.log(`[FETCH] Unique users in reviews: ${userIds.length}`, userIds);
-      console.log(`[FETCH] Unique courses in reviews: ${courseIds.length}`, courseIds);
-    }
-    
-    // If no reviews were found, return empty array
     if (!reviewsData || reviewsData.length === 0) {
       return [];
     }
 
-    // First, try to fetch all course rankings to see what data we can access
-    console.log('[FETCH] Fetching all accessible course rankings...');
-    const { data: allRankings, error: allRankingsError } = await supabase
-      .from('course_rankings')
-      .select('*')
-      .limit(100); // Fetch more to increase chances of finding relevant ones
-    
-    if (allRankingsError) {
-      console.error('[FETCH] Error accessing course_rankings table:', allRankingsError);
-    } else {
-      console.log(`[FETCH] Successfully fetched ${allRankings?.length || 0} rankings from course_rankings table`);
-      if (allRankings && allRankings.length > 0) {
-        // Look specifically for rankings relevant to our reviews
-        const relevantRankings = allRankings.filter(r => 
-          reviewsData.some(review => 
-            review.user_id === r.user_id && review.course_id === r.course_id
-          )
-        );
-        
-        console.log(`[FETCH] Found ${relevantRankings.length} rankings directly relevant to our reviews`);
-        if (relevantRankings.length > 0) {
-          console.log('[FETCH] Sample relevant ranking:', relevantRankings[0]);
-        }
-        
-        // Check for any rankings by users we follow
-        const followRankings = allRankings.filter(r => followingIds.includes(r.user_id));
-        console.log(`[FETCH] Found ${followRankings.length} rankings from followed users`);
+    // Sanitize and normalize the review data
+    const sanitizedReviews = reviewsData.map(review => {
+      const sanitized = sanitizeReview(review);
+      
+      // First apply the basic sentiment-to-rating conversion
+      // This handles cases like would_play_again, it_was_fine, would_not_play_again
+      let baseRating = sentimentToRating(sanitized.sentiment);
+      
+      // Also map legacy sentiment values to the correct ranges
+      if (sanitized.sentiment === 'liked') {
+        baseRating = 8.5; // Same as would_play_again
+      } else if (sanitized.sentiment === 'fine') {
+        baseRating = 5.0; // Same as it_was_fine
+      } else if (sanitized.sentiment === 'didnt_like') {
+        baseRating = 2.0; // Same as would_not_play_again
       }
-    }
-
-    // Now try individual queries for each review
-    const rankingsPromises = reviewsData.map(async (review, index) => {
-      const reviewUser = review.user_id;
-      const reviewCourse = review.course_id;
       
-      console.log(`[FETCH] [${index+1}/${reviewsData.length}] Fetching ranking for user=${reviewUser}, course=${reviewCourse}`);
+      return {
+        ...sanitized,
+        baseRating
+      };
+    });
+    
+    // Group by sentiment categories for position-based scoring
+    const likedReviews = sanitizedReviews.filter(r => 
+      r.sentiment === 'liked' || 
+      r.sentiment === 'would_play_again' ||
+      r.baseRating >= 7.0);
+    
+    const fineReviews = sanitizedReviews.filter(r => 
+      r.sentiment === 'fine' || 
+      r.sentiment === 'it_was_fine' ||
+      (r.baseRating < 7.0 && r.baseRating >= 3.0));
+    
+    const didntLikeReviews = sanitizedReviews.filter(r => 
+      r.sentiment === 'didnt_like' || 
+      r.sentiment === 'would_not_play_again' ||
+      r.baseRating < 3.0);
+    
+    // Process reviews with position-based scoring
+    const processedReviews = sanitizedReviews.map(review => {
+      let finalRating = review.baseRating; // Start with the base rating
       
-      try {
-        // First try the RPC function to bypass RLS policies
-        console.log(`[FETCH] Trying RPC for user=${reviewUser}, course=${reviewCourse}`);
+      // Apply position-based scoring for "liked" reviews
+      if (likedReviews.includes(review)) {
+        const position = likedReviews.indexOf(review);
+        const total = likedReviews.length;
         
-        const { data: rpcData, error: rpcError } = await supabase
-          .rpc('get_course_ranking_by_ids', { 
-            user_id_param: reviewUser, 
-            course_id_param: reviewCourse 
-          });
-          
-        if (rpcError) {
-          console.error(`[FETCH] RPC Error for ${reviewUser}/${reviewCourse}: ${rpcError.message}`);
-        } else if (rpcData && rpcData.length > 0) {
-          console.log(`[FETCH] RPC found ranking with score=${rpcData[0].relative_score}`);
-          return {
-            userId: reviewUser,
-            courseId: reviewCourse,
-            ...rpcData[0]
-          };
+        if (total === 1 || position === 0) {
+          finalRating = 10.0; // Top "liked" course
         } else {
-          console.log(`[FETCH] RPC returned empty result for ${reviewUser}/${reviewCourse}`);
+          // Scale from 7.0 to 10.0 based on position
+          finalRating = 7.0 + ((10.0 - 7.0) * (total - position - 1) / Math.max(total - 1, 1));
         }
+      } 
+      // Apply position-based scoring for "fine" reviews
+      else if (fineReviews.includes(review)) {
+        const position = fineReviews.indexOf(review);
+        const total = fineReviews.length;
         
-        // Fall back to direct query
-        console.log(`[FETCH] Trying direct query for user=${reviewUser}, course=${reviewCourse}`);
-        const { data: directData, error: directError } = await supabase
-          .from('course_rankings')
-          .select('*')
-          .eq('user_id', reviewUser)
-          .eq('course_id', reviewCourse);
-        
-        if (directError) {
-          console.error(`[FETCH] Direct query error: ${directError.message}`);
-          return null;
+        if (total === 1 || position === 0) {
+          finalRating = 6.9; // Top "fine" course
+        } else {
+          // Scale from 3.0 to 6.9 based on position
+          finalRating = 3.0 + ((6.9 - 3.0) * (total - position - 1) / Math.max(total - 1, 1));
         }
-        
-        console.log(`[FETCH] Direct query found ${directData?.length || 0} rankings`);
-        
-        if (!directData || directData.length === 0) {
-          console.log(`[FETCH] No ranking found for user=${reviewUser}, course=${reviewCourse}`);
-          
-          // As a last resort, try to find ANY ranking for this course
-          const { data: courseRankings } = await supabase
-            .from('course_rankings')
-            .select('*')
-            .eq('course_id', reviewCourse)
-            .limit(1);
-            
-          if (courseRankings && courseRankings.length > 0) {
-            console.log(`[FETCH] Found alternative ranking for same course: score=${courseRankings[0].relative_score}`);
-          }
-          
-          return null;
-        }
-        
-        // Use the first matching ranking
-        const ranking = directData[0];
-        console.log(`[FETCH] Direct query found score=${ranking.relative_score}`);
-        
-        return {
-          userId: reviewUser,
-          courseId: reviewCourse,
-          ...ranking
-        };
-      } catch (err) {
-        console.error(`[FETCH] Unexpected error: ${err instanceof Error ? err.message : String(err)}`);
-        return null;
       }
-    });
-    
-    // Wait for all ranking requests to complete
-    const rankingsResults = await Promise.all(rankingsPromises);
-    const validRankings = rankingsResults.filter(Boolean);
-    console.log(`[FETCH] Successfully fetched ${validRankings.length}/${reviewsData.length} course rankings`);
-    
-    if (validRankings.length > 0) {
-      console.log('[FETCH] Sample valid ranking:', validRankings[0]);
-    }
-    
-    // Map the rankings to the reviews
-    const reviewsWithRatings = reviewsData.map(review => {
-      // Find the matching ranking
-      const ranking = rankingsResults.find(
-        r => r && r.userId === review.user_id && r.courseId === review.course_id
-      );
+      // Apply position-based scoring for "didnt_like" reviews
+      else if (didntLikeReviews.includes(review)) {
+        const position = didntLikeReviews.indexOf(review);
+        const total = didntLikeReviews.length;
+        
+        if (total === 1 || position === 0) {
+          finalRating = 2.9; // Top "didnt_like" course
+        } else {
+          // Scale from 0.0 to 2.9 based on position
+          finalRating = 0.0 + ((2.9 - 0.0) * (total - position - 1) / Math.max(total - 1, 1));
+        }
+      }
       
-      if (ranking) {
-        console.log(`[FETCH] Review ${review.id.substring(0,8)}: Using score=${ranking.relative_score}`);
-        return {
-          ...review,
-          rating: ranking.relative_score 
-        };
-      } else {
-        // Check if this is Grace's review of Concord Country Club
-        if (review.course_name === 'Concord Country Club') {
-          console.log(`[FETCH] This is the problematic Concord Country Club review - using hardcoded value`);
-          // We could hardcode a value here as a temporary solution
-          return {
-            ...review,
-            rating: 8.7 // Hardcoded based on what should be the correct value
-          };
-        }
-        
-        // Log when falling back to default
-        console.log(`[FETCH] Review ${review.id.substring(0,8)}: No ranking found, using default score=5.0`);
-        return {
-          ...review,
-          rating: 5.0 // Fallback to 5.0 if no ranking exists
-        };
-      }
+      // Round to one decimal place for consistency
+      finalRating = Math.round(finalRating * 10) / 10;
+      
+      // Remove the temporary baseRating property
+      const { baseRating, ...reviewWithoutBase } = review;
+      
+      return {
+        ...reviewWithoutBase,
+        rating: finalRating
+      };
     });
     
-    console.log(`[FETCH] Processed ${reviewsWithRatings.length} reviews with rankings`);
-    return reviewsWithRatings;
+    return processedReviews;
   } catch (error) {
-    console.error('[FETCH] Unexpected error in getFriendsReviews:', error);
+    console.error('Error in getFriendsReviews:', error);
     throw error;
   }
 }
