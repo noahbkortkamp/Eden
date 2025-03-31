@@ -440,11 +440,6 @@ export const CourseListTabs: React.FC<CourseListTabsProps> = React.memo(({
       )}
       
       {/* Debug header message */}
-      <View style={{ padding: 10, backgroundColor: 'rgba(255,255,0,0.2)' }}>
-        <Text style={{ fontSize: 12, fontWeight: 'bold', textAlign: 'center' }}>
-          DEBUGGING MODE: Simple Tab View ({index === 0 ? 'Played' : index === 1 ? 'Want to Play' : 'Recommended'})
-        </Text>
-      </View>
       
       {/* Custom tab bar using simple buttons */}
       <View style={{ 
