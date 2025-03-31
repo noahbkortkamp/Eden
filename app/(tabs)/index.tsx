@@ -1,10 +1,9 @@
 import { View, Text, StyleSheet, ScrollView, Image, Pressable, TextInput, ActivityIndicator, Modal } from 'react-native';
 import { useRouter } from 'expo-router';
-import { Search, MapPin, X, Trophy, Bell, Menu, Users, TrendingUp } from 'lucide-react-native';
+import { Search, Trophy, Bell, Menu, Users, TrendingUp } from 'lucide-react-native';
 import { useFonts, Inter_400Regular, Inter_600SemiBold, Inter_700Bold } from '@expo-google-fonts/inter';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useState, useEffect } from 'react';
-import * as Location from 'expo-location';
 import { getNearbyCoursesWithinRadius } from '../utils/courses';
 import { Database } from '../utils/database.types';
 import { FriendsReviewsFeed } from '../components/FriendsReviewsFeed';
@@ -21,7 +20,6 @@ export default function HomeScreen() {
     'Inter-SemiBold': Inter_600SemiBold,
     'Inter-Bold': Inter_700Bold,
   });
-  const [location, setLocation] = useState<string>('Boston, MA');
   const [courses, setCourses] = useState<Course[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -36,16 +34,9 @@ export default function HomeScreen() {
       setLoading(true);
       setError(null);
       
-      // Get user's location
-      const { status } = await Location.requestForegroundPermissionsAsync();
-      if (status !== 'granted') {
-        throw new Error('Location permission not granted');
-      }
-
-      const location = await Location.getCurrentPositionAsync({});
       const nearbyCourses = await getNearbyCoursesWithinRadius(
-        location.coords.latitude,
-        location.coords.longitude,
+        0, // Assuming default location
+        0, // Assuming default location
         50 // 50 mile radius
       );
 
@@ -79,7 +70,7 @@ export default function HomeScreen() {
     <View style={styles.container}>
       {/* Header */}
       <View style={styles.header}>
-        <Text style={styles.logo}>fairway</Text>
+        <Text style={styles.logo}>Eden</Text>
         <View style={styles.headerIcons}>
           <Bell size={24} color="#000" style={styles.icon} />
           <Menu size={24} color="#000" />
@@ -99,11 +90,6 @@ export default function HomeScreen() {
             Search courses...
           </Text>
         </Pressable>
-        <View style={styles.locationBar}>
-          <MapPin size={20} color="#64748b" />
-          <Text style={styles.locationText}>{location}</Text>
-          <X size={16} color="#64748b" style={styles.clearIcon} />
-        </View>
       </View>
 
       {/* Filter Pills */}
@@ -201,7 +187,6 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     paddingHorizontal: 12,
     paddingVertical: 8,
-    marginBottom: 8,
   },
   searchInput: {
     flex: 1,
@@ -209,24 +194,6 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontFamily: 'Inter-Regular',
     color: '#000',
-  },
-  locationBar: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#f1f5f9',
-    borderRadius: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-  },
-  locationText: {
-    flex: 1,
-    marginLeft: 8,
-    fontSize: 14,
-    fontFamily: 'Inter-Regular',
-    color: '#64748b',
-  },
-  clearIcon: {
-    padding: 4,
   },
   filterScrollView: {
     backgroundColor: '#fff',
