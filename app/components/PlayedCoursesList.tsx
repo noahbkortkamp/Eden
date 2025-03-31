@@ -295,13 +295,6 @@ export const PlayedCoursesList = React.memo(({
                     {(hasTenReviews || course.showScores) ? (course.rating ? course.rating.toFixed(1) : '-') : '-'}
                   </Text>
                 </View>
-                {__DEV__ && (
-                  <View style={{position: 'absolute', right: 48, top: -10}}>
-                    <Text style={{fontSize: 8, color: '#999'}}>
-                      {(hasTenReviews || course.showScores) ? 'scores on' : 'scores off'} (r:{reviewCount})
-                    </Text>
-                  </View>
-                )}
               </View>
             </View>
           </TouchableOpacity>
