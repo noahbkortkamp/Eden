@@ -430,15 +430,6 @@ export const CourseListTabs: React.FC<CourseListTabsProps> = React.memo(({
 
   return !isReady ? null : (
     <View style={{ flex: 1 }} onLayout={onLayout}>
-      {/* Add diagnostic info */}
-      {playedCourses?.length === 0 && (
-        <View style={{ padding: 5, backgroundColor: 'rgba(0,0,0,0.05)' }}>
-          <Text style={{ fontSize: 12, color: 'red' }}>
-            DIAGNOSTIC: No played courses to display. See logs for details.
-          </Text>
-        </View>
-      )}
-      
       {/* Debug header message */}
       
       {/* Custom tab bar using simple buttons */}
