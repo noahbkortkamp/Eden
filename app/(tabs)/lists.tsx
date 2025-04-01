@@ -43,7 +43,7 @@ export default function ListsScreen() {
   const [usingTestData, setUsingTestData] = useState(false);
   
   // Add a state to control the visibility of the debug panel
-  const [showDebugPanel, setShowDebugPanel] = useState(true);
+  const [showDebugPanel, setShowDebugPanel] = useState(false);
 
   // Track the last time we refreshed to prevent too many reloads
   const lastRefreshTime = useRef(0);
@@ -1372,32 +1372,6 @@ export default function ListsScreen() {
       
       {/* Main content with optimized rendering */}
       {memoizedCourseListTabs}
-      
-      {/* Debug panel */}
-      {showDebugPanel && (
-        <View style={styles.debugPanel}>
-          <View style={styles.debugHeader}>
-            <Text style={styles.debugTitle}>Debug Controls</Text>
-            <TouchableOpacity onPress={() => setShowDebugPanel(false)}>
-              <Text style={styles.debugCloseButton}>Hide</Text>
-            </TouchableOpacity>
-          </View>
-          
-          <View style={styles.debugButtons}>
-            <TouchableOpacity 
-              style={styles.debugButton} 
-              onPress={loadData}>
-              <Text style={styles.debugButtonText}>Refresh Data</Text>
-            </TouchableOpacity>
-            
-            <TouchableOpacity 
-              style={[styles.debugButton, { backgroundColor: '#4299e1' }]} 
-              onPress={useHardcodedData}>
-              <Text style={styles.debugButtonText}>Use Test Data</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      )}
     </View>
   );
 }
