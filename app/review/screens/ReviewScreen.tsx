@@ -478,6 +478,23 @@ export const ReviewScreen: React.FC<ReviewScreenProps> = ({
 
         <View style={styles.sectionDivider} />
 
+        {/* Photos Section */}
+        <TouchableOpacity
+          style={styles.rowContainer}
+          onPress={handlePhotoUpload}
+          disabled={isSubmitting}
+        >
+          <Text style={styles.labelText}>Photos</Text>
+          <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+            <Text style={styles.valueText}>
+              {photos.length > 0 ? `${photos.length} photo${photos.length > 1 ? 's' : ''}` : 'Add Photos'}
+            </Text>
+            <ChevronRight size={18} color={theme.colors.textSecondary} style={{ marginLeft: 4 }} />
+          </View>
+        </TouchableOpacity>
+
+        <View style={styles.sectionDivider} />
+
         {/* Notes Section */}
         <View style={styles.section}>
           <Text style={styles.labelText}>Notes</Text>
