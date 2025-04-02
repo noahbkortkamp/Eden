@@ -13,7 +13,7 @@ import { reviewService } from '../services/reviewService';
 import { PlayedCoursesList } from '../components/PlayedCoursesList';
 import { WantToPlayCoursesList } from '../components/WantToPlayCoursesList';
 import BasicWantToPlayList from '../components/BasicWantToPlayList';
-import { MapPin, X, Bookmark as BookmarkIcon } from 'lucide-react-native';
+import { MapPin, X, Bookmark as BookmarkIcon, Search } from 'lucide-react-native';
 
 export default function ListsScreen() {
   const theme = useTheme();
@@ -791,131 +791,163 @@ export default function ListsScreen() {
               backgroundColor: 'white',
               width: '100%',
             }}>
-              <Text style={{
-                fontSize: 16,
-                fontWeight: '600',
-                marginTop: 16,
-                marginBottom: 8,
-                marginLeft: 16,
-                color: '#666',
-              }}>
-                {wantToPlayCourses.length} Bookmarked {wantToPlayCourses.length === 1 ? 'Course' : 'Courses'}
-              </Text>
-              
-              <FlatList
-                data={wantToPlayCourses}
-                keyExtractor={(item) => item.id.toString()}
-                renderItem={({ item }) => (
-                  <View style={{
-                    flexDirection: 'row',
-                    alignItems: 'center',
-                    paddingVertical: 16,
-                    paddingHorizontal: 16,
-                    borderBottomWidth: 1,
-                    borderBottomColor: 'rgba(0,0,0,0.1)',
-                    width: '100%',
-                  }}>
-                    <TouchableOpacity
-                      style={{
-                        flex: 1,
-                        paddingRight: 8,
-                      }}
-                      onPress={() => handleCoursePress(item)}
-                      activeOpacity={0.7}
-                    >
-                      <Text style={{
-                        fontSize: 17,
-                        fontWeight: '600',
-                        marginBottom: 4,
-                        color: '#000',
-                      }} numberOfLines={1}>
-                        {item.name}
-                      </Text>
-                      <View style={{
-                        flexDirection: 'row',
-                        alignItems: 'center',
-                      }}>
-                        <MapPin size={14} color="#666" />
-                        <Text style={{
-                          fontSize: 14,
-                          marginLeft: 4,
-                          color: '#666',
-                        }} numberOfLines={1}>
-                          {item.location || 'No location data'}
-                        </Text>
-                      </View>
-                    </TouchableOpacity>
-                    
-                    {user && (
-                      <TouchableOpacity
-                        style={{
-                          padding: 10,
-                          marginLeft: 8,
-                        }}
-                        onPress={async () => {
-                          if (!user) return;
-                          
-                          try {
-                            const { error } = await supabase
-                              .from('want_to_play_courses')
-                              .delete()
-                              .match({ 
-                                user_id: user.id, 
-                                course_id: item.id
-                              });
-
-                            if (error) {
-                              console.error('Error removing bookmark:', error);
-                              throw error;
-                            }
-
-                            console.log(`Successfully removed bookmark for course ${item.id}`);
-                            
-                            // Trigger global refresh
-                            setNeedsRefresh();
-                          } catch (error) {
-                            console.error('Error removing bookmark:', error);
-                          }
-                        }}
-                      >
-                        <X size={20} color="#666" />
-                      </TouchableOpacity>
-                    )}
-                  </View>
-                )}
-                contentContainerStyle={{
-                  paddingBottom: 120,
-                }}
-                showsVerticalScrollIndicator={true}
-              />
-              
-              {wantToPlayCourses.length === 0 && (
-                <View style={{
-                  flex: 1,
-                  justifyContent: 'center',
-                  alignItems: 'center',
-                  paddingHorizontal: 24,
-                }}>
-                  <BookmarkIcon size={80} color="#666" style={{opacity: 0.8}} />
+              {wantToPlayCourses.length > 0 ? (
+                <>
                   <Text style={{
-                    fontSize: 18,
+                    fontSize: 16,
                     fontWeight: '600',
                     marginTop: 16,
                     marginBottom: 8,
+                    marginLeft: 16,
+                    color: '#666',
+                  }}>
+                    {wantToPlayCourses.length} Bookmarked {wantToPlayCourses.length === 1 ? 'Course' : 'Courses'}
+                  </Text>
+                  
+                  <FlatList
+                    data={wantToPlayCourses}
+                    keyExtractor={(item) => item.id.toString()}
+                    renderItem={({ item }) => (
+                      <View style={{
+                        flexDirection: 'row',
+                        alignItems: 'center',
+                        paddingVertical: 16,
+                        paddingHorizontal: 16,
+                        borderBottomWidth: 1,
+                        borderBottomColor: 'rgba(0,0,0,0.1)',
+                        width: '100%',
+                      }}>
+                        <TouchableOpacity
+                          style={{
+                            flex: 1,
+                            paddingRight: 8,
+                          }}
+                          onPress={() => handleCoursePress(item)}
+                          activeOpacity={0.7}
+                        >
+                          <Text style={{
+                            fontSize: 17,
+                            fontWeight: '600',
+                            marginBottom: 4,
+                            color: '#000',
+                          }} numberOfLines={1}>
+                            {item.name}
+                          </Text>
+                          <View style={{
+                            flexDirection: 'row',
+                            alignItems: 'center',
+                          }}>
+                            <MapPin size={14} color="#666" />
+                            <Text style={{
+                              fontSize: 14,
+                              marginLeft: 4,
+                              color: '#666',
+                            }} numberOfLines={1}>
+                              {item.location || 'No location data'}
+                            </Text>
+                          </View>
+                        </TouchableOpacity>
+                        
+                        {user && (
+                          <TouchableOpacity
+                            style={{
+                              padding: 10,
+                              marginLeft: 8,
+                            }}
+                            onPress={async () => {
+                              if (!user) return;
+                              
+                              try {
+                                const { error } = await supabase
+                                  .from('want_to_play_courses')
+                                  .delete()
+                                  .match({ 
+                                    user_id: user.id, 
+                                    course_id: item.id
+                                  });
+
+                                if (error) {
+                                  console.error('Error removing bookmark:', error);
+                                  throw error;
+                                }
+
+                                console.log(`Successfully removed bookmark for course ${item.id}`);
+                                
+                                // Trigger global refresh
+                                setNeedsRefresh();
+                              } catch (error) {
+                                console.error('Error removing bookmark:', error);
+                              }
+                            }}
+                          >
+                            <X size={20} color="#666" />
+                          </TouchableOpacity>
+                        )}
+                      </View>
+                    )}
+                    contentContainerStyle={{
+                      paddingBottom: 120,
+                    }}
+                    showsVerticalScrollIndicator={true}
+                  />
+                </>
+              ) : (
+                <View style={{
+                  flex: 1, 
+                  justifyContent: 'center',
+                  alignItems: 'center',
+                  paddingHorizontal: 24,
+                  backgroundColor: 'white'
+                }}>
+                  <BookmarkIcon size={80} color="#666" style={{opacity: 0.8}} />
+                  <Text style={{
+                    fontSize: 20,
+                    fontWeight: '600',
+                    marginTop: 20,
+                    marginBottom: 10,
                     textAlign: 'center',
                     color: '#333',
                   }}>
                     No bookmarked courses yet
                   </Text>
                   <Text style={{
-                    fontSize: 14,
+                    fontSize: 15,
                     textAlign: 'center',
-                    marginBottom: 24,
-                    lineHeight: 20,
+                    marginBottom: 30,
+                    lineHeight: 22,
                     color: '#666',
+                    maxWidth: 280,
                   }}>
-                    Bookmark courses from the search page
+                    Bookmarking is a way to save courses you want to play at a later date.
                   </Text>
+                  
+                  <TouchableOpacity
+                    style={{
+                      backgroundColor: theme.colors.primary,
+                      paddingVertical: 14,
+                      paddingHorizontal: 24,
+                      borderRadius: 10,
+                      flexDirection: 'row',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      width: 280,
+                      elevation: 3,
+                      shadowColor: '#000',
+                      shadowOffset: { width: 0, height: 2 },
+                      shadowOpacity: 0.2,
+                      shadowRadius: 3,
+                    }}
+                    onPress={() => {
+                      console.log('Navigating to search tab from empty state');
+                      router.push('/(tabs)/search');
+                    }}
+                    activeOpacity={0.7}
+                  >
+                    <Search size={20} color="white" style={{ marginRight: 10 }} />
+                    <Text style={{ color: 'white', fontSize: 16, fontWeight: 'bold' }}>
+                      Find Courses to Bookmark
+                    </Text>
+                  </TouchableOpacity>
                 </View>
               )}
             </View>
