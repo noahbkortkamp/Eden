@@ -1,9 +1,10 @@
 import React, { useEffect, useRef, useState, useMemo, useCallback } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView, SafeAreaView, Platform, Dimensions } from 'react-native';
 import { useTheme } from '../theme/ThemeProvider';
-import { MapPin } from 'lucide-react-native';
+import { MapPin, Search } from 'lucide-react-native';
 import { Course } from '../types/review';
 import { usePlayedCourses } from '../context/PlayedCoursesContext';
+import { router } from 'expo-router';
 
 interface PlayedCoursesListProps {
   courses: Course[];
@@ -208,6 +209,20 @@ export const PlayedCoursesList = React.memo(({
       fontWeight: '500',
       textAlign: 'center',
     },
+    addReviewButton: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      paddingVertical: theme.spacing.md,
+      paddingHorizontal: theme.spacing.lg,
+      borderRadius: theme.borderRadius.lg,
+      marginTop: theme.spacing.sm,
+    },
+    addReviewButtonText: {
+      color: '#fff',
+      fontSize: 16,
+      fontWeight: '600',
+    },
   }), [theme, screenWidth]);
 
   // IMPORTANT: Memoize coursesToRender calculation but initialize with valid data
@@ -230,9 +245,17 @@ export const PlayedCoursesList = React.memo(({
       <SafeAreaView style={styles.safeArea}>
         <View style={[styles.container, styles.emptyState]}>
           <Text style={styles.emptyStateText}>No courses found</Text>
-          <Text style={[styles.emptyStateText, {fontSize: 13, marginTop: 10}]}>
+          <Text style={[styles.emptyStateText, {fontSize: 13, marginTop: 10, marginBottom: 20}]}>
             Try adding some course reviews to see them here.
           </Text>
+          <TouchableOpacity 
+            style={[styles.addReviewButton, { backgroundColor: theme.colors.primary }]} 
+            onPress={() => router.push('/search')}
+            activeOpacity={0.7}
+          >
+            <Search size={18} color="#fff" style={{ marginRight: 8 }} />
+            <Text style={styles.addReviewButtonText}>Find a course to review</Text>
+          </TouchableOpacity>
         </View>
       </SafeAreaView>
     );
