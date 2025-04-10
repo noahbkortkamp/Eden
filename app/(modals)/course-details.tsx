@@ -3,11 +3,12 @@ import {
   View,
   Text,
   Image,
-  ScrollView,
   TouchableOpacity,
   StyleSheet,
   useWindowDimensions,
   ActivityIndicator,
+  SafeAreaView,
+  Platform,
 } from 'react-native';
 import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
 import { useTheme } from '../theme/ThemeProvider';
@@ -145,99 +146,102 @@ function CourseDetailsContent() {
   };
 
   return (
-    <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
-      <ScrollView>
-        {/* Header Image */}
-        <View style={styles.imageContainer}>
-          {course.photos && course.photos.length > 0 ? (
-            <Image
-              source={{ uri: course.photos[0] }}
-              style={[styles.headerImage, { width }]}
-              resizeMode="cover"
-            />
+    <SafeAreaView style={[styles.container, { backgroundColor: theme.colors.background }]}>
+      {/* Header with Image */}
+      <View style={styles.imageContainer}>
+        {course.photos && course.photos.length > 0 ? (
+          <Image
+            source={{ uri: course.photos[0] }}
+            style={[styles.headerImage, { width }]}
+            resizeMode="cover"
+          />
+        ) : (
+          <View style={[styles.headerImage, { width, backgroundColor: theme.colors.surface }]} />
+        )}
+        <TouchableOpacity
+          style={[styles.bookmarkButton, { backgroundColor: theme.colors.surface }]}
+          onPress={handleToggleBookmark}
+          disabled={bookmarkLoading}
+        >
+          {bookmarkLoading ? (
+            <ActivityIndicator size="small" color={theme.colors.primary} />
+          ) : isBookmarked ? (
+            <BookmarkCheck size={24} color={theme.colors.primary} />
           ) : (
-            <View style={[styles.headerImage, { width, backgroundColor: theme.colors.surface }]} />
+            <Bookmark size={24} color={theme.colors.text} />
           )}
-          <TouchableOpacity
-            style={[styles.bookmarkButton, { backgroundColor: theme.colors.surface }]}
-            onPress={handleToggleBookmark}
-            disabled={bookmarkLoading}
-          >
-            {bookmarkLoading ? (
-              <ActivityIndicator size="small" color={theme.colors.primary} />
-            ) : isBookmarked ? (
-              <BookmarkCheck size={24} color={theme.colors.primary} />
-            ) : (
-              <Bookmark size={24} color={theme.colors.text} />
-            )}
-          </TouchableOpacity>
+        </TouchableOpacity>
+      </View>
+
+      {/* Content Section */}
+      <View style={styles.contentContainer}>
+        {/* Course Header */}
+        <View style={styles.courseHeader}>
+          <View>
+            <Text style={[styles.courseName, { color: theme.colors.text }]}>
+              {course.name}
+            </Text>
+            <View style={styles.locationContainer}>
+              <MapPin size={14} color={theme.colors.textSecondary} />
+              <Text style={[styles.location, { color: theme.colors.textSecondary }]}>
+                {course.location}
+              </Text>
+            </View>
+          </View>
         </View>
 
-        {/* Course Info */}
-        <View style={styles.content}>
-          <Text style={[styles.courseName, { color: theme.colors.text }]}>
-            {course.name}
-          </Text>
-
-          <View style={styles.locationContainer}>
-            <MapPin size={16} color={theme.colors.textSecondary} />
-            <Text style={[styles.location, { color: theme.colors.textSecondary }]}>
-              {course.location}
+        {/* Stats Section */}
+        <View style={[styles.statsContainer, { backgroundColor: theme.colors.surface }]}>
+          <View style={styles.statItem}>
+            <Star size={18} color={theme.colors.primary} />
+            <Text style={[styles.statValue, { color: theme.colors.text }]}>
+              {(course.rating ?? 0).toFixed(1)}
+            </Text>
+            <Text style={[styles.statLabel, { color: theme.colors.textSecondary }]}>
+              Rating
             </Text>
           </View>
 
-          {/* Stats */}
-          <View style={[styles.statsContainer, { backgroundColor: theme.colors.surface }]}>
-            <View style={styles.statItem}>
-              <Star size={20} color={theme.colors.primary} />
-              <Text style={[styles.statValue, { color: theme.colors.text }]}>
-                {(course.rating ?? 0).toFixed(1)}
-              </Text>
-              <Text style={[styles.statLabel, { color: theme.colors.textSecondary }]}>
-                Rating
-              </Text>
-            </View>
+          <View style={[styles.divider, { backgroundColor: theme.colors.border }]} />
 
-            <View style={[styles.divider, { backgroundColor: theme.colors.border }]} />
-
-            <View style={styles.statItem}>
-              <Users size={20} color={theme.colors.primary} />
-              <Text style={[styles.statValue, { color: theme.colors.text }]}>
-                {course.total_ratings ?? 0}
-              </Text>
-              <Text style={[styles.statLabel, { color: theme.colors.textSecondary }]}>
-                Reviews
-              </Text>
-            </View>
-          </View>
-
-          {/* Course Details */}
-          <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>Details</Text>
-          <View style={[styles.detailsContainer, { backgroundColor: theme.colors.surface }]}>
-            <View style={styles.detailRow}>
-              <Text style={[styles.detailLabel, { color: theme.colors.textSecondary }]}>Type</Text>
-              <Text style={[styles.detailValue, { color: theme.colors.text }]}>{course.type ?? 'N/A'}</Text>
-            </View>
-            <View style={styles.detailRow}>
-              <Text style={[styles.detailLabel, { color: theme.colors.textSecondary }]}>Par</Text>
-              <Text style={[styles.detailValue, { color: theme.colors.text }]}>{course.par ?? 'N/A'}</Text>
-            </View>
-            <View style={styles.detailRow}>
-              <Text style={[styles.detailLabel, { color: theme.colors.textSecondary }]}>Yardage</Text>
-              <Text style={[styles.detailValue, { color: theme.colors.text }]}>{course.yardage ? `${course.yardage} yards` : 'N/A'}</Text>
-            </View>
-            <View style={styles.detailRow}>
-              <Text style={[styles.detailLabel, { color: theme.colors.textSecondary }]}>Price Level</Text>
-              <Text style={[styles.detailValue, { color: theme.colors.text }]}>
-                {course.price_level ? '$'.repeat(course.price_level) : 'N/A'}
-              </Text>
-            </View>
+          <View style={styles.statItem}>
+            <Users size={18} color={theme.colors.primary} />
+            <Text style={[styles.statValue, { color: theme.colors.text }]}>
+              {course.total_ratings ?? 0}
+            </Text>
+            <Text style={[styles.statLabel, { color: theme.colors.textSecondary }]}>
+              Reviews
+            </Text>
           </View>
         </View>
-      </ScrollView>
 
-      {/* Action Button */}
-      <View style={[styles.footer, { backgroundColor: theme.colors.background }]}>
+        {/* Course Details */}
+        <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>Details</Text>
+        <View style={[styles.detailsGrid, { backgroundColor: theme.colors.surface }]}>
+          <View style={styles.detailItem}>
+            <Text style={[styles.detailLabel, { color: theme.colors.textSecondary }]}>Type</Text>
+            <Text style={[styles.detailValue, { color: theme.colors.text }]}>{course.type ?? 'N/A'}</Text>
+          </View>
+          
+          <View style={styles.detailItem}>
+            <Text style={[styles.detailLabel, { color: theme.colors.textSecondary }]}>Par</Text>
+            <Text style={[styles.detailValue, { color: theme.colors.text }]}>{course.par ?? 'N/A'}</Text>
+          </View>
+          
+          <View style={styles.detailItem}>
+            <Text style={[styles.detailLabel, { color: theme.colors.textSecondary }]}>Yardage</Text>
+            <Text style={[styles.detailValue, { color: theme.colors.text }]}>{course.yardage ? `${course.yardage} yards` : 'N/A'}</Text>
+          </View>
+          
+          <View style={styles.detailItem}>
+            <Text style={[styles.detailLabel, { color: theme.colors.textSecondary }]}>Price</Text>
+            <Text style={[styles.detailValue, { color: theme.colors.text }]}>
+              {course.price_level ? '$'.repeat(course.price_level) : 'N/A'}
+            </Text>
+          </View>
+        </View>
+
+        {/* Action Button */}
         <TouchableOpacity
           style={[styles.reviewButton, { backgroundColor: theme.colors.primary }]}
           onPress={handleReviewPress}
@@ -247,7 +251,7 @@ function CourseDetailsContent() {
           </Text>
         </TouchableOpacity>
       </View>
-    </View>
+    </SafeAreaView>
   );
 }
 
@@ -259,7 +263,7 @@ const styles = StyleSheet.create({
     position: 'relative',
   },
   headerImage: {
-    height: 250,
+    height: 180,
   },
   bookmarkButton: {
     position: 'absolute',
@@ -271,29 +275,36 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  content: {
+  contentContainer: {
     flex: 1,
-    padding: 16,
+    padding: 12,
+    paddingBottom: Platform.OS === 'ios' ? 20 : 12,
+  },
+  courseHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    marginBottom: 12,
   },
   courseName: {
-    fontSize: 24,
+    fontSize: 22,
     fontWeight: 'bold',
-    marginBottom: 8,
+    marginBottom: 4,
   },
   locationContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 16,
+    marginBottom: 12,
   },
   location: {
     marginLeft: 4,
-    fontSize: 16,
+    fontSize: 14,
   },
   statsContainer: {
     flexDirection: 'row',
     borderRadius: 12,
-    padding: 16,
-    marginBottom: 24,
+    padding: 12,
+    marginBottom: 16,
   },
   statItem: {
     flex: 1,
@@ -304,45 +315,43 @@ const styles = StyleSheet.create({
     height: '100%',
   },
   statValue: {
-    fontSize: 20,
+    fontSize: 18,
     fontWeight: 'bold',
-    marginVertical: 4,
+    marginVertical: 2,
   },
   statLabel: {
-    fontSize: 14,
+    fontSize: 12,
   },
   sectionTitle: {
-    fontSize: 18,
+    fontSize: 16,
     fontWeight: '600',
-    marginBottom: 8,
+    marginBottom: 6,
   },
-  detailsContainer: {
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 24,
-  },
-  detailRow: {
+  detailsGrid: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingVertical: 8,
+    flexWrap: 'wrap',
+    borderRadius: 12,
+    padding: 8,
+    marginBottom: 16,
+  },
+  detailItem: {
+    width: '50%',
+    padding: 8,
   },
   detailLabel: {
-    fontSize: 16,
+    fontSize: 14,
+    marginBottom: 2,
   },
   detailValue: {
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: '500',
   },
-  footer: {
-    padding: 16,
-    borderTopWidth: 1,
-  },
   reviewButton: {
-    height: 50,
-    borderRadius: 25,
+    height: 46,
+    borderRadius: 23,
     alignItems: 'center',
     justifyContent: 'center',
+    marginTop: 'auto',
   },
   reviewButtonText: {
     fontSize: 16,
