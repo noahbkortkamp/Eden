@@ -9,38 +9,115 @@ import {
   useWindowDimensions,
   ActivityIndicator,
 } from 'react-native';
-import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
 import { useTheme } from '../theme/ThemeProvider';
-import { MapPin, Star, Users, X } from 'lucide-react-native';
+import { MapPin, Star, Users, Bookmark, BookmarkCheck } from 'lucide-react-native';
 import { getCourse } from '../utils/courses';
 import type { Database } from '../utils/database.types';
+import { useAuth } from '../context/AuthContext';
+import { bookmarkService } from '../services/bookmarkService';
 
 type Course = Database['public']['Tables']['courses']['Row'];
 
 export default function CourseDetailsScreen() {
+  // Configure the Stack.Screen outside of the component body
+  return (
+    <>
+      <Stack.Screen
+        options={{
+          presentation: 'modal',
+          headerShown: false,
+          gestureEnabled: true,
+        }}
+      />
+      <CourseDetailsContent />
+    </>
+  );
+}
+
+// Separate the content into its own component to avoid re-rendering issues
+function CourseDetailsContent() {
   const { courseId } = useLocalSearchParams();
   const router = useRouter();
   const theme = useTheme();
   const { width } = useWindowDimensions();
+  const { user } = useAuth();
   const [course, setCourse] = useState<Course | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [isBookmarked, setIsBookmarked] = useState(false);
+  const [bookmarkLoading, setBookmarkLoading] = useState(false);
 
+  // Load course data
   useEffect(() => {
+    let isMounted = true;
+    
     async function loadCourse() {
       try {
         if (!courseId) throw new Error('No course ID provided');
+        
+        // Get course data
         const data = await getCourse(courseId as string);
+        if (!isMounted) return;
         setCourse(data);
+        setLoading(false);
       } catch (err) {
+        if (!isMounted) return;
         setError(err instanceof Error ? err.message : 'Failed to load course');
-      } finally {
         setLoading(false);
       }
     }
 
     loadCourse();
+    
+    return () => {
+      isMounted = false;
+    };
   }, [courseId]);
+
+  // Separate effect for bookmark status to avoid dependencies on user
+  useEffect(() => {
+    let isMounted = true;
+    
+    async function checkBookmarkStatus() {
+      if (!user || !courseId) return;
+      
+      try {
+        const bookmarkedIds = await bookmarkService.getBookmarkedCourseIds(user.id);
+        if (!isMounted) return;
+        setIsBookmarked(bookmarkedIds.includes(courseId as string));
+      } catch (err) {
+        console.error('Error checking bookmark status:', err);
+      }
+    }
+    
+    if (course) {
+      checkBookmarkStatus();
+    }
+    
+    return () => {
+      isMounted = false;
+    };
+  }, [courseId, user, course]);
+
+  const handleToggleBookmark = async () => {
+    if (!user || !courseId || !course) return;
+    
+    setBookmarkLoading(true);
+    try {
+      if (isBookmarked) {
+        await bookmarkService.removeBookmark(user.id, courseId as string);
+        setIsBookmarked(false);
+      } else {
+        await bookmarkService.addBookmark(user.id, courseId as string);
+        setIsBookmarked(true);
+      }
+    } catch (err) {
+      console.error('Error toggling bookmark:', err);
+    } finally {
+      setBookmarkLoading(false);
+    }
+  };
 
   if (loading) {
     return (
@@ -82,10 +159,17 @@ export default function CourseDetailsScreen() {
             <View style={[styles.headerImage, { width, backgroundColor: theme.colors.surface }]} />
           )}
           <TouchableOpacity
-            style={[styles.closeButton, { backgroundColor: theme.colors.surface }]}
-            onPress={() => router.back()}
+            style={[styles.bookmarkButton, { backgroundColor: theme.colors.surface }]}
+            onPress={handleToggleBookmark}
+            disabled={bookmarkLoading}
           >
-            <X size={24} color={theme.colors.text} />
+            {bookmarkLoading ? (
+              <ActivityIndicator size="small" color={theme.colors.primary} />
+            ) : isBookmarked ? (
+              <BookmarkCheck size={24} color={theme.colors.primary} />
+            ) : (
+              <Bookmark size={24} color={theme.colors.text} />
+            )}
           </TouchableOpacity>
         </View>
 
@@ -177,7 +261,7 @@ const styles = StyleSheet.create({
   headerImage: {
     height: 250,
   },
-  closeButton: {
+  bookmarkButton: {
     position: 'absolute',
     top: 16,
     right: 16,
