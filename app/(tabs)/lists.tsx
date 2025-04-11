@@ -687,11 +687,41 @@ export default function ListsScreen() {
     }
   };
 
-  const handleCoursePress = (course: Course) => {
-    router.push({
-      pathname: '/(modals)/course-details',
-      params: { courseId: course.id }
-    });
+  const handleCoursePress = async (course: Course) => {
+    // If user is not logged in, just show the course details
+    if (!user?.id) {
+      router.push({
+        pathname: '/(modals)/course-details',
+        params: { courseId: course.id }
+      });
+      return;
+    }
+
+    try {
+      // Check if the user has reviewed this course
+      const reviewExists = await reviewService.getUserCourseReview(user.id, course.id);
+      
+      if (reviewExists) {
+        // User has reviewed this course, navigate to review summary
+        router.push({
+          pathname: '/review/summary',
+          params: { courseId: course.id, userId: user.id }
+        });
+      } else {
+        // No review exists, navigate to course details
+        router.push({
+          pathname: '/(modals)/course-details',
+          params: { courseId: course.id }
+        });
+      }
+    } catch (error) {
+      console.error('Error checking for review:', error);
+      // On error, default to course details
+      router.push({
+        pathname: '/(modals)/course-details',
+        params: { courseId: course.id }
+      });
+    }
   };
 
   const styles = StyleSheet.create({

@@ -226,6 +226,47 @@ export const reviewService = {
   },
 
   /**
+   * Get a user's review for a specific course
+   */
+  getUserCourseReview: async (userId: string, courseId: string): Promise<any | null> => {
+    try {
+      console.log(`Fetching review for user ${userId} and course ${courseId}`);
+      
+      const { data, error } = await supabase
+        .from('reviews')
+        .select(`
+          *,
+          tags:review_tags(tag:tag_id(*)),
+          course:course_id(name, location, type, price_level, par, yardage)
+        `)
+        .eq('user_id', userId)
+        .eq('course_id', courseId)
+        .order('date_played', { ascending: false })
+        .limit(1)
+        .single();
+
+      if (error) {
+        if (error.code === 'PGRST116') {
+          console.log('No review found for this user and course');
+          return null;
+        }
+        console.error('Error fetching user course review:', error);
+        throw error;
+      }
+
+      // Transform the tags data to make it more accessible
+      if (data && data.tags) {
+        data.tags = data.tags.map(item => item.tag);
+      }
+
+      return data;
+    } catch (error) {
+      console.error('Error in getUserCourseReview:', error);
+      throw error;
+    }
+  },
+
+  /**
    * Get the count of reviews submitted by a user
    */
   getUserReviewCount: async (userId: string): Promise<number> => {
