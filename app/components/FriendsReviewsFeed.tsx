@@ -326,10 +326,12 @@ export const FriendsReviewsFeed: React.FC<FriendsReviewsFeedProps> = memo(({ onF
   }, [fetchReviews]);
   
   // Handle review press
-  const handleReviewPress = useCallback((courseId: string) => {
+  const handleReviewPress = useCallback((review: any) => {
+    if (!review || !review.id) return;
+    
     router.push({
-      pathname: '/(modals)/course-details',
-      params: { courseId }
+      pathname: '/review/friend-detail',
+      params: { reviewId: review.id }
     });
   }, [router]);
   
@@ -395,7 +397,7 @@ export const FriendsReviewsFeed: React.FC<FriendsReviewsFeedProps> = memo(({ onF
       renderItem={({ item, index }) => (
         <MemoizedFriendReviewCard
           review={item} 
-          onPress={() => handleReviewPress(item.course_id)}
+          onPress={() => handleReviewPress(item)}
         />
       )}
       keyExtractor={getUniqueKey}

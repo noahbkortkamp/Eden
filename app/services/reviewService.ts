@@ -267,6 +267,45 @@ export const reviewService = {
   },
 
   /**
+   * Get a specific review by ID with complete details
+   */
+  getReviewDetail: async (reviewId: string): Promise<any | null> => {
+    try {
+      console.log(`Fetching review details for ID ${reviewId}`);
+      
+      const { data, error } = await supabase
+        .from('reviews')
+        .select(`
+          *,
+          tags:review_tags(tag:tag_id(*)),
+          course:course_id(name, location, type, price_level, par, yardage),
+          user:user_id(id, full_name, avatar_url)
+        `)
+        .eq('id', reviewId)
+        .single();
+
+      if (error) {
+        if (error.code === 'PGRST116') {
+          console.log('Review not found');
+          return null;
+        }
+        console.error('Error fetching review details:', error);
+        throw error;
+      }
+
+      // Transform the tags data to make it more accessible
+      if (data && data.tags) {
+        data.tags = data.tags.map(item => item.tag);
+      }
+
+      return data;
+    } catch (error) {
+      console.error('Error in getReviewDetail:', error);
+      throw error;
+    }
+  },
+
+  /**
    * Get the count of reviews submitted by a user
    */
   getUserReviewCount: async (userId: string): Promise<number> => {
