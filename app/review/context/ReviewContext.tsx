@@ -190,7 +190,7 @@ export const ReviewProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         // No other courses with same sentiment, end the flow
         router.back(); // Close review modal
         await new Promise(resolve => setTimeout(resolve, 100));
-        router.replace('/(tabs)');
+        router.replace('/(tabs)/lists');
       }
     } catch (err) {
       console.error('Detailed submission error:', err);
@@ -226,7 +226,7 @@ export const ReviewProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         });
       } else {
         // Not enough reviewed courses, end the flow and go to feed
-        router.replace('/(tabs)');
+        router.replace('/(tabs)/lists');
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to start comparisons');
@@ -323,20 +323,20 @@ export const ReviewProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         }
 
         // If we've completed all comparisons or no more courses to compare, go back to feed
-        router.replace('/(tabs)');
+        router.replace('/(tabs)/lists');
       }
       
       // Reset state and go back to feed
       setOriginalReviewedCourseId(null);
       setComparisonResults([]);
-      router.replace('/(tabs)');
+      router.replace('/(tabs)/lists');
     } catch (err) {
       console.error('Detailed comparison error:', err);
       setError(err instanceof Error ? err.message : 'Failed to submit comparison');
       setTimeout(() => {
         setOriginalReviewedCourseId(null);
         setComparisonResults([]);
-        router.replace('/(tabs)');
+        router.replace('/(tabs)/lists');
       }, 2000);
     }
   }, [user, router, comparisonsRemaining, comparisonResults, originalReviewedCourseId]);
@@ -389,18 +389,18 @@ export const ReviewProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         // Reset state and go to feed
         setOriginalReviewedCourseId(null);
         setComparisonResults([]);
-        router.replace('/(tabs)');
+        router.replace('/(tabs)/lists');
       }).catch(err => {
         setError(err instanceof Error ? err.message : 'Failed to get user reviews');
         setOriginalReviewedCourseId(null);
         setComparisonResults([]);
-        router.replace('/(tabs)');
+        router.replace('/(tabs)/lists');
       });
     } else {
       // End of comparison flow, go to feed
       setOriginalReviewedCourseId(null);
       setComparisonResults([]);
-      router.replace('/(tabs)');
+      router.replace('/(tabs)/lists');
     }
   }, [comparisonsRemaining, router, user, originalReviewedCourseId, comparisonResults]);
 
