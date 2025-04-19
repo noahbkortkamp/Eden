@@ -94,7 +94,7 @@
   },
   "lint-staged": {
     "*.{js,jsx,ts,tsx}": [
-      "expo lint --fix",
+      "eslint",
       "npm run test:staged"
     ]
   }

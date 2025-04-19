@@ -1,12 +1,13 @@
 import { View, Text, StyleSheet, ScrollView, Image, Pressable, TextInput, ActivityIndicator, Modal } from 'react-native';
-import { useRouter } from 'expo-router';
+import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Search, Trophy, Bell, Menu, Users, TrendingUp } from 'lucide-react-native';
 import { useFonts, Inter_400Regular, Inter_600SemiBold, Inter_700Bold } from '@expo-google-fonts/inter';
 import { LinearGradient } from 'expo-linear-gradient';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { getNearbyCoursesWithinRadius } from '../utils/courses';
 import { Database } from '../utils/database.types';
-import { FriendsReviewsFeed } from '../components/FriendsReviewsFeed';
+import { FriendsReviewsFeed, FriendsReviewsFeedRef } from '../components/FriendsReviewsFeed';
+import { UserSearch } from '../components/UserSearch';
 
 type Course = Database['public']['Tables']['courses']['Row'];
 
@@ -15,6 +16,7 @@ type FeedTab = 'friends' | 'trending';
 
 export default function HomeScreen() {
   const router = useRouter();
+  const params = useLocalSearchParams();
   const [fontsLoaded] = useFonts({
     'Inter-Regular': Inter_400Regular,
     'Inter-SemiBold': Inter_600SemiBold,
@@ -24,10 +26,19 @@ export default function HomeScreen() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<FeedTab>('friends');
+  const [showFindFriends, setShowFindFriends] = useState(false);
+  
+  // Fix the ref type to match FriendsReviewsFeedRef
+  const friendsFeedRef = useRef<FriendsReviewsFeedRef>(null);
 
   useEffect(() => {
     loadNearbyCourses();
-  }, []);
+    
+    // Check if we were redirected with parameters that should change the active tab
+    if (params.tab === 'members') {
+      setShowFindFriends(true);
+    }
+  }, [params]);
 
   const loadNearbyCourses = async () => {
     try {
@@ -53,13 +64,23 @@ export default function HomeScreen() {
   };
 
   const handleFindFriendsPress = () => {
-    // Navigate to the search tab with members tab active
-    router.push('/(tabs)/search');
-    // We'll need to update the search tab to check for this parameter
-    setTimeout(() => {
-      // The timeout ensures the navigation completes first
-      router.setParams({ tab: 'members' });
-    }, 100);
+    // Instead of navigating, show the find friends modal
+    setShowFindFriends(true);
+  };
+  
+  // Add a function to handle follows/unfollows
+  const handleFollowChanged = (userId: string, isFollowing: boolean) => {
+    console.log(`User ${isFollowing ? 'followed' : 'unfollowed'} ${userId}, refreshing feed`);
+    // If the user followed someone, refresh the friends feed
+    if (isFollowing && activeTab === 'friends') {
+      // Use a timeout to let the follow action complete first
+      setTimeout(() => {
+        // The ref is now correctly typed so handleRefresh is guaranteed to exist
+        if (friendsFeedRef.current) {
+          friendsFeedRef.current.handleRefresh();
+        }
+      }, 300);
+    }
   };
 
   if (!fontsLoaded) {
@@ -131,7 +152,10 @@ export default function HomeScreen() {
       {activeTab === 'friends' ? (
         // Friends Reviews Feed
         <View style={styles.friendsFeedContainer}>
-          <FriendsReviewsFeed onFindFriendsPress={handleFindFriendsPress} />
+          <FriendsReviewsFeed 
+            ref={friendsFeedRef}
+            onFindFriendsPress={handleFindFriendsPress} 
+          />
         </View>
       ) : (
         // Trending feed - Coming Soon placeholder
@@ -144,6 +168,19 @@ export default function HomeScreen() {
           </Text>
         </View>
       )}
+      
+      {/* Find Friends Modal */}
+      <Modal
+        visible={showFindFriends}
+        animationType="slide"
+        presentationStyle="pageSheet"
+        onRequestClose={() => setShowFindFriends(false)}
+      >
+        <UserSearch 
+          onClose={() => setShowFindFriends(false)} 
+          onFollowChanged={handleFollowChanged}
+        />
+      </Modal>
     </View>
   );
 }

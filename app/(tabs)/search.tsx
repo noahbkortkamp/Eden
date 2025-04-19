@@ -346,12 +346,21 @@ export default function SearchScreen() {
     setFollowLoading(prev => ({ ...prev, [userId]: true }));
     
     try {
-      if (followingStatus[userId]) {
+      const wasFollowing = followingStatus[userId];
+      if (wasFollowing) {
         await unfollowUser(user.id, userId);
         setFollowingStatus(prev => ({ ...prev, [userId]: false }));
+        
+        // If we're on the home screen and viewing the friends feed,
+        // we'd want to refresh the feed - let the parent handle this
+        router.setParams({ followAction: 'unfollow', targetUser: userId });
       } else {
         await followUser(user.id, userId);
         setFollowingStatus(prev => ({ ...prev, [userId]: true }));
+        
+        // If we're on the home screen and viewing the friends feed,
+        // we'd want to refresh the feed - let the parent handle this
+        router.setParams({ followAction: 'follow', targetUser: userId });
       }
     } catch (error) {
       console.error('Error following/unfollowing user:', error);

@@ -9,9 +9,10 @@ import { useAuth } from '../context/AuthContext';
 
 interface UserSearchProps {
   onClose?: () => void;
+  onFollowChanged?: (userId: string, isFollowing: boolean) => void;
 }
 
-export const UserSearch: React.FC<UserSearchProps> = ({ onClose }) => {
+export const UserSearch: React.FC<UserSearchProps> = ({ onClose, onFollowChanged }) => {
   const theme = useTheme();
   const { user } = useAuth();
   const [searchQuery, setSearchQuery] = useState('');
@@ -62,12 +63,17 @@ export const UserSearch: React.FC<UserSearchProps> = ({ onClose }) => {
     setFollowLoading(prev => ({ ...prev, [userId]: true }));
     
     try {
-      if (followingStatus[userId]) {
+      const wasFollowing = followingStatus[userId];
+      if (wasFollowing) {
         await unfollowUser(user.id, userId);
         setFollowingStatus(prev => ({ ...prev, [userId]: false }));
+        // Notify parent component about unfollow action
+        onFollowChanged?.(userId, false);
       } else {
         await followUser(user.id, userId);
         setFollowingStatus(prev => ({ ...prev, [userId]: true }));
+        // Notify parent component about follow action
+        onFollowChanged?.(userId, true);
       }
     } catch (error) {
       console.error('Error following/unfollowing user:', error);

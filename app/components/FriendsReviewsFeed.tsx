@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useReducer, memo } from 'react';
+import React, { useState, useEffect, useCallback, useReducer, memo, useRef, forwardRef, useImperativeHandle } from 'react';
 import { View, StyleSheet, FlatList, ActivityIndicator, Text, TouchableOpacity } from 'react-native';
 import { useTheme } from '../theme/ThemeProvider';
 import { FriendReviewCard } from './FriendReviewCard';
@@ -143,14 +143,28 @@ interface FriendsReviewsFeedProps {
   onFindFriendsPress: () => void;
 }
 
+// Define the ref interface
+export interface FriendsReviewsFeedRef {
+  handleRefresh: () => void;
+}
+
 // Memoized FriendReviewCard component
 const MemoizedFriendReviewCard = memo(FriendReviewCard);
 
-export const FriendsReviewsFeed: React.FC<FriendsReviewsFeedProps> = memo(({ onFindFriendsPress }) => {
+// Convert to forwardRef
+export const FriendsReviewsFeed = forwardRef<FriendsReviewsFeedRef, FriendsReviewsFeedProps>((props, ref) => {
+  const { onFindFriendsPress } = props;
   const theme = useTheme();
   const router = useRouter();
   const { user } = useAuth();
   const [state, dispatch] = useReducer(reviewsReducer, initialState);
+  // Add a ref to store the current state for use in subscriptions
+  const stateRef = useRef(state);
+  
+  // Update ref whenever state changes
+  useEffect(() => {
+    stateRef.current = state;
+  }, [state]);
   
   // More efficient caching strategy
   const loadCachedData = useCallback(async () => {
@@ -261,12 +275,29 @@ export const FriendsReviewsFeed: React.FC<FriendsReviewsFeedProps> = memo(({ onF
     fetchReviews();
   }, [fetchReviews]);
   
+  // Handle refresh (called when user pulls to refresh)
+  const handleRefresh = useCallback(() => {
+    dispatch({ type: 'SET_PAGE', page: 1 });
+    fetchReviews(true);
+  }, [fetchReviews]);
+  
+  // Expose methods via ref
+  useImperativeHandle(ref, () => ({
+    handleRefresh
+  }));
+  
+  // Stable refresh function that doesn't depend on handleRefresh
+  const refreshFeed = useCallback(() => {
+    dispatch({ type: 'SET_PAGE', page: 1 });
+    fetchReviews(true);
+  }, [fetchReviews]);
+  
   // Set up real-time subscription
   useEffect(() => {
     if (!user) return;
     
     // Subscribe to real-time updates for followed users' reviews
-    const subscription = supabase
+    const reviewsSubscription = supabase
       .channel('followed_users_reviews')
       .on(
         'postgres_changes',
@@ -306,10 +337,36 @@ export const FriendsReviewsFeed: React.FC<FriendsReviewsFeedProps> = memo(({ onF
       )
       .subscribe();
       
+    // Add subscription for follows table to refresh the feed when user follows someone new
+    const followsSubscription = supabase
+      .channel('user_follows')
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'follows',
+        },
+        async (payload) => {
+          try {
+            // Only refresh if the current user is the one following
+            if (payload.new && payload.new.follower_id === user.id) {
+              console.log('User followed someone new, refreshing feed');
+              // Use refreshFeed instead of handleRefresh to avoid dependency issues
+              refreshFeed();
+            }
+          } catch (err) {
+            console.error('Error processing follow update:', err);
+          }
+        }
+      )
+      .subscribe();
+      
     return () => {
-      supabase.removeChannel(subscription);
+      supabase.removeChannel(reviewsSubscription);
+      supabase.removeChannel(followsSubscription);
     };
-  }, [user]);
+  }, [user, refreshFeed]);
   
   // Function to handle "load more" when reaching the end of the list
   const handleLoadMore = useCallback(() => {
@@ -318,12 +375,6 @@ export const FriendsReviewsFeed: React.FC<FriendsReviewsFeedProps> = memo(({ onF
       fetchReviews();
     }
   }, [state.isLoadingMore, state.hasMore, state.page, fetchReviews]);
-  
-  // Handle refresh (called when user pulls to refresh)
-  const handleRefresh = useCallback(() => {
-    dispatch({ type: 'SET_PAGE', page: 1 });
-    fetchReviews(true);
-  }, [fetchReviews]);
   
   // Handle review press
   const handleReviewPress = useCallback((review: any) => {
@@ -431,6 +482,9 @@ export const FriendsReviewsFeed: React.FC<FriendsReviewsFeedProps> = memo(({ onF
     />
   );
 });
+
+// Apply memo to the forwardRef component for performance
+export const MemoizedFriendsReviewsFeed = memo(FriendsReviewsFeed);
 
 const styles = StyleSheet.create({
   container: {
