@@ -4,6 +4,7 @@ import { Image } from 'expo-image';
 import { format } from 'date-fns';
 import { useTheme } from '../theme/ThemeProvider';
 import { ThumbsUp, ThumbsDown, Minus } from 'lucide-react-native';
+import { useRouter } from 'expo-router';
 
 // Define sentiment ranges with their colors and icons
 const SENTIMENT_RANGES = {
@@ -64,6 +65,8 @@ const PLACEHOLDER_IMAGE = { uri: 'https://via.placeholder.com/40' };
 // Using memo to prevent unnecessary re-renders
 const FriendReviewCard = memo<FriendReviewCardProps>(({ review, onPress }) => {
   const theme = useTheme();
+  const router = useRouter();
+  
   // Use the numeric rating to determine sentiment and styling
   const sentiment = getSentimentFromRating(review.rating);
   const sentimentConfig = SENTIMENT_RANGES[sentiment];
@@ -77,13 +80,25 @@ const FriendReviewCard = memo<FriendReviewCardProps>(({ review, onPress }) => {
   // Get first letter for avatar placeholder
   const firstLetter = review.full_name?.charAt(0).toUpperCase() || 'U';
   
+  // Handle user profile navigation
+  const handleUserPress = (e) => {
+    e.stopPropagation(); // Stop event propagation to prevent triggering onPress
+    router.push({
+      pathname: '/(modals)/user-profile',
+      params: {
+        userId: review.user_id,
+        userName: review.full_name
+      }
+    });
+  };
+  
   return (
     <TouchableOpacity 
       style={[styles.container, { backgroundColor: theme.colors.surface }]}
       onPress={onPress}
     >
       <View style={styles.header}>
-        <View style={styles.userInfo}>
+        <TouchableOpacity style={styles.userInfo} onPress={handleUserPress}>
           {review.avatar_url ? (
             <Image 
               source={{ uri: review.avatar_url }} 
@@ -109,7 +124,7 @@ const FriendReviewCard = memo<FriendReviewCardProps>(({ review, onPress }) => {
               {format(new Date(review.created_at), 'MMM d, yyyy')}
             </Text>
           </View>
-        </View>
+        </TouchableOpacity>
         
         <View style={[styles.ratingBadge, { backgroundColor: sentimentConfig.color + '20' }]}>
           <RatingIcon size={20} color={sentimentConfig.color} />
@@ -121,7 +136,9 @@ const FriendReviewCard = memo<FriendReviewCardProps>(({ review, onPress }) => {
 
       {/* Main content header - "User played Course with X people" */}
       <Text style={[styles.mainHeader, { color: theme.colors.text }]} numberOfLines={2}>
-        {review.full_name} played {review.course_name}
+        <Text onPress={handleUserPress} style={styles.userNameInText}>
+          {review.full_name}
+        </Text> played {review.course_name}
         {hasPlayingPartners ? ` with ${review.playing_partners.length} ${review.playing_partners.length === 1 ? 'person' : 'people'}` : ''}
       </Text>
       
@@ -213,6 +230,10 @@ const styles = StyleSheet.create({
   userName: {
     fontSize: 16,
     fontFamily: 'Inter-SemiBold',
+  },
+  userNameInText: {
+    fontWeight: 'bold',
+    textDecorationLine: 'underline',
   },
   date: {
     fontSize: 12,

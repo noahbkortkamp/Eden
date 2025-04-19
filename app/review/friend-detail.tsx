@@ -199,7 +199,18 @@ export default function FriendReviewDetailScreen() {
       <ScrollView style={styles.scrollContainer} contentContainerStyle={styles.contentContainer}>
         {/* User Info */}
         <View style={[styles.userInfoContainer, { backgroundColor: theme.colors.surface }]}>
-          <View style={styles.userInfo}>
+          <TouchableOpacity 
+            style={styles.userInfo}
+            onPress={() => {
+              router.push({
+                pathname: '/(modals)/user-profile',
+                params: {
+                  userId: review.user_id,
+                  userName: userName
+                }
+              });
+            }}
+          >
             {avatarUrl ? (
               <Image 
                 source={{ uri: avatarUrl }} 
@@ -225,7 +236,7 @@ export default function FriendReviewDetailScreen() {
                 {format(new Date(review.created_at), 'MMM d, yyyy')}
               </Text>
             </View>
-          </View>
+          </TouchableOpacity>
         </View>
 
         {/* Course Info */}
