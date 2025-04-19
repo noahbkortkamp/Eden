@@ -422,6 +422,8 @@ export default function SearchScreen() {
               onChangeText={setSearchQuery}
               onFocus={() => setIsSearchFocused(true)}
               onSubmitEditing={() => debouncedSearch(searchQuery)}
+              autoCorrect={false}
+              spellCheck={false}
             />
             {searchQuery !== '' && (
               <TouchableOpacity style={styles.clearButton} onPress={handleCancelPress}>
