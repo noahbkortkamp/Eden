@@ -314,8 +314,8 @@ export default function UserProfileScreen() {
                 <TouchableOpacity 
                   key={review.id}
                   onPress={() => router.push({
-                    pathname: '/(modals)/course-details',
-                    params: { courseId: review.course_id }
+                    pathname: '/review/summary',
+                    params: { userId: review.user_id, courseId: review.course_id }
                   })}
                 >
                   <Card style={styles.reviewCard}>
