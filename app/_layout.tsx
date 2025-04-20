@@ -9,6 +9,7 @@ import { View, ActivityIndicator, Text, StyleSheet, Platform } from 'react-nativ
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { useTranslation } from 'react-i18next';
 import { initializeAuthDeepLinks } from './services/auth';
+import * as WebBrowser from 'expo-web-browser';
 import './i18n';
 import { PlayedCoursesProvider } from './context/PlayedCoursesContext';
 
@@ -112,8 +113,18 @@ export default function RootLayout() {
         if (Platform.OS === 'web' && window.frameworkReady) {
           await window.frameworkReady();
         }
-        // Initialize deep linking for auth
-        initializeAuthDeepLinks();
+        
+        // Make sure WebBrowser can handle auth sessions
+        WebBrowser.maybeCompleteAuthSession();
+        
+        // Initialize deep linking for auth with better error handling
+        try {
+          initializeAuthDeepLinks();
+          console.log('Deep linking initialized successfully');
+        } catch (deepLinkError) {
+          console.error('Failed to initialize deep linking:', deepLinkError);
+        }
+        
         setIsLoading(false);
       } catch (err) {
         setError(err instanceof Error ? err : new Error('Failed to initialize'));

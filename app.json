@@ -13,7 +13,14 @@
       "supportsTablet": true,
       "infoPlist": {
         "NSCameraUsageDescription": "We need access to your camera to take profile pictures.",
-        "NSPhotoLibraryUsageDescription": "We need access to your photo library to select profile pictures."
+        "NSPhotoLibraryUsageDescription": "We need access to your photo library to select profile pictures.",
+        "CFBundleURLTypes": [
+          {
+            "CFBundleURLSchemes": [
+              "golfcoursereview"
+            ]
+          }
+        ]
       },
       "bundleIdentifier": "com.anonymous.golfcoursereview",
       "associatedDomains": [

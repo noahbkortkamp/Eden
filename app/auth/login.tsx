@@ -3,14 +3,16 @@ import { View, StyleSheet } from 'react-native';
 import { Text, TextInput, Button } from 'react-native-paper';
 import { Link } from 'expo-router';
 import { useAuth } from '../context/AuthContext';
+import { errorHandler } from '../utils/errorHandling';
 
 export default function LoginScreen() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
+  const [googleLoading, setGoogleLoading] = useState(false);
   const [error, setError] = useState('');
   const [showPassword, setShowPassword] = useState(false);
-  const { signIn } = useAuth();
+  const { signIn, signInWithGoogle } = useAuth();
 
   const handleLogin = async () => {
     if (!email || !password) {
@@ -35,6 +37,19 @@ export default function LoginScreen() {
       }
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleGoogleSignIn = async () => {
+    try {
+      setGoogleLoading(true);
+      setError('');
+      await signInWithGoogle();
+    } catch (err) {
+      console.error('Google login error:', err);
+      setError(errorHandler.getUserFriendlyMessage(err));
+    } finally {
+      setGoogleLoading(false);
     }
   };
 
@@ -77,11 +92,28 @@ export default function LoginScreen() {
         mode="contained"
         onPress={handleLogin}
         loading={loading}
-        disabled={loading}
+        disabled={loading || googleLoading}
         style={styles.button}
         buttonColor="#245E2C"
       >
         Sign In
+      </Button>
+      
+      <View style={styles.divider}>
+        <View style={styles.dividerLine} />
+        <Text style={styles.dividerText}>OR</Text>
+        <View style={styles.dividerLine} />
+      </View>
+      
+      <Button
+        mode="outlined"
+        onPress={handleGoogleSignIn}
+        loading={googleLoading}
+        disabled={loading || googleLoading}
+        style={styles.googleButton}
+        icon="google"
+      >
+        Continue with Google
       </Button>
 
       <View style={styles.footer}>
@@ -128,5 +160,24 @@ const styles = StyleSheet.create({
   link: {
     color: '#245E2C',
     fontWeight: '600',
+  },
+  divider: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginVertical: 20,
+  },
+  dividerLine: {
+    flex: 1,
+    height: 1,
+    backgroundColor: '#ddd',
+  },
+  dividerText: {
+    marginHorizontal: 10,
+    color: '#666',
+  },
+  googleButton: {
+    borderRadius: 8,
+    paddingVertical: 6,
+    borderColor: '#ddd',
   },
 }); 

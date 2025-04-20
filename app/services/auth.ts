@@ -1,6 +1,9 @@
 import { supabase } from '../utils/supabase';
 import { AuthError, User } from '@supabase/supabase-js';
 import * as Linking from 'expo-linking';
+import * as WebBrowser from 'expo-web-browser';
+import { makeRedirectUri, AuthSessionResult, startAsync } from 'expo-auth-session';
+import { Platform } from 'react-native';
 
 export interface SignUpData {
   email: string;
@@ -14,19 +17,83 @@ export interface SignInData {
 }
 
 // Handle deep linking for auth
-export const handleAuthDeepLink = (url: string) => {
-  console.log('Handling auth deep link:', url);
-  // Extract the token and type from the URL
-  const params = Linking.parse(url).queryParams as { access_token?: string; refresh_token?: string; type?: string };
-  
-  if (params?.access_token) {
-    console.log('Setting session from deep link');
-    return supabase.auth.setSession({
-      access_token: params.access_token,
-      refresh_token: params.refresh_token || '',
-    });
+export const handleAuthDeepLink = async (url: string) => {
+  try {
+    console.log('Handling auth deep link:', url);
+    
+    // Parse the URL to extract tokens or fragments
+    const parsedUrl = Linking.parse(url);
+    console.log('Parsed URL:', JSON.stringify(parsedUrl, null, 2));
+    
+    // Case 1: Handle code exchange flow (most common with OAuth)
+    if (parsedUrl.queryParams?.code) {
+      console.log('Found authorization code in URL');
+      
+      // Exchange the code for a session
+      const { data, error } = await supabase.auth.exchangeCodeForSession(
+        parsedUrl.queryParams.code as string
+      );
+      
+      if (error) {
+        console.error('Error exchanging code for session:', error);
+        return null;
+      }
+      
+      console.log('Successfully exchanged code for session');
+      return data;
+    }
+    
+    // Case 2: Check for access token in query params
+    if (parsedUrl.queryParams?.access_token) {
+      console.log('Found access_token in query params');
+      const accessToken = parsedUrl.queryParams.access_token as string;
+      const refreshToken = parsedUrl.queryParams.refresh_token as string || '';
+      
+      console.log('Setting session from tokens in query params');
+      const { data, error } = await supabase.auth.setSession({
+        access_token: accessToken,
+        refresh_token: refreshToken,
+      });
+      
+      if (error) {
+        console.error('Error setting session from query params:', error);
+        return null;
+      }
+      
+      return data;
+    }
+    
+    // Case 3: Hash format (#access_token=...)
+    if (url.includes('#')) {
+      console.log('Found hash in URL, checking for tokens');
+      const hash = url.split('#')[1];
+      const params = new URLSearchParams(hash);
+      const accessToken = params.get('access_token');
+      const refreshToken = params.get('refresh_token') || '';
+      
+      if (accessToken) {
+        console.log('Setting session from tokens in hash');
+        const { data, error } = await supabase.auth.setSession({
+          access_token: accessToken,
+          refresh_token: refreshToken,
+        });
+        
+        if (error) {
+          console.error('Error setting session from hash:', error);
+          return null;
+        }
+        
+        return data;
+      }
+    }
+    
+    // No tokens or code found
+    console.log('No tokens or authorization code found in URL');
+    return null;
+  } catch (error) {
+    console.error('Error handling deep link:', error);
+    return null;
   }
-  return null;
 };
 
 // Initialize deep linking
@@ -89,6 +156,98 @@ export const signIn = async ({ email, password }: SignInData) => {
     return data;
   } catch (error) {
     console.error('Sign in error:', error);
+    throw error;
+  }
+};
+
+export const signInWithGoogle = async () => {
+  try {
+    console.log('Starting Google sign-in...');
+    
+    // Ensure any previous auth sessions are completed
+    WebBrowser.maybeCompleteAuthSession();
+    
+    // Initialize Supabase auth if needed
+    try {
+      await supabase.auth.initialize();
+    } catch (e) {
+      // Ignore initialization errors, it might already be initialized
+    }
+    
+    // Get the OAuth URL from Supabase - use development URL in dev mode
+    let redirectUrl;
+    if (__DEV__) {
+      const localhost = Platform.OS === 'ios' ? 'localhost' : '10.0.2.2';
+      redirectUrl = `exp://${localhost}:19000/--/auth/callback`;
+      console.log('Using development redirect URL:', redirectUrl);
+    } else {
+      redirectUrl = `golfcoursereview://auth/callback`;
+      console.log('Using production redirect URL:', redirectUrl);
+    }
+    
+    // Request the authorization URL from Supabase
+    const { data, error } = await supabase.auth.signInWithOAuth({
+      provider: 'google',
+      options: {
+        redirectTo: redirectUrl,
+        skipBrowserRedirect: true, // We'll handle the browser redirect
+        queryParams: {
+          // Force fresh authentication
+          prompt: 'select_account',
+          access_type: 'offline'
+        }
+      },
+    });
+    
+    if (error) {
+      console.error('Failed to get OAuth URL:', error);
+      throw error;
+    }
+    
+    if (!data?.url) {
+      console.error('No auth URL provided by Supabase');
+      throw new Error('Authentication failed: No URL provided');
+    }
+    
+    console.log('Opening browser for Google authentication...');
+    
+    // Open the auth URL in a browser
+    const result = await WebBrowser.openAuthSessionAsync(
+      data.url,
+      redirectUrl
+    );
+    
+    console.log('Browser session completed with result type:', result.type);
+    
+    if (result.type === 'success' && result.url) {
+      console.log('OAuth flow completed successfully');
+      
+      // Process the redirect URL - this now handles code exchange properly
+      console.log('Processing callback URL...');
+      const sessionData = await handleAuthDeepLink(result.url);
+      
+      if (sessionData?.session) {
+        console.log('Session successfully established:', sessionData.session.user.id);
+        return sessionData;
+      }
+      
+      // If we couldn't get session from the callback, try getting it directly
+      console.log('Trying to get session directly...');
+      const { data: directSession } = await supabase.auth.getSession();
+      
+      if (directSession?.session) {
+        console.log('Retrieved session directly:', directSession.session.user.id);
+        return directSession;
+      }
+      
+      console.error('No session after successful OAuth');
+      throw new Error('Authentication successful but session creation failed');
+    } else {
+      console.log('Browser session ended without success:', result.type);
+      throw new Error('Authentication was cancelled or failed');
+    }
+  } catch (error) {
+    console.error('Error in Google sign-in:', error);
     throw error;
   }
 };
