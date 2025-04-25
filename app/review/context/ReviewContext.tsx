@@ -19,7 +19,17 @@ interface ReviewContextType {
   error: string | null;
 }
 
-const MAX_COMPARISONS = 3;
+/**
+ * Calculate the number of comparisons based on course count in a sentiment category
+ * - 3 or fewer courses: 3 comparisons
+ * - More than 5 courses: 4 comparisons
+ * - More than 10 courses: 5 comparisons
+ */
+const getMaxComparisons = (courseCount: number): number => {
+  if (courseCount > 10) return 5;
+  if (courseCount > 5) return 4;
+  return 3;
+};
 
 const ReviewContext = createContext<ReviewContextType | undefined>(undefined);
 
@@ -29,7 +39,7 @@ export const ReviewProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const { setNeedsRefresh } = usePlayedCourses();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [comparisonsRemaining, setComparisonsRemaining] = useState(MAX_COMPARISONS);
+  const [comparisonsRemaining, setComparisonsRemaining] = useState(3); // Default to 3
   const [originalReviewedCourseId, setOriginalReviewedCourseId] = useState<string | null>(null);
   const [comparisonResults, setComparisonResults] = useState<Array<{ preferredId: string, otherId: string }>>([]);
 
@@ -150,10 +160,12 @@ export const ReviewProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       );
 
       if (otherCoursesWithSentiment.length > 0) {
-        // Start preloading courses for comparison to improve loading times
-        const randomCourse = otherCoursesWithSentiment[
-          Math.floor(Math.random() * otherCoursesWithSentiment.length)
-        ];
+        // Replace the random course selection with a truly randomized selection
+        // First, shuffle the array to eliminate any default ordering
+        const shuffledCourses = [...otherCoursesWithSentiment].sort(() => Math.random() - 0.5);
+        
+        // Then select the first item from the shuffled array
+        const randomCourse = shuffledCourses[0];
         
         // Preload the courses data in the background
         Promise.all([
@@ -167,8 +179,13 @@ export const ReviewProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         setOriginalReviewedCourseId(review.course_id);
         setComparisonResults([]);
         
-        // Reset comparisons remaining to either MAX_COMPARISONS or the number of available courses
-        const totalComparisons = Math.min(otherCoursesWithSentiment.length, MAX_COMPARISONS);
+        // Calculate max comparisons dynamically based on the number of courses with the same sentiment
+        const sentimentCourseCount = reviewedCoursesWithSentiment.length;
+        const maxComparisons = getMaxComparisons(sentimentCourseCount);
+        console.log(`Dynamic comparison limit: ${maxComparisons} (based on ${sentimentCourseCount} courses with ${review.rating} sentiment)`);
+        
+        // Set comparisons remaining to either maxComparisons or the number of available courses
+        const totalComparisons = Math.min(otherCoursesWithSentiment.length, maxComparisons);
         setComparisonsRemaining(totalComparisons);
 
         // Now close the review modal before opening the comparison modal
@@ -212,16 +229,26 @@ export const ReviewProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       const reviewedCoursesWithSentiment = userReviews.filter(r => r.rating === rating);
       
       if (reviewedCoursesWithSentiment.length >= 2) {
-        const randomCourses = reviewedCoursesWithSentiment
-          .sort(() => Math.random() - 0.5)
-          .slice(0, 2);
+        // Implement proper randomization with shuffle
+        // This ensures courses aren't sorted in any particular order (like alphabetical)
+        const shuffledCourses = [...reviewedCoursesWithSentiment].sort(() => Math.random() - 0.5);
+        
+        // Take the first two courses from the properly shuffled array
+        const randomCourses = [shuffledCourses[0], shuffledCourses[1]];
+        
+        // Calculate max comparisons dynamically based on the count
+        const maxComparisons = getMaxComparisons(reviewedCoursesWithSentiment.length);
+        console.log(`Dynamic comparison limit: ${maxComparisons} (based on ${reviewedCoursesWithSentiment.length} courses with ${rating} sentiment)`);
+        
+        // Update the state with the calculated max comparisons
+        setComparisonsRemaining(maxComparisons);
 
         router.push({
           pathname: '/(modals)/comparison',
           params: {
             courseAId: randomCourses[0].course_id,
             courseBId: randomCourses[1].course_id,
-            remainingComparisons: comparisonsRemaining,
+            remainingComparisons: maxComparisons,
           },
         });
       } else {
@@ -305,10 +332,9 @@ export const ReviewProvider: React.FC<{ children: React.ReactNode }> = ({ childr
           );
 
           if (otherCoursesWithSentiment.length > 0) {
-            // Get a random course for the next comparison
-            const randomCourse = otherCoursesWithSentiment[
-              Math.floor(Math.random() * otherCoursesWithSentiment.length)
-            ];
+            // Get a random course for the next comparison, with proper shuffling
+            const shuffledCourses = [...otherCoursesWithSentiment].sort(() => Math.random() - 0.5);
+            const randomCourse = shuffledCourses[0];
 
             router.push({
               pathname: '/(modals)/comparison',
@@ -370,9 +396,9 @@ export const ReviewProvider: React.FC<{ children: React.ReactNode }> = ({ childr
           );
           
           if (otherCoursesWithSentiment.length >= 1) {
-            const randomCourse = otherCoursesWithSentiment[
-              Math.floor(Math.random() * otherCoursesWithSentiment.length)
-            ];
+            // Randomize properly
+            const shuffledCourses = [...otherCoursesWithSentiment].sort(() => Math.random() - 0.5);
+            const randomCourse = shuffledCourses[0];
 
             router.push({
               pathname: '/(modals)/comparison',
