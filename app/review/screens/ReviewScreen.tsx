@@ -497,6 +497,33 @@ export const ReviewScreen: React.FC<ReviewScreenProps> = ({
 
         <View style={styles.sectionDivider} />
 
+        {/* Date Section */}
+        <View style={styles.rowContainer}>
+          <Text style={styles.labelText}>Date Played</Text>
+          <Pressable
+            onPress={openDatePicker}
+            disabled={isSubmitting}
+            style={({ pressed }) => [
+              { 
+                flexDirection: 'row', 
+                alignItems: 'center',
+                opacity: pressed ? 0.7 : 1,
+                paddingVertical: 6,
+                paddingHorizontal: 8,
+              }
+            ]}
+            android_ripple={{ color: 'rgba(0, 0, 0, 0.1)' }}
+            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+          >
+            <Text style={styles.valueText}>
+              {format(datePlayed, 'MMMM d, yyyy')}
+            </Text>
+            <ChevronRight size={16} color={theme.colors.textSecondary} style={{ marginLeft: 4 }} />
+          </Pressable>
+        </View>
+
+        <View style={styles.sectionDivider} />
+        
         {/* Notes Section - Minimized height */}
         <View style={[styles.section, { paddingBottom: 8 }]}>
           <Text style={styles.labelText}>Notes</Text>
@@ -529,31 +556,6 @@ export const ReviewScreen: React.FC<ReviewScreenProps> = ({
             </View>
           </InputAccessoryView>
         )}
-
-        {/* Date Section */}
-        <View style={styles.rowContainer}>
-          <Text style={styles.labelText}>Date Played</Text>
-          <Pressable
-            onPress={openDatePicker}
-            disabled={isSubmitting}
-            style={({ pressed }) => [
-              { 
-                flexDirection: 'row', 
-                alignItems: 'center',
-                opacity: pressed ? 0.7 : 1,
-                paddingVertical: 6,
-                paddingHorizontal: 8,
-              }
-            ]}
-            android_ripple={{ color: 'rgba(0, 0, 0, 0.1)' }}
-            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-          >
-            <Text style={styles.valueText}>
-              {format(datePlayed, 'MMMM d, yyyy')}
-            </Text>
-            <ChevronRight size={16} color={theme.colors.textSecondary} style={{ marginLeft: 4 }} />
-          </Pressable>
-        </View>
 
         {/* iOS-specific date picker */}
         {Platform.OS === 'ios' && showDatePicker && (
