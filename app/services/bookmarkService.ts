@@ -1,10 +1,42 @@
-import { supabase } from '../config/supabase';
+import { supabase } from '../utils/supabase';
 import { Course } from '../types';
+
+// Variable to store the refresh callback function
+let refreshCallback: (() => void) | null = null;
 
 /**
  * Service for managing user bookmarks of golf courses
  */
 export const bookmarkService = {
+  /**
+   * Register a callback function to be called when bookmarks change
+   * This will be used by the PlayedCoursesContext to refresh the want-to-play list
+   * @param callback - The function to call when bookmarks change
+   */
+  registerRefreshCallback(callback: () => void): void {
+    refreshCallback = callback;
+    console.log('Bookmark refresh callback registered');
+  },
+
+  /**
+   * Unregister the refresh callback
+   */
+  unregisterRefreshCallback(): void {
+    refreshCallback = null;
+    console.log('Bookmark refresh callback unregistered');
+  },
+
+  /**
+   * Trigger a refresh of the bookmarks list
+   * This is called internally whenever bookmarks are added or removed
+   */
+  triggerRefresh(): void {
+    if (refreshCallback) {
+      console.log('Triggering bookmark refresh callback');
+      refreshCallback();
+    }
+  },
+
   /**
    * Add a course to a user's bookmarks
    * @param userId - The ID of the user
@@ -27,6 +59,9 @@ export const bookmarkService = {
       }
 
       console.log(`Successfully bookmarked course ${courseId} for user ${userId}`);
+      
+      // Trigger refresh callback
+      this.triggerRefresh();
     } catch (error) {
       console.error('Error in addBookmark:', error);
       throw error;
@@ -55,6 +90,9 @@ export const bookmarkService = {
       }
 
       console.log(`Successfully removed bookmark for course ${courseId} for user ${userId}`);
+      
+      // Trigger refresh callback
+      this.triggerRefresh();
     } catch (error) {
       console.error('Error in removeBookmark:', error);
       throw error;

@@ -36,6 +36,7 @@ import { Image } from 'expo-image';
 import { searchUsersByName, followUser, unfollowUser, isFollowing } from '../utils/friends';
 import { User } from '../types/index';
 import { bookmarkService } from '../services/bookmarkService';
+import { usePlayedCourses } from '../context/PlayedCoursesContext';
 
 // Enhanced Course type with search relevance score
 interface EnhancedCourse extends Omit<Course, 'type'> {
@@ -62,6 +63,7 @@ export default function SearchScreen() {
   const params = useLocalSearchParams();
   const theme = useTheme();
   const { user } = useAuth();
+  const { setNeedsRefresh } = usePlayedCourses();
   const [searchQuery, setSearchQuery] = useState('');
   const [courses, setCourses] = useState<EnhancedCourse[]>([]);
   const [users, setUsers] = useState<UserSearchResult[]>([]);
@@ -396,6 +398,9 @@ export default function SearchScreen() {
         // Call API to add bookmark
         await bookmarkService.addBookmark(user.id, courseId);
       }
+      
+      // Trigger refresh of bookmarks in Lists screen
+      setNeedsRefresh();
     } catch (error) {
       console.error('Error toggling bookmark:', error);
       // Revert optimistic update on error

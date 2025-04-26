@@ -224,12 +224,12 @@ export default function ListsScreen() {
       console.log('🔄 Detected change in lastUpdateTimestamp, refreshing want-to-play courses...');
       currentTimestampRef.current = lastUpdateTimestamp;
       
-      // Only refresh want-to-play courses when that's the current tab
-      if (courseType === 'want-to-play' && fetchWantToPlayCoursesRef.current) {
+      // Always refresh want-to-play courses when timestamp changes, regardless of current tab
+      if (fetchWantToPlayCoursesRef.current) {
         fetchWantToPlayCoursesRef.current();
       }
     }
-  }, [lastUpdateTimestamp, courseType]);
+  }, [lastUpdateTimestamp]);
 
   // Centralized data loading function
   const loadData = async () => {

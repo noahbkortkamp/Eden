@@ -17,6 +17,7 @@ import { getCourse } from '../utils/courses';
 import type { Database } from '../utils/database.types';
 import { useAuth } from '../context/AuthContext';
 import { bookmarkService } from '../services/bookmarkService';
+import { usePlayedCourses } from '../context/PlayedCoursesContext';
 
 type Course = Database['public']['Tables']['courses']['Row'];
 
@@ -43,6 +44,7 @@ function CourseDetailsContent() {
   const theme = useTheme();
   const { width } = useWindowDimensions();
   const { user } = useAuth();
+  const { setNeedsRefresh } = usePlayedCourses();
   const [course, setCourse] = useState<Course | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -113,6 +115,9 @@ function CourseDetailsContent() {
         await bookmarkService.addBookmark(user.id, courseId as string);
         setIsBookmarked(true);
       }
+      
+      // Trigger refresh of the bookmarks list
+      setNeedsRefresh();
     } catch (err) {
       console.error('Error toggling bookmark:', err);
     } finally {

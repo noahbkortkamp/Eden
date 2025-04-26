@@ -1,5 +1,6 @@
-import React, { createContext, useContext, useState, ReactNode } from 'react';
+import React, { createContext, useContext, useState, ReactNode, useEffect } from 'react';
 import { Course } from '../types/review';
+import { bookmarkService } from '../services/bookmarkService';
 
 // Define the context type
 interface PlayedCoursesContextType {
@@ -51,8 +52,19 @@ export function PlayedCoursesProvider({ children }: { children: ReactNode }) {
     // But we'll rely on the parent component to fully refresh the data
   };
 
+  // Register with bookmark service when the context is initialized
+  useEffect(() => {
+    // Register the refresh callback with the bookmark service
+    bookmarkService.registerRefreshCallback(setNeedsRefresh);
+    
+    // Clean up on unmount
+    return () => {
+      bookmarkService.unregisterRefreshCallback();
+    };
+  }, []);
+
   // Log when the state changes to help with debugging
-  React.useEffect(() => {
+  useEffect(() => {
     console.log('🔄 CONTEXT: PlayedCoursesContext state updated:', {
       playedCount: playedCourses?.length || 0,
       wantToPlayCount: wantToPlayCourses?.length || 0,
