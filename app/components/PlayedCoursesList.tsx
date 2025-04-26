@@ -1,10 +1,11 @@
 import React, { useEffect, useRef, useState, useMemo, useCallback } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView, SafeAreaView, Platform, Dimensions } from 'react-native';
 import { useTheme } from '../theme/ThemeProvider';
-import { MapPin, Search } from 'lucide-react-native';
+import { MapPin, Search, Calendar } from 'lucide-react-native';
 import { Course } from '../types/review';
 import { usePlayedCourses } from '../context/PlayedCoursesContext';
 import { router } from 'expo-router';
+import { format } from 'date-fns';
 
 interface PlayedCoursesListProps {
   courses: Course[];
@@ -223,6 +224,16 @@ export const PlayedCoursesList = React.memo(({
       fontSize: 16,
       fontWeight: '600',
     },
+    datePlayedContainer: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      marginBottom: theme.spacing.xs,
+    },
+    datePlayedText: {
+      fontSize: 14,
+      color: theme.colors.textSecondary,
+      marginLeft: theme.spacing.xs,
+    },
   }), [theme, screenWidth]);
 
   // IMPORTANT: Memoize coursesToRender calculation but initialize with valid data
@@ -292,6 +303,16 @@ export const PlayedCoursesList = React.memo(({
             activeOpacity={0.7}
           >
             <Text style={styles.courseName} numberOfLines={2}>{course.name}</Text>
+            
+            {course.date_played && (
+              <View style={styles.datePlayedContainer}>
+                <Calendar size={14} color={theme.colors.textSecondary} />
+                <Text style={styles.datePlayedText}>
+                  {format(new Date(course.date_played), 'MMM d, yyyy')}
+                </Text>
+              </View>
+            )}
+            
             <View style={styles.locationContainer}>
               <MapPin size={16} color={theme.colors.textSecondary} />
               <Text style={styles.locationText} numberOfLines={2}>{course.location}</Text>

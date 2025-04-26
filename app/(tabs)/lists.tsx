@@ -306,6 +306,7 @@ export default function ListsScreen() {
           id,
           course_id,
           rating,
+          date_played,
           courses (
             id,
             name,
@@ -361,7 +362,8 @@ export default function ListsScreen() {
             updated_at: item.courses.updated_at,
             rating: 0, // Will be updated with ranking score
             sentiment: item.rating, // Store the original sentiment
-            showScores: userReviewCount >= 10 // Add this flag to each course
+            showScores: userReviewCount >= 10, // Add this flag to each course
+            date_played: item.date_played // Include date played
           };
         });
         
@@ -474,7 +476,7 @@ export default function ListsScreen() {
         // Get all reviews for this user (no joins)
         const { data: basicReviews, error: basicReviewsError } = await supabase
           .from('reviews')
-          .select('course_id, rating')
+          .select('course_id, rating, date_played')
           .eq('user_id', user?.id || '');
           
         if (basicReviewsError || !basicReviews || basicReviews.length === 0) {
@@ -497,10 +499,12 @@ export default function ListsScreen() {
           throw new Error('No courses found');
         }
         
-        // Create a map of course sentiment ratings
+        // Create maps of course sentiment ratings and dates
         const courseSentiments = {};
+        const courseDates = {};
         basicReviews.forEach(review => {
           courseSentiments[review.course_id] = review.rating;
+          courseDates[review.course_id] = review.date_played;
         });
         
         // Create minimal course objects
@@ -515,7 +519,8 @@ export default function ListsScreen() {
           updated_at: new Date().toISOString(),
           rating: 5.0, // Default rating
           sentiment: courseSentiments[course.id] || 'fine',
-          showScores: userReviewCount >= 10 // Add this flag to each course
+          showScores: userReviewCount >= 10, // Add this flag to each course
+          date_played: courseDates[course.id] || new Date().toISOString() // Add date played
         }));
         
         console.log('🔍 DEBUG: Last resort fallback succeeded - displaying minimal courses:', 

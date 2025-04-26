@@ -8,6 +8,7 @@ export interface Course {
   price_level: number;
   rating?: number;
   showScores?: boolean;
+  date_played?: string;
 }
 
 export type SentimentRating = 'liked' | 'fine' | 'didnt_like';
