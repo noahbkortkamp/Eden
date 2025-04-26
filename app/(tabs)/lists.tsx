@@ -51,6 +51,12 @@ export default function ListsScreen() {
   const REFRESH_THROTTLE_MS = 2000;
 
   const [userReviewCount, setUserReviewCount] = useState(0);
+  
+  // Add a ref to track the last update timestamp
+  const currentTimestampRef = useRef(lastUpdateTimestamp);
+
+  // Add a ref to hold the fetchWantToPlayCourses function
+  const fetchWantToPlayCoursesRef = useRef<(() => Promise<void>) | null>(null);
 
   // Enhanced debug - log when component mounts or remounts
   useEffect(() => {
@@ -161,8 +167,8 @@ export default function ListsScreen() {
       // 2. Either:
       //    a. No courses loaded yet OR
       //    b. The data has been marked for refresh
-      if (!usingTestData && (!hasLoadedCourses || setNeedsRefresh)) {
-        console.log('Triggering data reload on focus');
+      if (!usingTestData && !hasLoadedCourses) {
+        console.log('Triggering data reload on focus - courses not loaded yet');
         lastRefreshTime.current = now;
         loadData();
       } else {
@@ -213,10 +219,15 @@ export default function ListsScreen() {
 
   // Add a useEffect to listen for changes in lastUpdateTimestamp
   useEffect(() => {
-    console.log('🔄 Detected change in lastUpdateTimestamp, refreshing data...');
-    // Only refresh want-to-play courses when that's the current tab
-    if (courseType === 'want-to-play') {
-      fetchWantToPlayCourses();
+    // Only refresh if the timestamp has actually changed
+    if (currentTimestampRef.current !== lastUpdateTimestamp) {
+      console.log('🔄 Detected change in lastUpdateTimestamp, refreshing want-to-play courses...');
+      currentTimestampRef.current = lastUpdateTimestamp;
+      
+      // Only refresh want-to-play courses when that's the current tab
+      if (courseType === 'want-to-play' && fetchWantToPlayCoursesRef.current) {
+        fetchWantToPlayCoursesRef.current();
+      }
     }
   }, [lastUpdateTimestamp, courseType]);
 
@@ -619,6 +630,11 @@ export default function ListsScreen() {
       setWantToPlayCourses([]);
     }
   };
+
+  // Update the ref after fetchWantToPlayCourses is defined
+  useEffect(() => {
+    fetchWantToPlayCoursesRef.current = fetchWantToPlayCourses;
+  }, []);
 
   const fetchRecommendedCourses = async () => {
     try {
