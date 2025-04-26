@@ -1,4 +1,4 @@
-import { View, Text, StyleSheet, ScrollView, Image, Pressable, TextInput, ActivityIndicator, Modal } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, Image, Pressable, TextInput, ActivityIndicator, Modal, TouchableOpacity } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Search, Trophy, Bell, Menu, Users, TrendingUp } from 'lucide-react-native';
 import { useFonts, Inter_400Regular, Inter_600SemiBold, Inter_700Bold } from '@expo-google-fonts/inter';
@@ -8,6 +8,7 @@ import { getNearbyCoursesWithinRadius } from '../utils/courses';
 import { Database } from '../utils/database.types';
 import { FriendsReviewsFeed, FriendsReviewsFeedRef } from '../components/FriendsReviewsFeed';
 import { UserSearch } from '../components/UserSearch';
+import { useTheme } from '../theme/ThemeProvider';
 
 type Course = Database['public']['Tables']['courses']['Row'];
 
@@ -30,6 +31,8 @@ export default function HomeScreen() {
   
   // Fix the ref type to match FriendsReviewsFeedRef
   const friendsFeedRef = useRef<FriendsReviewsFeedRef>(null);
+
+  const theme = useTheme();
 
   useEffect(() => {
     loadNearbyCourses();
@@ -81,6 +84,10 @@ export default function HomeScreen() {
         }
       }, 300);
     }
+  };
+
+  const navigateToDebug = () => {
+    router.push('/(modals)/debug');
   };
 
   if (!fontsLoaded) {
@@ -181,6 +188,21 @@ export default function HomeScreen() {
           onFollowChanged={handleFollowChanged}
         />
       </Modal>
+
+      <TouchableOpacity
+        style={{
+          position: 'absolute',
+          bottom: 20,
+          right: 20,
+          backgroundColor: theme.colors.primary,
+          padding: 8,
+          borderRadius: 8,
+          opacity: 0.8,
+        }}
+        onPress={navigateToDebug}
+      >
+        <Text style={{ color: 'white', fontWeight: 'bold' }}>Debug DB</Text>
+      </TouchableOpacity>
     </View>
   );
 }
@@ -195,8 +217,8 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     paddingHorizontal: 16,
-    paddingTop: 60,
-    paddingBottom: 16,
+    paddingTop: 20,
+    paddingBottom: 12,
     borderBottomWidth: 1,
     borderBottomColor: '#f1f5f9',
     backgroundColor: '#fff',
@@ -214,7 +236,8 @@ const styles = StyleSheet.create({
     marginRight: 16,
   },
   searchContainer: {
-    padding: 16,
+    padding: 8,
+    paddingBottom: 6,
     backgroundColor: '#fff',
   },
   searchBar: {
@@ -238,13 +261,13 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: '#f1f5f9',
     zIndex: 5,
-    maxHeight: 32,
+    maxHeight: 30,
   },
   filterContainer: {
     paddingHorizontal: 16,
     paddingBottom: 0,
-    gap: 16,
-    height: 30,
+    gap: 12,
+    height: 28,
   },
   filterTab: {
     paddingVertical: 3,
