@@ -273,12 +273,33 @@ export const reviewService = {
     try {
       console.log(`Fetching review details for ID ${reviewId}`);
       
+      // First get the review to determine course_id and user_id
+      const { data: reviewBasic, error: reviewError } = await supabase
+        .from('reviews')
+        .select('id, course_id, user_id')
+        .eq('id', reviewId)
+        .single();
+
+      if (reviewError) {
+        console.error('Error fetching basic review data:', reviewError);
+        throw reviewError;
+      }
+
+      // Get the full review with related data including all course rankings
       const { data, error } = await supabase
         .from('reviews')
         .select(`
           *,
           tags:review_tags(tag:tag_id(*)),
-          course:course_id(name, location, type, price_level, par, yardage),
+          course:course_id(
+            name, 
+            location, 
+            type, 
+            price_level, 
+            par, 
+            yardage,
+            course_rankings(relative_score, user_id, created_at)
+          ),
           user:user_id(id, full_name, avatar_url)
         `)
         .eq('id', reviewId)
@@ -298,6 +319,36 @@ export const reviewService = {
         data.tags = data.tags.map(item => item.tag);
       }
 
+      // Find the most appropriate relative score
+      if (data?.course?.course_rankings && data.course.course_rankings.length > 0) {
+        console.log(`Found ${data.course.course_rankings.length} rankings for this course`);
+        
+        // Only use the reviewer's own ranking - this is the key change
+        const reviewerRanking = data.course.course_rankings.find(
+          r => r.user_id === data.user_id
+        );
+        
+        if (reviewerRanking) {
+          data.relative_score = reviewerRanking.relative_score;
+          console.log("Using review creator's ranking:", data.relative_score);
+        } else {
+          // Fallback only if needed (shouldn't normally happen)
+          const sortedRankings = [...data.course.course_rankings].sort(
+            (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+          );
+          data.relative_score = sortedRankings[0]?.relative_score || data.course.course_rankings[0].relative_score;
+          console.log("Fallback to available ranking:", data.relative_score);
+        }
+      }
+
+      console.log('Review details loaded successfully:', {
+        user_id: data?.user_id,
+        rating: data?.rating,
+        sentiment: data?.sentiment,
+        relative_score: data?.relative_score,
+        all_rankings: data?.course?.course_rankings?.map(r => ({user_id: r.user_id, score: r.relative_score}))
+      });
+      
       return data;
     } catch (error) {
       console.error('Error in getReviewDetail:', error);
