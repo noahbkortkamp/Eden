@@ -166,6 +166,8 @@ export const UserSearch: React.FC<UserSearchProps> = ({ onClose, onFollowChanged
           renderItem={renderUserItem}
           keyExtractor={(item) => item.id}
           contentContainerStyle={styles.resultsList}
+          keyboardShouldPersistTaps="always"
+          keyboardDismissMode="none"
         />
       ) : searchQuery.trim() ? (
         <Text style={[styles.emptyText, { color: theme.colors.textSecondary }]}>

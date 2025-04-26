@@ -86,6 +86,8 @@ export default function CourseScreen() {
           data={searchResults}
           keyExtractor={(item) => item.id}
           style={styles.resultsList}
+          keyboardShouldPersistTaps="always"
+          keyboardDismissMode="none"
           renderItem={({ item }) => (
             <TouchableOpacity
               style={styles.resultItem}

@@ -408,254 +408,281 @@ export default function SearchScreen() {
 
   // Modify the render portion of the component with optimized rendering and indicators
   return (
-    <TouchableWithoutFeedback onPress={Keyboard.dismiss} accessible={false}>
-      <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
-        {/* Search Header */}
-        <View style={styles.searchContainer}>
-          <View style={[styles.inputContainer, isSearchFocused && styles.inputContainerActive]}>
-            <SearchIcon size={20} color={theme.colors.text} style={styles.searchIcon} />
-            <TextInput
-              style={[styles.input, { color: theme.colors.text }]}
-              placeholder="Search courses or members..."
-              placeholderTextColor={theme.colors.textSecondary}
-              value={searchQuery}
-              onChangeText={setSearchQuery}
-              onFocus={() => setIsSearchFocused(true)}
-              onSubmitEditing={() => debouncedSearch(searchQuery)}
-              autoCorrect={false}
-              spellCheck={false}
-            />
-            {searchQuery !== '' && (
-              <TouchableOpacity style={styles.clearButton} onPress={handleCancelPress}>
-                <XIcon size={18} color={theme.colors.text} />
-              </TouchableOpacity>
-            )}
-          </View>
-        </View>
-
-        {/* Tab Selector */}
-        <View style={styles.tabContainer}>
-          <TouchableOpacity
-            style={[
-              styles.tabButton,
-              activeTab === 'courses' && [styles.activeTabButton, { backgroundColor: theme.colors.background }]
-            ]}
-            onPress={() => handleTabChange('courses')}
-          >
-            <GolfIcon size={16} color={activeTab === 'courses' ? theme.colors.primary : theme.colors.textSecondary} />
-            <Text style={[
-              styles.tabText,
-              { color: activeTab === 'courses' ? theme.colors.primary : theme.colors.textSecondary }
-            ]}>
-              Courses
-            </Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[
-              styles.tabButton,
-              activeTab === 'members' && [styles.activeTabButton, { backgroundColor: theme.colors.background }]
-            ]}
-            onPress={() => handleTabChange('members')}
-          >
-            <Users size={16} color={activeTab === 'members' ? theme.colors.primary : theme.colors.textSecondary} />
-            <Text style={[
-              styles.tabText,
-              { color: activeTab === 'members' ? theme.colors.primary : theme.colors.textSecondary }
-            ]}>
-              Members
-            </Text>
-          </TouchableOpacity>
-        </View>
-
-        {/* Loading Indicator - Early Return */}
-        {loading && (
-          <View style={styles.loadingContainer}>
-            <ActivityIndicator size="large" color={theme.colors.primary} />
-            <Text style={[styles.loadingText, {color: theme.colors.text}]}>
-              {searchQuery.trim() ? 'Searching...' : 'Loading...'}
-            </Text>
-          </View>
-        )}
-        
-        {/* Error Message - Early Return */}
-        {!loading && error && (
-          <View style={styles.centerContainer}>
-            <Text style={[styles.errorText, {color: theme.colors.error}]}>{error}</Text>
-            <TouchableOpacity 
-              style={styles.retryButton} 
-              onPress={() => activeTab === 'courses' ? loadCourses() : debouncedSearch(searchQuery)}
-            >
-              <Text style={styles.retryButtonText}>Retry</Text>
+    <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
+      {/* Search Header */}
+      <View style={styles.searchContainer}>
+        <View style={[styles.inputContainer, isSearchFocused && styles.inputContainerActive]}>
+          <SearchIcon size={20} color={theme.colors.text} style={styles.searchIcon} />
+          <TextInput
+            style={[styles.input, { color: theme.colors.text }]}
+            placeholder="Search courses or members..."
+            placeholderTextColor={theme.colors.textSecondary}
+            value={searchQuery}
+            onChangeText={setSearchQuery}
+            onFocus={() => setIsSearchFocused(true)}
+            onSubmitEditing={() => debouncedSearch(searchQuery)}
+            autoCorrect={false}
+            spellCheck={false}
+          />
+          {searchQuery !== '' && (
+            <TouchableOpacity style={styles.clearButton} onPress={handleCancelPress}>
+              <XIcon size={18} color={theme.colors.text} />
             </TouchableOpacity>
-          </View>
-        )}
+          )}
+        </View>
+      </View>
 
-        {/* Empty Search Results - Only show when not loading and we have a query */}
-        {!loading && !error && searchQuery.trim() && 
-          ((activeTab === 'courses' && courses.length === 0) || 
-           (activeTab === 'members' && users.length === 0)) && (
-          <View style={styles.centerContainer}>
-            <Text style={[styles.noResultsText, {color: theme.colors.textSecondary}]}>
-              No {activeTab === 'courses' ? 'courses' : 'members'} found for "{searchQuery}"
-            </Text>
-          </View>
-        )}
+      {/* Tab Selector */}
+      <View style={[styles.tabContainer, { borderBottomColor: theme.colors.border }]}>
+        <TouchableOpacity
+          style={[
+            styles.tabButton,
+            activeTab === 'courses' && [
+              styles.activeTabButton,
+              { backgroundColor: `${theme.colors.primary}20` }
+            ]
+          ]}
+          onPress={() => handleTabChange('courses')}
+        >
+          <GolfIcon
+            size={20}
+            color={activeTab === 'courses' ? theme.colors.primary : theme.colors.textSecondary}
+          />
+          <Text
+            style={[
+              styles.tabText,
+              {
+                color: activeTab === 'courses'
+                  ? theme.colors.primary
+                  : theme.colors.textSecondary
+              }
+            ]}
+          >
+            Courses
+          </Text>
+        </TouchableOpacity>
 
-        {/* Empty Initial State - Only show when not loading and no query */}
-        {!loading && !error && !searchQuery.trim() && activeTab === 'members' && users.length === 0 && (
-          <View style={styles.centerContainer}>
-            <Text style={[styles.noResultsText, {color: theme.colors.textSecondary}]}>
-              Search for members by name or username
-            </Text>
-          </View>
-        )}
+        <TouchableOpacity
+          style={[
+            styles.tabButton,
+            activeTab === 'members' && [
+              styles.activeTabButton,
+              { backgroundColor: `${theme.colors.primary}20` }
+            ]
+          ]}
+          onPress={() => handleTabChange('members')}
+        >
+          <Users
+            size={20}
+            color={activeTab === 'members' ? theme.colors.primary : theme.colors.textSecondary}
+          />
+          <Text
+            style={[
+              styles.tabText,
+              {
+                color: activeTab === 'members'
+                  ? theme.colors.primary
+                  : theme.colors.textSecondary
+              }
+            ]}
+          >
+            Members
+          </Text>
+        </TouchableOpacity>
+      </View>
 
-        {/* Courses Tab Content */}
-        {!loading && activeTab === 'courses' && courses.length > 0 && (
-          <FlatList
-            data={courses}
-            keyExtractor={(item) => item.id}
-            initialNumToRender={8}
-            maxToRenderPerBatch={5}
-            windowSize={5}
-            removeClippedSubviews={true}
-            renderItem={({ item }) => (
-              <TouchableOpacity
-                style={[styles.courseItem, { backgroundColor: theme.colors.surface }]}
-                onPress={() => handleCoursePress(item.id)}
-              >
-                <View style={styles.courseItemContent}>
-                  <View style={styles.courseHeader}>
-                    <Text style={[styles.courseName, { color: theme.colors.text }]}>{item.name}</Text>
-                    
-                    {/* Indicate if user has reviewed this course */}
-                    {reviewedCourseIds.has(item.id) && (
-                      <View style={styles.reviewIndicator}>
-                        <CheckCircle size={14} color={theme.colors.success} />
-                        <Text style={[styles.indicatorText, { color: theme.colors.success }]}>Played</Text>
-                      </View>
-                    )}
-                  </View>
+      {/* Loading State */}
+      {loading && (
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color={theme.colors.primary} />
+          <Text style={[styles.loadingText, { color: theme.colors.textSecondary }]}>
+            {activeTab === 'courses' ? 'Finding courses...' : 'Finding members...'}
+          </Text>
+        </View>
+      )}
+
+      {/* Error State */}
+      {!loading && error && (
+        <View style={styles.centerContainer}>
+          <Text style={[styles.errorText, {color: theme.colors.error}]}>{error}</Text>
+          <TouchableOpacity 
+            style={styles.retryButton} 
+            onPress={() => activeTab === 'courses' ? loadCourses() : debouncedSearch(searchQuery)}
+          >
+            <Text style={styles.retryButtonText}>Retry</Text>
+          </TouchableOpacity>
+        </View>
+      )}
+
+      {/* Empty Search Results - Only show when not loading and we have a query */}
+      {!loading && !error && searchQuery.trim() && 
+        ((activeTab === 'courses' && courses.length === 0) || 
+         (activeTab === 'members' && users.length === 0)) && (
+        <View style={styles.centerContainer}>
+          <Text style={[styles.noResultsText, {color: theme.colors.textSecondary}]}>
+            No {activeTab === 'courses' ? 'courses' : 'members'} found for "{searchQuery}"
+          </Text>
+        </View>
+      )}
+
+      {/* Empty Initial State - Only show when not loading and no query */}
+      {!loading && !error && !searchQuery.trim() && activeTab === 'members' && users.length === 0 && (
+        <View style={styles.centerContainer}>
+          <Text style={[styles.noResultsText, {color: theme.colors.textSecondary}]}>
+            Search for members by name or username
+          </Text>
+        </View>
+      )}
+
+      {/* Courses Tab Content */}
+      {activeTab === 'courses' && !loading && !error && courses.length > 0 && (
+        <FlatList
+          keyboardShouldPersistTaps="always"
+          keyboardDismissMode="none"
+          data={courses}
+          keyExtractor={(item) => item.id}
+          initialNumToRender={8}
+          maxToRenderPerBatch={5}
+          windowSize={5}
+          removeClippedSubviews={true}
+          renderItem={({ item }) => (
+            <TouchableOpacity
+              style={[styles.courseItem, { backgroundColor: theme.colors.surface, borderBottomColor: theme.colors.border }]}
+              onPress={() => handleCoursePress(item.id)}
+            >
+              <View style={styles.courseItemContent}>
+                <View style={styles.courseHeader}>
+                  <Text style={[styles.courseName, { color: theme.colors.text }]}>{item.name}</Text>
                   
-                  <View style={styles.courseLocation}>
-                    <MapPin size={14} color={theme.colors.textSecondary} />
-                    <Text style={[styles.locationText, { color: theme.colors.textSecondary }]}>
-                      {item.location || 'Location not available'}
-                    </Text>
-                  </View>
-                  
-                  <View style={styles.courseDetails}>
-                    {item.par && (
-                      <Text style={[styles.courseDetailText, { color: theme.colors.textSecondary }]}>
-                        Par {item.par}
-                      </Text>
-                    )}
-                    {item.yardage && (
-                      <Text style={[styles.courseDetailText, { color: theme.colors.textSecondary }]}>
-                        {item.yardage} yards
-                      </Text>
-                    )}
-                    {item.type && (
-                      <Text style={[styles.courseDetailText, { color: theme.colors.textSecondary }]}>
-                        {item.type}
-                      </Text>
-                    )}
-                  </View>
+                  {/* Indicate if user has reviewed this course */}
+                  {reviewedCourseIds.has(item.id) && (
+                    <View style={styles.reviewIndicator}>
+                      <CheckCircle size={14} color={theme.colors.success} />
+                      <Text style={[styles.indicatorText, { color: theme.colors.success }]}>Played</Text>
+                    </View>
+                  )}
                 </View>
                 
-                {/* Bookmark button */}
-                <TouchableOpacity
-                  style={styles.bookmarkButton}
-                  onPress={() => handleBookmarkToggle(item.id)}
-                  disabled={bookmarkLoading[item.id]}
-                >
-                  {bookmarkLoading[item.id] ? (
-                    <ActivityIndicator size="small" color={theme.colors.primary} />
-                  ) : bookmarkedCourseIds.has(item.id) ? (
-                    <BookmarkCheck size={20} color={theme.colors.primary} />
+                <View style={styles.courseLocation}>
+                  <MapPin size={14} color={theme.colors.textSecondary} />
+                  <Text style={[styles.locationText, { color: theme.colors.textSecondary }]}>
+                    {item.location || 'Location not available'}
+                  </Text>
+                </View>
+                
+                <View style={styles.courseDetails}>
+                  {item.par && (
+                    <Text style={[styles.courseDetailText, { color: theme.colors.textSecondary }]}>
+                      Par {item.par}
+                    </Text>
+                  )}
+                  {item.yardage && (
+                    <Text style={[styles.courseDetailText, { color: theme.colors.textSecondary }]}>
+                      {item.yardage} yards
+                    </Text>
+                  )}
+                  {item.type && (
+                    <Text style={[styles.courseDetailText, { color: theme.colors.textSecondary }]}>
+                      {item.type}
+                    </Text>
+                  )}
+                </View>
+              </View>
+              
+              {/* Bookmark button */}
+              <TouchableOpacity
+                style={styles.bookmarkButton}
+                onPress={() => handleBookmarkToggle(item.id)}
+                disabled={bookmarkLoading[item.id]}
+              >
+                {bookmarkLoading[item.id] ? (
+                  <ActivityIndicator size="small" color={theme.colors.primary} />
+                ) : bookmarkedCourseIds.has(item.id) ? (
+                  <BookmarkCheck size={20} color={theme.colors.primary} />
+                ) : (
+                  <Bookmark size={20} color={theme.colors.textSecondary} />
+                )}
+              </TouchableOpacity>
+            </TouchableOpacity>
+          )}
+          ListFooterComponent={<View style={styles.listFooter} />}
+        />
+      )}
+
+      {/* Members Tab Content */}
+      {activeTab === 'members' && !loading && !error && users.length > 0 && (
+        <FlatList
+          keyboardShouldPersistTaps="always"
+          keyboardDismissMode="none"
+          data={users}
+          keyExtractor={(item) => item.id}
+          initialNumToRender={8}
+          maxToRenderPerBatch={5}
+          windowSize={5}
+          removeClippedSubviews={true}
+          renderItem={({ item }) => (
+            <View style={[styles.userItem, { backgroundColor: theme.colors.surface }]}>
+              <View style={styles.userInfo}>
+                <View style={styles.avatarContainer}>
+                  {item.avatar_url ? (
+                    <Image
+                      source={{ uri: item.avatar_url }}
+                      style={styles.avatar}
+                      contentFit="cover"
+                      transition={200}
+                    />
                   ) : (
-                    <Bookmark size={20} color={theme.colors.textSecondary} />
+                    <View style={[styles.defaultAvatar, { backgroundColor: theme.colors.background }]}>
+                      <Text style={[styles.defaultAvatarText, { color: theme.colors.primary }]}>
+                        {(item.full_name?.charAt(0) || item.username?.charAt(0) || '?').toUpperCase()}
+                      </Text>
+                    </View>
+                  )}
+                </View>
+                <View style={styles.userDetails}>
+                  <Text style={[styles.userName, { color: theme.colors.text }]}>
+                    {item.full_name || 'Anonymous Golfer'}
+                  </Text>
+                  {item.username && (
+                    <Text style={[styles.userUsername, { color: theme.colors.textSecondary }]}>
+                      @{item.username}
+                    </Text>
+                  )}
+                </View>
+              </View>
+              
+              {user && user.id !== item.id && (
+                <TouchableOpacity
+                  style={[
+                    styles.followButton,
+                    followingStatus[item.id] ? 
+                      [styles.followingButton, { backgroundColor: theme.colors.background }] : 
+                      { backgroundColor: theme.colors.background }
+                  ]}
+                  onPress={() => handleFollow(item.id)}
+                  disabled={followLoading[item.id]}
+                >
+                  {followLoading[item.id] ? (
+                    <ActivityIndicator size="small" color={theme.colors.primary} />
+                  ) : followingStatus[item.id] ? (
+                    <>
+                      <Check size={16} color={theme.colors.success} />
+                      <Text style={[styles.followButtonText, { color: theme.colors.success }]}>Following</Text>
+                    </>
+                  ) : (
+                    <>
+                      <UserPlus size={16} color={theme.colors.primary} />
+                      <Text style={[styles.followButtonText, { color: theme.colors.primary }]}>Follow</Text>
+                    </>
                   )}
                 </TouchableOpacity>
-              </TouchableOpacity>
-            )}
-            ListFooterComponent={<View style={styles.listFooter} />}
-          />
-        )}
-
-        {/* Members Tab Content */}
-        {!loading && activeTab === 'members' && users.length > 0 && (
-          <FlatList
-            data={users}
-            keyExtractor={(item) => item.id}
-            initialNumToRender={8}
-            maxToRenderPerBatch={5}
-            windowSize={5}
-            removeClippedSubviews={true}
-            renderItem={({ item }) => (
-              <View style={[styles.userItem, { backgroundColor: theme.colors.surface }]}>
-                <View style={styles.userInfo}>
-                  <View style={styles.avatarContainer}>
-                    {item.avatar_url ? (
-                      <Image
-                        source={{ uri: item.avatar_url }}
-                        style={styles.avatar}
-                        contentFit="cover"
-                        transition={200}
-                      />
-                    ) : (
-                      <View style={[styles.defaultAvatar, { backgroundColor: theme.colors.background }]}>
-                        <Text style={[styles.defaultAvatarText, { color: theme.colors.primary }]}>
-                          {(item.full_name?.charAt(0) || item.username?.charAt(0) || '?').toUpperCase()}
-                        </Text>
-                      </View>
-                    )}
-                  </View>
-                  <View style={styles.userDetails}>
-                    <Text style={[styles.userName, { color: theme.colors.text }]}>
-                      {item.full_name || 'Anonymous Golfer'}
-                    </Text>
-                    {item.username && (
-                      <Text style={[styles.userUsername, { color: theme.colors.textSecondary }]}>
-                        @{item.username}
-                      </Text>
-                    )}
-                  </View>
-                </View>
-                
-                {user && user.id !== item.id && (
-                  <TouchableOpacity
-                    style={[
-                      styles.followButton,
-                      followingStatus[item.id] ? 
-                        [styles.followingButton, { backgroundColor: theme.colors.background }] : 
-                        { backgroundColor: theme.colors.background }
-                    ]}
-                    onPress={() => handleFollow(item.id)}
-                    disabled={followLoading[item.id]}
-                  >
-                    {followLoading[item.id] ? (
-                      <ActivityIndicator size="small" color={theme.colors.primary} />
-                    ) : followingStatus[item.id] ? (
-                      <>
-                        <Check size={16} color={theme.colors.success} />
-                        <Text style={[styles.followButtonText, { color: theme.colors.success }]}>Following</Text>
-                      </>
-                    ) : (
-                      <>
-                        <UserPlus size={16} color={theme.colors.primary} />
-                        <Text style={[styles.followButtonText, { color: theme.colors.primary }]}>Follow</Text>
-                      </>
-                    )}
-                  </TouchableOpacity>
-                )}
-              </View>
-            )}
-            ListFooterComponent={<View style={styles.listFooter} />}
-          />
-        )}
-      </View>
-    </TouchableWithoutFeedback>
+              )}
+            </View>
+          )}
+          ListFooterComponent={<View style={styles.listFooter} />}
+        />
+      )}
+    </View>
   );
 }
 
