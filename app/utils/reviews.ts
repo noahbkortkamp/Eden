@@ -250,6 +250,27 @@ export async function createReview(
       throw new Error('Failed to create review: No review data returned');
     }
 
+    // Remove the course from want_to_play_courses if it exists there
+    try {
+      const { error: removeBookmarkError } = await supabase
+        .from('want_to_play_courses')
+        .delete()
+        .match({ 
+          user_id: userId, 
+          course_id: courseId 
+        });
+
+      if (removeBookmarkError) {
+        console.warn('Failed to remove course from bookmarks in createReview:', removeBookmarkError);
+        // Continue anyway as the review was created successfully
+      } else {
+        console.log('Successfully removed reviewed course from bookmarks in createReview');
+      }
+    } catch (bookmarkError) {
+      console.warn('Error removing bookmarked course in createReview, continuing anyway:', bookmarkError);
+      // Continue anyway as the review was created successfully
+    }
+
     // Create tag relationships if there are any tags
     if (tagIds && tagIds.length > 0 && review) {
       try {

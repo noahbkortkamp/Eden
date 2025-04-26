@@ -585,11 +585,37 @@ export default function ListsScreen() {
         const courseIds = bookmarkedItems.map(item => item.course_id);
         console.log(`Extracted ${courseIds.length} course IDs`);
         
+        // Step 2.5: Get the list of courses the user has already reviewed
+        const { data: reviewedCourses, error: reviewedError } = await supabase
+          .from('reviews')
+          .select('course_id')
+          .eq('user_id', user.id);
+          
+        if (reviewedError) {
+          console.error('Error fetching reviewed courses:', reviewedError);
+          // Continue with all bookmarked courses if we can't check reviews
+        }
+        
+        // Create a set of reviewed course IDs for efficient lookup
+        const reviewedCourseIds = new Set(reviewedCourses?.map(item => item.course_id) || []);
+        console.log(`User has reviewed ${reviewedCourseIds.size} courses`);
+        
+        // Filter out courses that have already been reviewed
+        const filteredCourseIds = courseIds.filter(courseId => !reviewedCourseIds.has(courseId));
+        console.log(`After filtering out reviewed courses, ${filteredCourseIds.length} courses remain`);
+        
+        // If all bookmarked courses have been reviewed, return empty array
+        if (filteredCourseIds.length === 0) {
+          console.log('All bookmarked courses have been reviewed, returning empty array');
+          setWantToPlayCourses([]);
+          return;
+        }
+        
         // Step 3: Get the full course details from the courses table
         const { data: coursesData, error: coursesError } = await supabase
           .from('courses')
           .select('id, name, location, type, price_level')
-          .in('id', courseIds);
+          .in('id', filteredCourseIds);
         
         if (coursesError) {
           console.error('Error fetching course details:', coursesError);
@@ -600,7 +626,7 @@ export default function ListsScreen() {
         console.log(`Retrieved ${coursesData?.length || 0} course details`);
         
         // Step 4: Combine the data, keeping the order from bookmarkedItems
-        const sortedWantToPlayCourses = courseIds.map(courseId => {
+        const sortedWantToPlayCourses = filteredCourseIds.map(courseId => {
           const courseDetails = coursesData.find(course => course.id === courseId);
           if (!courseDetails) {
             console.warn(`Missing details for course ID: ${courseId}`);

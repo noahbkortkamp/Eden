@@ -93,6 +93,27 @@ export const ReviewProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         rating: createdReview.rating
       });
 
+      // Remove the course from want_to_play_courses if it exists there
+      try {
+        const { error: removeBookmarkError } = await supabase
+          .from('want_to_play_courses')
+          .delete()
+          .match({ 
+            user_id: user.id, 
+            course_id: review.course_id 
+          });
+
+        if (removeBookmarkError) {
+          console.warn('Failed to remove course from bookmarks:', removeBookmarkError);
+          // Continue with the flow anyway
+        } else {
+          console.log('Successfully removed reviewed course from bookmarks');
+        }
+      } catch (bookmarkError) {
+        console.warn('Error removing bookmarked course, continuing anyway:', bookmarkError);
+        // Continue with the flow anyway
+      }
+
       // Await profile verification result (should be done by now)
       const profileExists = await profileVerificationPromise;
       if (!profileExists) {
