@@ -179,14 +179,14 @@ export const ReviewScreen: React.FC<ReviewScreenProps> = ({
       backgroundColor: theme.colors.background,
     },
     header: {
-      padding: 16,
-      paddingBottom: 20,
+      padding: 12,
+      paddingBottom: 14,
       backgroundColor: theme.colors.background,
       borderBottomWidth: 1,
       borderBottomColor: theme.colors.border,
     },
     courseName: {
-      fontSize: 28,
+      fontSize: 26,
       fontWeight: '700',
       color: theme.colors.text,
     },
@@ -195,23 +195,23 @@ export const ReviewScreen: React.FC<ReviewScreenProps> = ({
       backgroundColor: theme.colors.border,
     },
     section: {
-      padding: 16,
+      padding: 12,
       borderBottomWidth: 1,
       borderBottomColor: theme.colors.border,
     },
     sectionTitle: {
-      fontSize: 22,
+      fontSize: 20,
       fontWeight: '600',
-      marginBottom: 16,
+      marginBottom: 12,
       color: theme.colors.text,
     },
     labelText: {
-      fontSize: 17,
+      fontSize: 16,
       fontWeight: '600',
       color: theme.colors.text,
     },
     valueText: {
-      fontSize: 16,
+      fontSize: 15,
       color: theme.colors.textSecondary,
       marginLeft: 'auto',
     },
@@ -219,22 +219,22 @@ export const ReviewScreen: React.FC<ReviewScreenProps> = ({
       flexDirection: 'row',
       alignItems: 'center',
       justifyContent: 'space-between',
-      paddingVertical: 14,
-      paddingHorizontal: 16,
+      paddingVertical: 10,
+      paddingHorizontal: 12,
     },
     sentimentContainer: {
       flexDirection: 'row',
       justifyContent: 'space-around',
-      marginTop: 16,
-      marginBottom: 8,
+      marginTop: 10,
+      marginBottom: 6,
     },
     sentimentButton: {
       alignItems: 'center',
       justifyContent: 'center',
-      width: 80,
-      height: 80,
+      width: 70,
+      height: 70,
       borderRadius: 4,
-      paddingVertical: 8,
+      paddingVertical: 6,
     },
     selectedSentiment: {
       backgroundColor: 'rgba(0, 122, 255, 0.08)',
@@ -243,12 +243,12 @@ export const ReviewScreen: React.FC<ReviewScreenProps> = ({
       borderRadius: 8,
     },
     sentimentIcon: {
-      width: 50,
-      height: 50,
-      borderRadius: 25,
+      width: 40,
+      height: 40,
+      borderRadius: 20,
       justifyContent: 'center',
       alignItems: 'center',
-      marginBottom: 6,
+      marginBottom: 4,
     },
     sentimentIconLiked: {
       backgroundColor: '#E8F5E9',
@@ -260,11 +260,11 @@ export const ReviewScreen: React.FC<ReviewScreenProps> = ({
       backgroundColor: '#FFEBEE',
     },
     iconText: {
-      fontSize: 22,
+      fontSize: 20,
       textAlign: 'center',
     },
     sentimentText: {
-      fontSize: 15,
+      fontSize: 14,
       fontWeight: '500',
       color: theme.colors.text,
       marginTop: 2,
@@ -273,9 +273,9 @@ export const ReviewScreen: React.FC<ReviewScreenProps> = ({
       borderWidth: 1,
       borderColor: theme.colors.border,
       borderRadius: 8,
-      padding: 12,
-      minHeight: 90,
-      marginTop: 12,
+      padding: 10,
+      minHeight: 60,
+      marginTop: 8,
       color: theme.colors.text,
     },
     keyboardAccessory: {
@@ -295,10 +295,10 @@ export const ReviewScreen: React.FC<ReviewScreenProps> = ({
       fontSize: 16,
     },
     submitButton: {
-      marginHorizontal: 16,
-      marginTop: 20,
-      marginBottom: 16,
-      padding: 14,
+      marginHorizontal: 12,
+      marginTop: 12,
+      marginBottom: 12,
+      padding: 12,
       backgroundColor: theme.colors.primary,
       borderRadius: 8,
       alignItems: 'center',
@@ -311,13 +311,13 @@ export const ReviewScreen: React.FC<ReviewScreenProps> = ({
     submitButtonText: {
       color: theme.colors.background,
       fontWeight: '600',
-      fontSize: 17,
+      fontSize: 16,
       marginRight: isSubmitting ? 8 : 0,
     },
     errorText: {
       color: theme.colors.error,
       textAlign: 'center',
-      marginTop: 8,
+      marginTop: 6,
     },
     modalOverlay: {
       flex: 1,
@@ -392,7 +392,9 @@ export const ReviewScreen: React.FC<ReviewScreenProps> = ({
         keyboardShouldPersistTaps="handled"
         keyboardDismissMode="interactive"
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={{ paddingBottom: keyboardHeight > 0 ? keyboardHeight : 20 }}
+        contentContainerStyle={{ 
+          paddingBottom: keyboardHeight > 0 ? keyboardHeight : 10,
+        }}
       >
         {/* Course Header */}
         <View style={styles.header}>
@@ -400,7 +402,7 @@ export const ReviewScreen: React.FC<ReviewScreenProps> = ({
         </View>
 
         {/* Sentiment Rating */}
-        <View style={styles.section}>
+        <View style={[styles.section, { paddingBottom: 8 }]}>
           <Text style={styles.sectionTitle}>How was your experience?</Text>
           <View style={styles.sentimentContainer}>
             {Object.keys(SENTIMENT_ICONS).map((key) => (
@@ -438,7 +440,7 @@ export const ReviewScreen: React.FC<ReviewScreenProps> = ({
             <Text style={styles.valueText}>
               {tags.length > 0 ? getSelectedTagNames() : 'Select tags'}
             </Text>
-            <ChevronRight size={18} color={theme.colors.textSecondary} style={{ marginLeft: 4 }} />
+            <ChevronRight size={16} color={theme.colors.textSecondary} style={{ marginLeft: 4 }} />
           </View>
         </TouchableOpacity>
 
@@ -455,7 +457,7 @@ export const ReviewScreen: React.FC<ReviewScreenProps> = ({
             <Text style={styles.valueText}>
               {favoriteHoles.length > 0 ? getFavoriteHolesPreview() : 'Add holes'}
             </Text>
-            <ChevronRight size={18} color={theme.colors.textSecondary} style={{ marginLeft: 4 }} />
+            <ChevronRight size={16} color={theme.colors.textSecondary} style={{ marginLeft: 4 }} />
           </View>
         </TouchableOpacity>
 
@@ -472,7 +474,7 @@ export const ReviewScreen: React.FC<ReviewScreenProps> = ({
             <Text style={styles.valueText}>
               {playingPartners.length > 0 ? getPlayingPartnersPreview() : 'Select partners'}
             </Text>
-            <ChevronRight size={18} color={theme.colors.textSecondary} style={{ marginLeft: 4 }} />
+            <ChevronRight size={16} color={theme.colors.textSecondary} style={{ marginLeft: 4 }} />
           </View>
         </TouchableOpacity>
 
@@ -489,44 +491,11 @@ export const ReviewScreen: React.FC<ReviewScreenProps> = ({
             <Text style={styles.valueText}>
               {photos.length > 0 ? `${photos.length} photo${photos.length > 1 ? 's' : ''}` : 'Add Photos'}
             </Text>
-            <ChevronRight size={18} color={theme.colors.textSecondary} style={{ marginLeft: 4 }} />
+            <ChevronRight size={16} color={theme.colors.textSecondary} style={{ marginLeft: 4 }} />
           </View>
         </TouchableOpacity>
 
         <View style={styles.sectionDivider} />
-
-        {/* Notes Section */}
-        <View style={styles.section}>
-          <Text style={styles.labelText}>Notes</Text>
-          <TextInput
-            ref={notesInputRef}
-            style={styles.notesInput}
-            placeholder="Write about your experience..."
-            placeholderTextColor={theme.colors.textSecondary}
-            value={notes}
-            onChangeText={setNotes}
-            multiline
-            numberOfLines={4}
-            textAlignVertical="top"
-            editable={!isSubmitting}
-            inputAccessoryViewID={inputAccessoryViewID}
-            onFocus={handleNotesFocus}
-            blurOnSubmit={false}
-          />
-        </View>
-
-        {Platform.OS === 'ios' && (
-          <InputAccessoryView nativeID={inputAccessoryViewID}>
-            <View style={styles.keyboardAccessory}>
-              <TouchableOpacity
-                style={styles.doneButton}
-                onPress={() => Keyboard.dismiss()}
-              >
-                <Text style={styles.doneButtonText}>Done</Text>
-              </TouchableOpacity>
-            </View>
-          </InputAccessoryView>
-        )}
 
         {/* Date Section */}
         <View style={styles.rowContainer}>
@@ -549,9 +518,44 @@ export const ReviewScreen: React.FC<ReviewScreenProps> = ({
             <Text style={styles.valueText}>
               {format(datePlayed, 'MMMM d, yyyy')}
             </Text>
-            <ChevronRight size={18} color={theme.colors.textSecondary} style={{ marginLeft: 4 }} />
+            <ChevronRight size={16} color={theme.colors.textSecondary} style={{ marginLeft: 4 }} />
           </Pressable>
         </View>
+
+        <View style={styles.sectionDivider} />
+        
+        {/* Notes Section - Minimized height */}
+        <View style={[styles.section, { paddingBottom: 8 }]}>
+          <Text style={styles.labelText}>Notes</Text>
+          <TextInput
+            ref={notesInputRef}
+            style={styles.notesInput}
+            placeholder="Write about your experience..."
+            placeholderTextColor={theme.colors.textSecondary}
+            value={notes}
+            onChangeText={setNotes}
+            multiline
+            numberOfLines={3}
+            textAlignVertical="top"
+            editable={!isSubmitting}
+            inputAccessoryViewID={inputAccessoryViewID}
+            onFocus={handleNotesFocus}
+            blurOnSubmit={false}
+          />
+        </View>
+
+        {Platform.OS === 'ios' && (
+          <InputAccessoryView nativeID={inputAccessoryViewID}>
+            <View style={styles.keyboardAccessory}>
+              <TouchableOpacity
+                style={styles.doneButton}
+                onPress={() => Keyboard.dismiss()}
+              >
+                <Text style={styles.doneButtonText}>Done</Text>
+              </TouchableOpacity>
+            </View>
+          </InputAccessoryView>
+        )}
 
         {/* iOS-specific date picker */}
         {Platform.OS === 'ios' && showDatePicker && (
