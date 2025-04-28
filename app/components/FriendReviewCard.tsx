@@ -1,10 +1,14 @@
-import React, { memo } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from 'react-native';
+import React, { memo, useState } from 'react';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, ActivityIndicator } from 'react-native';
 import { Image } from 'expo-image';
 import { format } from 'date-fns';
 import { useTheme } from '../theme/ThemeProvider';
-import { ThumbsUp, ThumbsDown, Minus } from 'lucide-react-native';
+import { ThumbsUp, ThumbsDown, Minus, Bookmark, BookmarkCheck } from 'lucide-react-native';
 import { useRouter } from 'expo-router';
+import { LikeButton } from './LikeButton';
+import { CommentsButton } from './CommentsButton';
+import { bookmarkService } from '../services/bookmarkService';
+import { useAuth } from '../context/AuthContext';
 
 // Define sentiment ranges with their colors and icons
 const SENTIMENT_RANGES = {
@@ -55,6 +59,10 @@ interface FriendReviewCardProps {
     }>;
     photos?: string[];
     favorite_holes?: number[];
+    likes_count: number;
+    is_liked_by_me: boolean;
+    comments_count: number;
+    is_bookmarked?: boolean;
   };
   onPress?: () => void;
 }
@@ -66,6 +74,9 @@ const PLACEHOLDER_IMAGE = { uri: 'https://via.placeholder.com/40' };
 const FriendReviewCard = memo<FriendReviewCardProps>(({ review, onPress }) => {
   const theme = useTheme();
   const router = useRouter();
+  const { user } = useAuth();
+  const [isBookmarked, setIsBookmarked] = useState(review.is_bookmarked || false);
+  const [bookmarkLoading, setBookmarkLoading] = useState(false);
   
   // Use the numeric rating to determine sentiment and styling
   const sentiment = getSentimentFromRating(review.rating);
@@ -90,6 +101,26 @@ const FriendReviewCard = memo<FriendReviewCardProps>(({ review, onPress }) => {
         userName: review.full_name
       }
     });
+  };
+  
+  // Handle bookmark toggle - add/remove course to "Want to Play" list
+  const handleBookmarkToggle = async () => {
+    if (!user || !review.course_id) return;
+    
+    setBookmarkLoading(true);
+    try {
+      if (isBookmarked) {
+        await bookmarkService.removeBookmark(user.id, review.course_id);
+        setIsBookmarked(false);
+      } else {
+        await bookmarkService.addBookmark(user.id, review.course_id);
+        setIsBookmarked(true);
+      }
+    } catch (err) {
+      console.error('Error toggling course bookmark:', err);
+    } finally {
+      setBookmarkLoading(false);
+    }
   };
   
   return (
@@ -180,6 +211,38 @@ const FriendReviewCard = memo<FriendReviewCardProps>(({ review, onPress }) => {
           Favorite holes: {review.favorite_holes.join(', ')}
         </Text>
       )}
+
+      {/* Social interactions */}
+      <View style={styles.interactionsContainer}>
+        <View style={styles.leftInteractions}>
+          <LikeButton 
+            reviewId={review.id} 
+            size={22}
+            initialLikeCount={review.likes_count}
+            initialLiked={review.is_liked_by_me}
+          />
+          <View style={styles.interactionSpacer} />
+          <CommentsButton 
+            reviewId={review.id} 
+            size={22}
+            initialCommentsCount={review.comments_count}
+          />
+        </View>
+        
+        <TouchableOpacity 
+          style={styles.bookmarkButton}
+          onPress={handleBookmarkToggle}
+          disabled={bookmarkLoading}
+        >
+          {bookmarkLoading ? (
+            <ActivityIndicator size="small" color={theme.colors.primary} />
+          ) : isBookmarked ? (
+            <BookmarkCheck size={22} color={theme.colors.primary} />
+          ) : (
+            <Bookmark size={22} color={theme.colors.textSecondary} />
+          )}
+        </TouchableOpacity>
+      </View>
     </TouchableOpacity>
   );
 });
@@ -274,6 +337,23 @@ const styles = StyleSheet.create({
     height: 120,
     borderRadius: 8,
     marginRight: 8,
+  },
+  interactionsContainer: {
+    flexDirection: 'row',
+    marginTop: 12,
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: '#f0f0f0',
+    justifyContent: 'space-between',
+  },
+  leftInteractions: {
+    flexDirection: 'row',
+  },
+  interactionSpacer: {
+    width: 16,
+  },
+  bookmarkButton: {
+    padding: 2,
   },
 });
 
