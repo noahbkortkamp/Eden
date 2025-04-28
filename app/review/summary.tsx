@@ -71,6 +71,15 @@ export default function ReviewSummaryScreen() {
         if (!reviewData) {
           setError('No review found');
         } else {
+          // Log the review data for debugging
+          console.log('Review data loaded in summary:', {
+            id: reviewData.id,
+            courseId: reviewData.course_id,
+            hasNotes: !!reviewData.notes,
+            tagsCount: reviewData.tags?.length || 0,
+            tags: JSON.stringify(reviewData.tags)
+          });
+          
           setReview(reviewData);
         }
         
@@ -233,16 +242,20 @@ export default function ReviewSummaryScreen() {
               </Text>
             </View>
             <View style={styles.tagsContainer}>
-              {review.tags.map((tag: any) => (
-                <View 
-                  key={tag.id} 
-                  style={[styles.tagBadge, { backgroundColor: theme.colors.border }]}
-                >
-                  <Text style={[styles.tagText, { color: theme.colors.text }]}>
-                    {tag.name}
-                  </Text>
-                </View>
-              ))}
+              {review.tags && review.tags.length > 0 ? (
+                review.tags.map((tag: any) => (
+                  <View 
+                    key={tag.id || `tag-${tag.name}`} 
+                    style={[styles.tagBadge, { backgroundColor: theme.colors.border }]}
+                  >
+                    <Text style={[styles.tagText, { color: theme.colors.text }]}>
+                      {tag.name}
+                    </Text>
+                  </View>
+                ))
+              ) : (
+                <Text style={[{ color: theme.colors.textSecondary }]}>No tags found</Text>
+              )}
             </View>
           </View>
         )}

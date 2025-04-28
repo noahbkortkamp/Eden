@@ -256,7 +256,16 @@ export const reviewService = {
 
       // Transform the tags data to make it more accessible
       if (data && data.tags) {
+        // Log the raw tags data to help with debugging
+        console.log('Raw review tags data:', JSON.stringify(data.tags));
+        
+        // Make sure we're properly transforming the nested tag objects
         data.tags = data.tags.map(item => item.tag);
+        
+        // Log the transformed tags to verify they're correct
+        console.log('Transformed tags:', JSON.stringify(data.tags));
+      } else {
+        console.log('No tags found for this review');
       }
 
       return data;
@@ -316,7 +325,16 @@ export const reviewService = {
 
       // Transform the tags data to make it more accessible
       if (data && data.tags) {
+        // Log the raw tags data to help with debugging
+        console.log('Raw review detail tags data:', JSON.stringify(data.tags));
+        
+        // Make sure we're properly transforming the nested tag objects
         data.tags = data.tags.map(item => item.tag);
+        
+        // Log the transformed tags to verify they're correct
+        console.log('Transformed review detail tags:', JSON.stringify(data.tags));
+      } else {
+        console.log('No tags found for this review detail');
       }
 
       // Find the most appropriate relative score
