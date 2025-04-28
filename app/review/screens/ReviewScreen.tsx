@@ -118,7 +118,11 @@ export const ReviewScreen: React.FC<ReviewScreenProps> = ({
       const tag = allTags.find(t => t.id === tagId);
       return tag ? tag.name : '';
     }).filter(Boolean);
-    return tagNames.join(', ');
+
+    if (tagNames.length <= 3) {
+      return tagNames.join(', ');
+    }
+    return `${tagNames.slice(0, 3).join(', ')} ...`;
   };
 
   const getFavoriteHolesPreview = () => {
