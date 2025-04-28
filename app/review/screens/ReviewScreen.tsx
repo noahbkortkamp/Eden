@@ -641,9 +641,9 @@ export const ReviewScreen: React.FC<ReviewScreenProps> = ({
           visible={showTagsModal}
           onClose={() => setShowTagsModal(false)}
           onSave={handleTagsSave}
-          selectedTags={tags.map(tagName => {
+          selectedTags={tags.map(tagId => {
             const allTags = Object.values(TAGS_BY_CATEGORY).flat();
-            return allTags.find(t => t.name === tagName)!;
+            return allTags.find(t => t.id === tagId);
           }).filter(Boolean)}
         />
 
