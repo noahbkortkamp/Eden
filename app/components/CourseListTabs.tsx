@@ -430,7 +430,11 @@ export const CourseListTabs: React.FC<CourseListTabsProps> = React.memo(({
 
   return !isReady ? null : (
     <View style={{ flex: 1 }} onLayout={onLayout}>
-      {/* Debug header message */}
+      {/* SafeAreaView for proper iOS spacing - now without a duplicate header */}
+      <SafeAreaView style={{ 
+        backgroundColor: theme.colors.surface,
+        paddingBottom: 0 // Remove bottom padding as the tabs will be right below
+      }} />
       
       {/* Custom tab bar using simple buttons */}
       <View style={{ 
