@@ -322,7 +322,7 @@ export const TagSelectionModal: React.FC<TagSelectionModalProps> = ({
               onPress={handleOpenSuggestionModal}
             >
               <Text style={styles.newTagText}>
-                Have a new label idea? Let us know!
+                Have a new tag idea? Let us know!
               </Text>
             </TouchableOpacity>
           </ScrollView>

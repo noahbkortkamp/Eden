@@ -69,11 +69,11 @@ export const TagSuggestionModal: React.FC<TagSuggestionModalProps> = ({
       <View style={styles.modalOverlay}>
         <View style={[styles.modalContainer, { backgroundColor: theme.colors.background }]}>
           <Text style={[styles.headerTitle, { color: theme.colors.text }]}>
-            Request a label
+            Request a tag
           </Text>
           
           <Text style={[styles.subtitle, { color: theme.colors.textSecondary }]}>
-            For all Beli members to use!
+            For all Eden members to use!
           </Text>
           
           <TextInput
@@ -84,7 +84,7 @@ export const TagSuggestionModal: React.FC<TagSuggestionModalProps> = ({
             }]}
             value={tagName}
             onChangeText={setTagName}
-            placeholder="Label idea"
+            placeholder="Tag idea"
             placeholderTextColor={theme.colors.textSecondary}
           />
           
