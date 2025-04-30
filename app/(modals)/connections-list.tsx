@@ -158,9 +158,11 @@ export default function ConnectionsListScreen() {
   };
 
   const handleFindFriends = () => {
-    // Navigate to a screen where users can find and follow more people
-    // This would need to be implemented separately
-    router.push('/find-friends');
+    // Navigate to the search screen with members tab selected
+    router.replace({
+      pathname: '/(tabs)/search',
+      params: { tab: 'members' }
+    });
   };
 
   const renderUserItem = ({ item }: { item: User }) => (
