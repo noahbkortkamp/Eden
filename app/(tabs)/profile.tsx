@@ -165,15 +165,35 @@ export default function ProfileScreen() {
         
         {/* Stats Row */}
         <View style={styles.statsRow}>
-          <View style={styles.statItem}>
+          <TouchableOpacity 
+            style={styles.statItem}
+            onPress={() => router.push({
+              pathname: '/connections-list',
+              params: { 
+                userId: user.id,
+                userName: user.user_metadata?.name || 'User',
+                initialTab: 'followers'
+              }
+            })}
+          >
             <Text variant="titleMedium" style={styles.statCount}>{followStats.followers}</Text>
             <Text variant="bodySmall" style={styles.statLabel}>Followers</Text>
-          </View>
+          </TouchableOpacity>
           
-          <View style={styles.statItem}>
+          <TouchableOpacity 
+            style={styles.statItem}
+            onPress={() => router.push({
+              pathname: '/connections-list',
+              params: { 
+                userId: user.id,
+                userName: user.user_metadata?.name || 'User',
+                initialTab: 'following'
+              }
+            })}
+          >
             <Text variant="titleMedium" style={styles.statCount}>{followStats.following}</Text>
             <Text variant="bodySmall" style={styles.statLabel}>Following</Text>
-          </View>
+          </TouchableOpacity>
           
           <TouchableOpacity 
             style={styles.statItem}

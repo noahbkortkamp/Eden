@@ -28,6 +28,12 @@ function AppContent() {
       <Stack>
         <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
         <Stack.Screen
+          name="(modals)"
+          options={{
+            headerShown: false
+          }}
+        />
+        <Stack.Screen
           name="auth/login"
           options={{
             presentation: 'modal',
