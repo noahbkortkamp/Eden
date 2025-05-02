@@ -13,12 +13,16 @@ import * as WebBrowser from 'expo-web-browser';
 import './i18n';
 import { PlayedCoursesProvider } from './context/PlayedCoursesContext';
 
+// Import node polyfills to ensure they're available throughout the app
+import './utils/node-polyfills';
+
 declare global {
   interface Window {
     frameworkReady?: () => void | Promise<void>;
   }
 }
 
+// Separate AppContent component to use hooks that depend on context providers
 function AppContent() {
   const theme = useTheme();
   const { user } = useAuth();
@@ -109,6 +113,7 @@ function ErrorScreen({ error }: { error: Error }) {
   );
 }
 
+// Root layout component
 export default function RootLayout() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
@@ -149,6 +154,7 @@ export default function RootLayout() {
     return <ErrorScreen error={error} />;
   }
 
+  // Ensure proper nesting of context providers
   return (
     <ErrorBoundary>
       <ThemeProvider>
