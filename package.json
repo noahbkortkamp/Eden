@@ -24,6 +24,7 @@
     "postinstall": "patch-package"
   },
   "dependencies": {
+    "@babel/runtime": "^7.16.7",
     "@craftzdog/react-native-buffer": "^6.0.5",
     "@expo-google-fonts/inter": "^0.2.3",
     "@expo/ngrok": "^4.1.3",
@@ -53,6 +54,7 @@
     "expo-auth-session": "~6.1.5",
     "expo-blur": "~14.1.4",
     "expo-constants": "~17.1.5",
+    "expo-dev-client": "^5.1.8",
     "expo-file-system": "^18.0.11",
     "expo-font": "~13.3.0",
     "expo-haptics": "~14.1.4",
@@ -91,6 +93,7 @@
     "react-native-tcp": "^4.0.0",
     "react-native-url-polyfill": "^2.0.0",
     "react-native-web": "^0.20.0",
+    "regenerator-runtime": "^0.13.9",
     "stream-browserify": "^3.0.0",
     "tsx": "^4.7.1",
     "tty-browserify": "^0.0.1",
@@ -98,7 +101,8 @@
     "use-debounce": "^10.0.4",
     "util": "^0.12.5",
     "uuid": "^11.1.0",
-    "vm-browserify": "^1.1.2"
+    "vm-browserify": "^1.1.2",
+    "web-streams-polyfill": "^3.2.1"
   },
   "devDependencies": {
     "@babel/core": "^7.23.9",
@@ -117,6 +121,7 @@
     "node-libs-react-native": "^1.2.1",
     "patch-package": "^8.0.0",
     "postinstall-postinstall": "^2.1.0",
+    "qrcode-terminal": "^0.12.0",
     "react-native-dotenv": "^3.4.11",
     "react-test-renderer": "18.3.1",
     "typescript": "~5.8.3"

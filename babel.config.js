@@ -27,7 +27,6 @@ module.exports = function(api) {
           'buffer': '@craftzdog/react-native-buffer'
         }
       }],
-      'expo-router/babel',
       ["module:react-native-dotenv", {
         "moduleName": "@env",
         "path": ".env",
