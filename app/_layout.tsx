@@ -1,6 +1,4 @@
-// Import node polyfills to ensure they're available throughout the app
-import './utils/node-polyfills';
-
+// Import core modules and providers
 import { useEffect, useState } from 'react';
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
@@ -28,71 +26,71 @@ function AppContent() {
   
   // Add error handling with try/catch for better debugging
   try {
-    // Add debug logging
-    console.log("AppContent: About to call useAuth()");
     const { user } = useAuth();
-    console.log("AppContent: useAuth() successful, user:", user ? "exists" : "null");
     
     return (
       <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
-        <Stack>
-          <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-          <Stack.Screen
-            name="(modals)"
-            options={{
-              headerShown: false
-            }}
-          />
-          <Stack.Screen
-            name="auth/login"
-            options={{
-              presentation: 'modal',
-              headerShown: true,
-              title: 'Log In',
-              headerStyle: {
-                backgroundColor: theme.colors.background,
-              },
-              headerTintColor: theme.colors.text,
-            }}
-          />
-          <Stack.Screen
-            name="auth/signup"
-            options={{
-              presentation: 'modal',
-              headerShown: true,
-              title: 'Sign Up',
-              headerStyle: {
-                backgroundColor: theme.colors.background,
-              },
-              headerTintColor: theme.colors.text,
-            }}
-          />
-          <Stack.Screen
-            name="(modals)/review"
-            options={{
-              presentation: 'modal',
-              headerShown: true,
-              title: 'Review Course',
-              headerStyle: {
-                backgroundColor: theme.colors.background,
-              },
-              headerTintColor: theme.colors.text,
-            }}
-          />
-          <Stack.Screen
-            name="(modals)/comparison"
-            options={{
-              presentation: 'modal',
-              headerShown: true,
-              title: 'Compare Courses',
-              headerStyle: {
-                backgroundColor: theme.colors.background,
-              },
-              headerTintColor: theme.colors.text,
-            }}
-          />
-        </Stack>
-        <StatusBar style="auto" />
+        <View style={{ flex: 1 }}>
+          <Stack>
+            <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+            <Stack.Screen
+              name="(modals)"
+              options={{
+                presentation: 'modal',
+                headerShown: false
+              }}
+            />
+            <Stack.Screen
+              name="auth/login"
+              options={{
+                presentation: 'modal',
+                headerShown: false,
+                title: 'Log In',
+                headerStyle: {
+                  backgroundColor: theme.colors.background,
+                },
+                headerTintColor: theme.colors.text,
+              }}
+            />
+            <Stack.Screen
+              name="auth/signup"
+              options={{
+                presentation: 'modal',
+                headerShown: false,
+                title: 'Sign Up',
+                headerStyle: {
+                  backgroundColor: theme.colors.background,
+                },
+                headerTintColor: theme.colors.text,
+              }}
+            />
+            <Stack.Screen
+              name="(modals)/review"
+              options={{
+                presentation: 'modal',
+                headerShown: false,
+                title: 'Review Course',
+                headerStyle: {
+                  backgroundColor: theme.colors.background,
+                },
+                headerTintColor: theme.colors.text,
+              }}
+            />
+            <Stack.Screen
+              name="(modals)/comparison"
+              options={{
+                presentation: 'modal',
+                headerShown: false,
+                title: 'Compare Courses',
+                headerStyle: {
+                  backgroundColor: theme.colors.background,
+                },
+                headerTintColor: theme.colors.text,
+              }}
+            />
+          </Stack>
+          <StatusBar style="auto" />
+        </View>
       </View>
     );
   } catch (error) {
@@ -100,10 +98,14 @@ function AppContent() {
     // Return a fallback UI when there's an error with authentication
     return (
       <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: theme.colors.background }}>
-        <Text style={{ color: 'red', fontSize: 16, fontWeight: 'bold' }}>Authentication Error</Text>
-        <Text style={{ color: 'gray', marginTop: 10, textAlign: 'center', paddingHorizontal: 20 }}>
-          {error instanceof Error ? error.message : String(error)}
-        </Text>
+        <View>
+          <Text style={{ color: 'red', fontSize: 16, fontWeight: 'bold' }}>Authentication Error</Text>
+        </View>
+        <View>
+          <Text style={{ color: 'gray', marginTop: 10, textAlign: 'center', paddingHorizontal: 20 }}>
+            {error instanceof Error ? error.message : String(error)}
+          </Text>
+        </View>
       </View>
     );
   }
@@ -114,7 +116,9 @@ function LoadingScreen() {
   return (
     <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
       <ActivityIndicator size="large" color="#2563eb" />
-      <Text style={{ marginTop: 16, color: '#64748b' }}>{t('loading.initializing')}</Text>
+      <View>
+        <Text style={{ marginTop: 16, color: '#64748b' }}>{t('loading.initializing')}</Text>
+      </View>
     </View>
   );
 }
@@ -123,10 +127,14 @@ function ErrorScreen({ error }: { error: Error }) {
   const { t } = useTranslation();
   return (
     <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
-      <Text style={{ color: 'red', textAlign: 'center', marginBottom: 16 }}>
-        {t('errors.failedToInitialize')}
-      </Text>
-      <Text style={{ color: '#64748b', textAlign: 'center' }}>{error.message}</Text>
+      <View>
+        <Text style={{ color: 'red', textAlign: 'center', marginBottom: 16 }}>
+          {t('errors.failedToInitialize')}
+        </Text>
+      </View>
+      <View>
+        <Text style={{ color: '#64748b', textAlign: 'center' }}>{error.message}</Text>
+      </View>
     </View>
   );
 }

@@ -36,8 +36,15 @@ export const WantToPlayCoursesList = React.memo(({
   
   // Add component lifecycle logging
   useEffect(() => {
-    console.log('📌 WantToPlayCoursesList Mounted');
-    return () => console.log('📌 WantToPlayCoursesList Unmounted');
+    setTimeout(() => {
+      console.log('📌 WantToPlayCoursesList Mounted');
+    }, 0);
+    
+    return () => {
+      setTimeout(() => {
+        console.log('📌 WantToPlayCoursesList Unmounted');
+      }, 0);
+    };
   }, []);
   
   // Update internal state only when we get non-empty courses data - with throttling

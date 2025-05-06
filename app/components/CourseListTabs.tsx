@@ -65,8 +65,15 @@ export const CourseListTabs: React.FC<CourseListTabsProps> = React.memo(({
   
   // Add lifecycle logging
   useEffect(() => {
-    console.log('📌 CourseListTabs Mounted');
-    return () => console.log('📌 CourseListTabs Unmounted');
+    setTimeout(() => {
+      console.log('📌 CourseListTabs Mounted');
+    }, 0);
+    
+    return () => {
+      setTimeout(() => {
+        console.log('📌 CourseListTabs Unmounted');
+      }, 0);
+    };
   }, []);
   
   // Update internal state when props change, but ONLY if the new data is not empty

@@ -215,10 +215,12 @@ export default function ComparisonModal() {
       return (
         <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
           <ActivityIndicator size="large" color={theme.colors.primary} />
-          <Text style={[styles.loadingText, { color: theme.colors.textSecondary }]}>
-            {loadingMessage}
-            {loadingProgress.a && !loadingProgress.b ? " (1/2 loaded)" : ""}
-          </Text>
+          <View>
+            <Text style={[styles.loadingText, { color: theme.colors.textSecondary }]}>
+              {loadingMessage}
+              {loadingProgress.a && !loadingProgress.b ? " (1/2 loaded)" : ""}
+            </Text>
+          </View>
         </View>
       );
     }
@@ -243,33 +245,43 @@ export default function ComparisonModal() {
           <View style={styles.coursesContainer}>
             {/* Show actual course if available, otherwise skeleton */}
             {courseA ? (
-              <View style={[styles.courseCard, { backgroundColor: theme.colors.surface }]}>
-                <Text style={[styles.courseName, { color: theme.colors.text }]}>{courseA.name}</Text>
-                <Text style={[styles.courseLocation, { color: theme.colors.textSecondary }]}>
-                  {courseA.location}
-                </Text>
-              </View>
+              <>
+                <View style={[styles.courseCard, { backgroundColor: theme.colors.surface }]}>
+                  <Text style={[styles.courseName, { color: theme.colors.text }]}>{courseA.name}</Text>
+                  <Text style={[styles.courseLocation, { color: theme.colors.textSecondary }]}>
+                    {courseA.location}
+                  </Text>
+                </View>
+              </>
             ) : (
-              <View style={[styles.courseCard, { backgroundColor: theme.colors.surface }]}>
-                <View style={[styles.skeletonText, { width: '70%', backgroundColor: theme.colors.border }]} />
-                <View style={[styles.skeletonText, { width: '50%', backgroundColor: theme.colors.border }]} />
-              </View>
+              <>
+                <View style={[styles.courseCard, { backgroundColor: theme.colors.surface }]}>
+                  <View style={[styles.skeletonText, { width: '70%', backgroundColor: theme.colors.border }]} />
+                  <View style={[styles.skeletonText, { width: '50%', backgroundColor: theme.colors.border }]} />
+                </View>
+              </>
             )}
             
-            <Text style={[styles.vsText, { color: theme.colors.textSecondary }]}>VS</Text>
+            <View style={styles.vsContainer}>
+              <Text style={[styles.vsText, { color: theme.colors.textSecondary }]}>VS</Text>
+            </View>
             
             {courseB ? (
-              <View style={[styles.courseCard, { backgroundColor: theme.colors.surface }]}>
-                <Text style={[styles.courseName, { color: theme.colors.text }]}>{courseB.name}</Text>
-                <Text style={[styles.courseLocation, { color: theme.colors.textSecondary }]}>
-                  {courseB.location}
-                </Text>
-              </View>
+              <>
+                <View style={[styles.courseCard, { backgroundColor: theme.colors.surface }]}>
+                  <Text style={[styles.courseName, { color: theme.colors.text }]}>{courseB.name}</Text>
+                  <Text style={[styles.courseLocation, { color: theme.colors.textSecondary }]}>
+                    {courseB.location}
+                  </Text>
+                </View>
+              </>
             ) : (
-              <View style={[styles.courseCard, { backgroundColor: theme.colors.surface }]}>
-                <View style={[styles.skeletonText, { width: '70%', backgroundColor: theme.colors.border }]} />
-                <View style={[styles.skeletonText, { width: '50%', backgroundColor: theme.colors.border }]} />
-              </View>
+              <>
+                <View style={[styles.courseCard, { backgroundColor: theme.colors.surface }]}>
+                  <View style={[styles.skeletonText, { width: '70%', backgroundColor: theme.colors.border }]} />
+                  <View style={[styles.skeletonText, { width: '50%', backgroundColor: theme.colors.border }]} />
+                </View>
+              </>
             )}
             
             <ActivityIndicator style={styles.loadingIndicator} color={theme.colors.primary} />
@@ -291,19 +303,10 @@ export default function ComparisonModal() {
 
   return (
     <>
-      <Stack.Screen
-        options={{
-          title: `Compare Courses (${remainingComparisons} left)`,
-          headerShown: true,
-          presentation: 'modal',
-          headerStyle: {
-            backgroundColor: theme.colors.background,
-          },
-          headerTintColor: theme.colors.text,
-        }}
-      />
       <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
-        {renderContent()}
+        <View style={{ flex: 1 }}>
+          {renderContent()}
+        </View>
       </View>
     </>
   );
@@ -360,6 +363,11 @@ const styles = StyleSheet.create({
   courseLocation: {
     fontSize: 16,
     opacity: 0.7,
+  },
+  vsContainer: {
+    padding: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   vsText: {
     fontSize: 18,
