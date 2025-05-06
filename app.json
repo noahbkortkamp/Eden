@@ -59,13 +59,17 @@
           "photosPermission": "Allow Golf Course Review to access your photos to set your profile picture.",
           "cameraPermission": "Allow Golf Course Review to access your camera to take profile pictures."
         }
-      ]
+      ],
+      "expo-dev-client"
     ],
     "extra": {
       "eas": {
         "projectId": "your-project-id"
       }
     },
-    "newArchEnabled": true
+    "newArchEnabled": true,
+    "developmentClient": {
+      "silentLaunch": false
+    }
   }
 }

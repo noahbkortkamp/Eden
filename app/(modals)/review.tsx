@@ -51,37 +51,34 @@ export default function ReviewModal() {
     }
   };
 
-  if (isLoading) {
-    return (
-      <View style={[styles.container, styles.centered]}>
-        <ActivityIndicator size="large" color={theme.colors.primary} />
-      </View>
-    );
-  }
+  // Render content function to isolate rendering logic and prevent text node leaks
+  const renderContent = () => {
+    if (isLoading) {
+      return (
+        <View style={[styles.container, styles.centered]}>
+          <ActivityIndicator size="large" color={theme.colors.primary} />
+          <View>
+            <Text style={{ marginTop: 10, color: theme.colors.textSecondary }}>
+              Loading course...
+            </Text>
+          </View>
+        </View>
+      );
+    }
 
-  if (loadError || !course) {
-    return (
-      <View style={[styles.container, styles.centered]}>
-        <Text style={[styles.errorText, { color: theme.colors.error }]}>
-          {loadError || 'Course not found'}
-        </Text>
-      </View>
-    );
-  }
+    if (loadError || !course) {
+      return (
+        <View style={[styles.container, styles.centered]}>
+          <View>
+            <Text style={[styles.errorText, { color: theme.colors.error }]}>
+              {loadError || 'Course not found'}
+            </Text>
+          </View>
+        </View>
+      );
+    }
 
-  return (
-    <>
-      <Stack.Screen
-        options={{
-          title: 'Review Course',
-          headerShown: true,
-          presentation: 'modal',
-          headerStyle: {
-            backgroundColor: theme.colors.background,
-          },
-          headerTintColor: theme.colors.text,
-        }}
-      />
+    return (
       <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
         <ReviewScreen 
           course={course} 
@@ -90,7 +87,13 @@ export default function ReviewModal() {
           error={error}
         />
       </View>
-    </>
+    );
+  };
+
+  return (
+    <View style={{ flex: 1 }}>
+      {renderContent()}
+    </View>
   );
 }
 

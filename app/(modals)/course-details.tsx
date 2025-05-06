@@ -128,7 +128,12 @@ function CourseDetailsContent() {
   if (loading) {
     return (
       <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
-        <ActivityIndicator size="large" color={theme.colors.primary} />
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color={theme.colors.primary} />
+          <View>
+            <Text style={styles.loadingText}>Loading course details...</Text>
+          </View>
+        </View>
       </View>
     );
   }
@@ -136,125 +141,165 @@ function CourseDetailsContent() {
   if (error || !course) {
     return (
       <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
-        <Text style={[styles.errorText, { color: theme.colors.error }]}>
-          {error || 'Course not found'}
-        </Text>
+        <View style={styles.errorContainer}>
+          <Text style={[styles.errorText, { color: theme.colors.error }]}>
+            {error || 'Course not found'}
+          </Text>
+        </View>
       </View>
     );
   }
 
   const handleReviewPress = () => {
-    router.push({
-      pathname: '/(modals)/review',
-      params: { courseId: course.id }
-    });
+    // Add a small delay to prevent touch event issues
+    setTimeout(() => {
+      router.push({
+        pathname: '/(modals)/review',
+        params: { courseId: course.id }
+      });
+    }, 50);
   };
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: theme.colors.background }]}>
-      {/* Header with Image */}
-      <View style={styles.imageContainer}>
-        {course.photos && course.photos.length > 0 ? (
-          <Image
-            source={{ uri: course.photos[0] }}
-            style={[styles.headerImage, { width }]}
-            resizeMode="cover"
-          />
-        ) : (
-          <View style={[styles.headerImage, { width, backgroundColor: theme.colors.surface }]} />
-        )}
-        <TouchableOpacity
-          style={[styles.bookmarkButton, { backgroundColor: theme.colors.surface }]}
-          onPress={handleToggleBookmark}
-          disabled={bookmarkLoading}
-        >
-          {bookmarkLoading ? (
-            <ActivityIndicator size="small" color={theme.colors.primary} />
-          ) : isBookmarked ? (
-            <BookmarkCheck size={24} color={theme.colors.primary} />
+      <View style={{ flex: 1 }}>
+        {/* Header with Image */}
+        <View style={styles.imageContainer}>
+          {course.photos && course.photos.length > 0 ? (
+            <Image
+              source={{ uri: course.photos[0] }}
+              style={[styles.headerImage, { width }]}
+              resizeMode="cover"
+            />
           ) : (
-            <Bookmark size={24} color={theme.colors.text} />
+            <View style={[styles.headerImage, { width, backgroundColor: theme.colors.surface }]} />
           )}
-        </TouchableOpacity>
-      </View>
+          <TouchableOpacity
+            style={[styles.bookmarkButton, { backgroundColor: theme.colors.surface }]}
+            onPress={handleToggleBookmark}
+            disabled={bookmarkLoading}
+          >
+            {bookmarkLoading ? (
+              <ActivityIndicator size="small" color={theme.colors.primary} />
+            ) : isBookmarked ? (
+              <BookmarkCheck size={24} color={theme.colors.primary} />
+            ) : (
+              <Bookmark size={24} color={theme.colors.text} />
+            )}
+          </TouchableOpacity>
+        </View>
 
-      {/* Content Section */}
-      <View style={styles.contentContainer}>
-        {/* Course Header */}
-        <View style={styles.courseHeader}>
-          <View>
-            <Text style={[styles.courseName, { color: theme.colors.text }]}>
-              {course.name}
-            </Text>
-            <View style={styles.locationContainer}>
-              <MapPin size={14} color={theme.colors.textSecondary} />
-              <Text style={[styles.location, { color: theme.colors.textSecondary }]}>
-                {course.location}
+        {/* Content Section */}
+        <View style={styles.contentContainer}>
+          {/* Course Header */}
+          <View style={styles.courseHeader}>
+            <View>
+              <Text style={[styles.courseName, { color: theme.colors.text }]}>
+                {course.name}
               </Text>
+              <View style={styles.locationContainer}>
+                <MapPin size={14} color={theme.colors.textSecondary} />
+                <View>
+                  <Text style={[styles.location, { color: theme.colors.textSecondary }]}>
+                    {course.location}
+                  </Text>
+                </View>
+              </View>
             </View>
           </View>
+
+          {/* Stats Section */}
+          <View style={[styles.statsContainer, { backgroundColor: theme.colors.surface }]}>
+            <View style={styles.statItem}>
+              <Star size={18} color={theme.colors.primary} />
+              <View>
+                <Text style={[styles.statValue, { color: theme.colors.text }]}>
+                  {(course.rating ?? 0).toFixed(1)}
+                </Text>
+              </View>
+              <View>
+                <Text style={[styles.statLabel, { color: theme.colors.textSecondary }]}>
+                  Rating
+                </Text>
+              </View>
+            </View>
+
+            <View style={[styles.divider, { backgroundColor: theme.colors.border }]} />
+
+            <View style={styles.statItem}>
+              <Users size={18} color={theme.colors.primary} />
+              <View>
+                <Text style={[styles.statValue, { color: theme.colors.text }]}>
+                  {course.total_ratings ?? 0}
+                </Text>
+              </View>
+              <View>
+                <Text style={[styles.statLabel, { color: theme.colors.textSecondary }]}>
+                  Reviews
+                </Text>
+              </View>
+            </View>
+          </View>
+
+          {/* Course Details */}
+          <View>
+            <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>Details</Text>
+          </View>
+          <View style={[styles.detailsGrid, { backgroundColor: theme.colors.surface }]}>
+            <View style={styles.detailItem}>
+              <View>
+                <Text style={[styles.detailLabel, { color: theme.colors.textSecondary }]}>Type</Text>
+              </View>
+              <View>
+                <Text style={[styles.detailValue, { color: theme.colors.text }]}>{course.type ?? 'N/A'}</Text>
+              </View>
+            </View>
+            
+            <View style={styles.detailItem}>
+              <View>
+                <Text style={[styles.detailLabel, { color: theme.colors.textSecondary }]}>Par</Text>
+              </View>
+              <View>
+                <Text style={[styles.detailValue, { color: theme.colors.text }]}>{course.par ?? 'N/A'}</Text>
+              </View>
+            </View>
+            
+            <View style={styles.detailItem}>
+              <View>
+                <Text style={[styles.detailLabel, { color: theme.colors.textSecondary }]}>Yardage</Text>
+              </View>
+              <View>
+                <Text style={[styles.detailValue, { color: theme.colors.text }]}>{course.yardage ? `${course.yardage} yards` : 'N/A'}</Text>
+              </View>
+            </View>
+            
+            <View style={styles.detailItem}>
+              <View>
+                <Text style={[styles.detailLabel, { color: theme.colors.textSecondary }]}>Price</Text>
+              </View>
+              <View>
+                <Text style={[styles.detailValue, { color: theme.colors.text }]}>
+                  {course.price_level ? '$'.repeat(course.price_level) : 'N/A'}
+                </Text>
+              </View>
+            </View>
+          </View>
+
+          {/* Action Button */}
+          <TouchableOpacity
+            style={[styles.reviewButton, { backgroundColor: theme.colors.primary }]}
+            onPress={handleReviewPress}
+            activeOpacity={0.7}
+            delayPressIn={0}
+            hitSlop={{ top: 10, right: 10, bottom: 10, left: 10 }}
+          >
+            <View>
+              <Text style={[styles.reviewButtonText, { color: theme.colors.onPrimary }]}>
+                Review This Course
+              </Text>
+            </View>
+          </TouchableOpacity>
         </View>
-
-        {/* Stats Section */}
-        <View style={[styles.statsContainer, { backgroundColor: theme.colors.surface }]}>
-          <View style={styles.statItem}>
-            <Star size={18} color={theme.colors.primary} />
-            <Text style={[styles.statValue, { color: theme.colors.text }]}>
-              {(course.rating ?? 0).toFixed(1)}
-            </Text>
-            <Text style={[styles.statLabel, { color: theme.colors.textSecondary }]}>
-              Rating
-            </Text>
-          </View>
-
-          <View style={[styles.divider, { backgroundColor: theme.colors.border }]} />
-
-          <View style={styles.statItem}>
-            <Users size={18} color={theme.colors.primary} />
-            <Text style={[styles.statValue, { color: theme.colors.text }]}>
-              {course.total_ratings ?? 0}
-            </Text>
-            <Text style={[styles.statLabel, { color: theme.colors.textSecondary }]}>
-              Reviews
-            </Text>
-          </View>
-        </View>
-
-        {/* Course Details */}
-        <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>Details</Text>
-        <View style={[styles.detailsGrid, { backgroundColor: theme.colors.surface }]}>
-          <View style={styles.detailItem}>
-            <Text style={[styles.detailLabel, { color: theme.colors.textSecondary }]}>Type</Text>
-            <Text style={[styles.detailValue, { color: theme.colors.text }]}>{course.type ?? 'N/A'}</Text>
-          </View>
-          
-          <View style={styles.detailItem}>
-            <Text style={[styles.detailLabel, { color: theme.colors.textSecondary }]}>Par</Text>
-            <Text style={[styles.detailValue, { color: theme.colors.text }]}>{course.par ?? 'N/A'}</Text>
-          </View>
-          
-          <View style={styles.detailItem}>
-            <Text style={[styles.detailLabel, { color: theme.colors.textSecondary }]}>Yardage</Text>
-            <Text style={[styles.detailValue, { color: theme.colors.text }]}>{course.yardage ? `${course.yardage} yards` : 'N/A'}</Text>
-          </View>
-          
-          <View style={styles.detailItem}>
-            <Text style={[styles.detailLabel, { color: theme.colors.textSecondary }]}>Price</Text>
-            <Text style={[styles.detailValue, { color: theme.colors.text }]}>
-              {course.price_level ? '$'.repeat(course.price_level) : 'N/A'}
-            </Text>
-          </View>
-        </View>
-
-        {/* Action Button */}
-        <TouchableOpacity
-          style={[styles.reviewButton, { backgroundColor: theme.colors.primary }]}
-          onPress={handleReviewPress}
-        >
-          <Text style={[styles.reviewButtonText, { color: theme.colors.onPrimary }]}>
-            Review This Course
-          </Text>
-        </TouchableOpacity>
       </View>
     </SafeAreaView>
   );
@@ -366,5 +411,20 @@ const styles = StyleSheet.create({
     fontSize: 16,
     textAlign: 'center',
     marginTop: 24,
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  loadingText: {
+    fontSize: 16,
+    fontWeight: '600',
+    marginTop: 12,
+  },
+  errorContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
 }); 

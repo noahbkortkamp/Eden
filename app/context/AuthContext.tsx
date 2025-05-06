@@ -23,7 +23,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [debugLog, setDebugLog] = useState<string[]>([]);
 
   const addDebugLog = (message: string) => {
-    console.log('AUTH DEBUG:', message);
     setDebugLog(prev => [...prev, `${new Date().toISOString()}: ${message}`]);
   };
 
@@ -59,7 +58,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         router.replace('/onboarding/frequency');
       }
     } catch (error) {
-      console.error('Error checking user:', error);
       addDebugLog(`Error checking user: ${error instanceof Error ? error.message : String(error)}`);
     } finally {
       setLoading(false);
@@ -83,7 +81,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         router.replace('/(tabs)/search');
       }
     } catch (error) {
-      console.error('Error signing in:', error);
       addDebugLog(`Error signing in: ${error instanceof Error ? error.message : String(error)}`);
       throw error;
     }
@@ -119,7 +116,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         }
       }
     } catch (error) {
-      console.error('Error with Google sign-in:', error);
       addDebugLog(`Error with Google sign-in: ${error instanceof Error ? error.message : String(error)}`);
       throw error;
     }
@@ -133,7 +129,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       addDebugLog('Sign-up successful, waiting for email confirmation');
       // Don't automatically sign in after signup - wait for email confirmation
     } catch (error) {
-      console.error('Error signing up:', error);
       addDebugLog(`Error signing up: ${error instanceof Error ? error.message : String(error)}`);
       throw error;
     }
@@ -147,7 +142,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       addDebugLog('Sign-out successful, redirecting to login');
       router.replace('/auth/login');
     } catch (error) {
-      console.error('Error signing out:', error);
       addDebugLog(`Error signing out: ${error instanceof Error ? error.message : String(error)}`);
       throw error;
     }
@@ -167,6 +161,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
 export function useAuth() {
   const context = useContext(AuthContext);
+  
   if (context === undefined) {
     throw new Error('useAuth must be used within an AuthProvider');
   }

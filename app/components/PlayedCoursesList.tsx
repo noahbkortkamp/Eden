@@ -40,8 +40,15 @@ export const PlayedCoursesList = React.memo(({
   
   // Add component lifecycle logging - minimal to reduce overhead
   useEffect(() => {
-    console.log('📌 PlayedCoursesList Mounted');
-    return () => console.log('📌 PlayedCoursesList Unmounted');
+    setTimeout(() => {
+      console.log('📌 PlayedCoursesList Mounted');
+    }, 0);
+    
+    return () => {
+      setTimeout(() => {
+        console.log('📌 PlayedCoursesList Unmounted');
+      }, 0);
+    };
   }, []);
   
   // Update internal state only when we get non-empty courses data - with throttling
