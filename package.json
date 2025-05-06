@@ -1,10 +1,12 @@
 {
   "name": "golf-course-review",
   "main": "expo-router/entry",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "private": true,
   "scripts": {
-    "dev": "EXPO_NO_TELEMETRY=1 expo start",
+    "dev": "node ./start-with-polyfill.js",
+    "start": "node ./start-with-polyfill.js",
+    "start:tunnel": "node ./start-with-polyfill.js --tunnel",
     "build:web": "expo export --platform web",
     "lint": "expo lint",
     "android": "expo run:android",
@@ -21,7 +23,8 @@
     "test:pattern": "jest --testNamePattern",
     "build:e2e:ios": "detox build -c ios.sim.debug",
     "test:e2e:ios": "detox test -c ios.sim.debug",
-    "postinstall": "patch-package"
+    "postinstall": "patch-package",
+    "test:streams": "node scripts/test-streams.js"
   },
   "dependencies": {
     "@babel/runtime": "^7.16.7",
@@ -29,7 +32,6 @@
     "@expo-google-fonts/inter": "^0.2.3",
     "@expo/ngrok": "^4.1.3",
     "@expo/vector-icons": "^14.1.0",
-    "@googlemaps/google-maps-services-js": "^3.4.0",
     "@react-native-async-storage/async-storage": "2.1.2",
     "@react-native-community/datetimepicker": "8.3.0",
     "@react-native-community/netinfo": "^11.4.1",
@@ -102,7 +104,7 @@
     "util": "^0.12.5",
     "uuid": "^11.1.0",
     "vm-browserify": "^1.1.2",
-    "web-streams-polyfill": "^3.2.1"
+    "web-streams-polyfill": "^4.1.0"
   },
   "devDependencies": {
     "@babel/core": "^7.23.9",

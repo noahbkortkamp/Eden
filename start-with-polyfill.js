@@ -1,66 +1,65 @@
+#!/usr/bin/env node
+
 // Load polyfills for Node.js compatibility
-if (!global.ReadableStream) {
-  console.log('ReadableStream not found - adding polyfill');
+console.log('Adding polyfills for Node.js compatibility...');
+
+try {
+  // Import the web-streams-polyfill package (already in dependencies)
+  const webStreamsPolyfill = require('web-streams-polyfill');
   
-  // Define a minimal ReadableStream implementation
-  global.ReadableStream = class ReadableStream {
-    constructor(underlyingSource, strategy) {
-      this._source = underlyingSource;
-      this._strategy = strategy;
-    }
-    
-    getReader() {
-      return {
-        read: async () => ({ done: true, value: undefined }),
-        releaseLock: () => {}
-      };
-    }
-    
-    pipeThrough() {
-      return new global.ReadableStream();
-    }
-    
-    pipeTo() {
-      return Promise.resolve();
-    }
-  };
+  // Apply all the stream polyfills to global
+  if (!global.ReadableStream) {
+    global.ReadableStream = webStreamsPolyfill.ReadableStream;
+    console.log('✅ Added ReadableStream polyfill');
+  }
   
-  console.log('✅ Added minimal ReadableStream polyfill');
+  if (!global.WritableStream) {
+    global.WritableStream = webStreamsPolyfill.WritableStream;
+    console.log('✅ Added WritableStream polyfill');
+  }
+  
+  if (!global.TransformStream) {
+    global.TransformStream = webStreamsPolyfill.TransformStream;
+    console.log('✅ Added TransformStream polyfill');
+  }
+  
+  if (!global.ByteLengthQueuingStrategy) {
+    global.ByteLengthQueuingStrategy = webStreamsPolyfill.ByteLengthQueuingStrategy;
+    console.log('✅ Added ByteLengthQueuingStrategy polyfill');
+  }
+  
+  if (!global.CountQueuingStrategy) {
+    global.CountQueuingStrategy = webStreamsPolyfill.CountQueuingStrategy;
+    console.log('✅ Added CountQueuingStrategy polyfill');
+  }
+  
+  console.log('✅ Successfully added web-streams-polyfill');
+} catch (err) {
+  console.error('❌ Failed to load web-streams-polyfill:', err.message);
+  console.error('Please make sure web-streams-polyfill is installed:');
+  console.error('npm install web-streams-polyfill --save-dev');
 }
 
-// Also ensure WritableStream exists
-if (!global.WritableStream) {
-  global.WritableStream = class WritableStream {
-    constructor() {}
-    getWriter() {
-      return {
-        write: async () => {},
-        close: async () => {},
-        abort: async () => {},
-        releaseLock: () => {}
-      };
-    }
-  };
-  console.log('✅ Added minimal WritableStream polyfill');
+// Also ensure URL polyfill is available for node
+try {
+  if (!global.URL || !global.URLSearchParams) {
+    const urlPolyfill = require('url-polyfill');
+    console.log('✅ URL polyfill loaded');
+  }
+} catch (err) {
+  console.warn('⚠️ URL polyfill not found, but might not be needed');
 }
 
-// Run Expo with child_process
+// Launch Expo with the host=lan option by default
 const { spawn } = require('child_process');
-console.log('Starting Expo CLI with polyfills...');
+const args = ['expo', 'start', '--host=lan', ...process.argv.slice(2)];
 
-// Start the Expo process
-const expo = spawn('npx', ['expo', 'start'], { 
+console.log(`Launching Expo with: npx ${args.join(' ')}`);
+spawn('npx', args, { 
   stdio: 'inherit',
-  env: process.env 
-});
-
-// Handle process events
-expo.on('error', (err) => {
-  console.error('Failed to start Expo:', err);
-  process.exit(1);
-});
-
-expo.on('close', (code) => {
-  console.log(`Expo process exited with code ${code}`);
-  process.exit(code);
+  env: {
+    ...process.env,
+    // Add environment variables if needed
+    EXPO_USE_READABLESTREAM_POLYFILL: 'true'
+  }
 }); 
