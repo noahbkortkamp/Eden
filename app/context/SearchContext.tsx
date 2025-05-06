@@ -61,9 +61,11 @@ export function SearchProvider({ children }: { children: React.ReactNode }) {
       setLoading(true);
       setError(null);
       
+      // Location is no longer needed since we're using Supabase search
       const results = await api.searchCourses({
         query,
         filters: searchFilters || filters,
+        // We still pass location for backward compatibility though it's not used
         location,
       });
       

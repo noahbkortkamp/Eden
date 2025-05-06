@@ -1,5 +1,8 @@
 import { GolfCourse, User, SearchFilters, LocationData } from '../types';
-import { placesService } from './places';
+// Remove Google Maps implementation
+// import { placesService } from './places';
+// Import the Supabase-based courses utility
+import { searchCourses as supabaseSearchCourses, CourseWithRelevance } from '../utils/courses';
 
 const BASE_URL = 'https://api.yourgolfapp.com'; // Replace with your actual API URL
 
@@ -16,43 +19,63 @@ interface SearchUsersParams {
 }
 
 export const api = {
-  searchCourses: async ({ query, filters, location, limit = 20 }: SearchCoursesParams): Promise<GolfCourse[]> => {
+  searchCourses: async ({ query, filters, limit = 20 }: SearchCoursesParams): Promise<GolfCourse[]> => {
     try {
-      if (!location) {
-        throw new Error('Location is required to search for golf courses');
+      // Use the Supabase implementation instead of Google Maps
+      const searchResults = await supabaseSearchCourses(query);
+      
+      // Transform the Supabase results to match the GolfCourse type
+      const courses: GolfCourse[] = searchResults.map(result => ({
+        id: result.id.toString(),
+        name: result.name,
+        location: result.location,
+        rating: result.rating,
+        // Use price_level to create priceRange format
+        priceRange: result.price_level ? '$'.repeat(Math.min(result.price_level, 4)) : undefined,
+        // Use rating as difficulty indicator (1-5 scale)
+        difficulty: result.rating ? Math.min(Math.round(result.rating), 5) : undefined,
+        // Properly handle missing properties in the Course type
+        images: [],  // No direct images in Supabase data
+        amenities: [],  // No direct amenities in Supabase data
+        website: result.website || undefined,  // Convert null to undefined
+        phoneNumber: result.phone || undefined,
+        openingHours: undefined,  // No opening hours in Supabase data
+        isOpenNow: undefined,
+        // Map yardage to numberOfHoles as an approximation
+        numberOfHoles: result.yardage ? (result.yardage > 6000 ? 18 : 9) : undefined,
+      }));
+      
+      // Apply filters if present
+      if (filters) {
+        const filteredCourses = courses.filter(course => {
+          let matches = true;
+          
+          if (filters.difficulty?.length && course.difficulty) {
+            matches = matches && filters.difficulty.includes(course.difficulty);
+          }
+          
+          if (filters.numberOfHoles?.length && course.numberOfHoles) {
+            matches = matches && filters.numberOfHoles.includes(course.numberOfHoles);
+          }
+          
+          if (filters.priceRange?.length && course.priceRange) {
+            matches = matches && filters.priceRange.includes(course.priceRange);
+          }
+          
+          if (filters.amenities?.length && course.amenities) {
+            matches = matches && filters.amenities.every(amenity => 
+              course.amenities?.includes(amenity)
+            );
+          }
+          
+          return matches;
+        });
+        
+        return filteredCourses.slice(0, limit);
       }
-
-      // Get courses from Google Places API
-      const courses = query
-        ? await placesService.searchGolfCoursesByQuery(query, location)
-        : await placesService.searchGolfCourses(location);
-
-      // Apply filters
-      return courses.filter(course => {
-        if (!filters) return true;
-        
-        let matches = true;
-        
-        if (filters.difficulty?.length) {
-          matches = matches && !!course.difficulty && filters.difficulty.includes(course.difficulty);
-        }
-        
-        if (filters.numberOfHoles?.length && course.numberOfHoles) {
-          matches = matches && filters.numberOfHoles.includes(course.numberOfHoles);
-        }
-        
-        if (filters.priceRange?.length && course.priceRange) {
-          matches = matches && filters.priceRange.includes(course.priceRange);
-        }
-        
-        if (filters.amenities?.length && course.amenities) {
-          matches = matches && filters.amenities.every(amenity => 
-            course.amenities?.includes(amenity)
-          );
-        }
-        
-        return matches;
-      }).slice(0, limit);
+      
+      // Apply limit
+      return courses.slice(0, limit);
     } catch (error) {
       console.error('Error searching courses:', error);
       throw error;
