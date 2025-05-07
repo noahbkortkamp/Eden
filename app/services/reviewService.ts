@@ -390,4 +390,11 @@ export const reviewService = {
 
     return count || 0;
   },
+
+  /**
+   * Get a user's review for a specific course (alias for getUserCourseReview)
+   */
+  getReviewByCourseId: async (userId: string, courseId: string): Promise<any | null> => {
+    return reviewService.getUserCourseReview(userId, courseId);
+  },
 }; 

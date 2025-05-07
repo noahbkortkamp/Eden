@@ -2,27 +2,34 @@ import React, { useEffect, useState } from 'react';
 import { View, StyleSheet, ActivityIndicator, Text } from 'react-native';
 import { useLocalSearchParams, Stack, useRouter } from 'expo-router';
 import { CourseComparisonScreen } from '../review/screens/CourseComparisonScreen';
-import { Course } from '../types/review';
+import { Course, SentimentRating } from '../types/review';
 import { useReview } from '../review/context/ReviewContext';
 import { useTheme } from '../theme/ThemeProvider';
 import { getCourse } from '../utils/courses';
+import { rankingService } from '../services/rankingService';
+import { useAuth } from '../context/AuthContext';
 
 // Cache for course data to prevent redundant loading
 const courseCache = new Map<string, Course>();
 
 export default function ComparisonModal() {
-  const { courseAId, courseBId, remainingComparisons } = useLocalSearchParams<{
+  const { courseAId, courseBId, remainingComparisons, originalSentiment, originalReviewedCourseId } = useLocalSearchParams<{
     courseAId: string;
     courseBId: string;
     remainingComparisons: string;
+    originalSentiment?: string;
+    originalReviewedCourseId?: string;
   }>();
   const theme = useTheme();
   const router = useRouter();
   const { handleComparison, skipComparison } = useReview();
+  const { user } = useAuth();
   const [courseA, setCourseA] = useState<Course | null>(null);
   const [courseB, setCourseB] = useState<Course | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [previousCourseId, setPreviousCourseId] = useState<string | undefined>(undefined);
+  const [previousCourseRating, setPreviousCourseRating] = useState<number | undefined>(undefined);
   
   // Show loading message with more detailed state
   const [loadingMessage, setLoadingMessage] = useState<string>('Loading courses');
@@ -30,6 +37,42 @@ export default function ComparisonModal() {
   
   // Pre-initialize the screen with a skeleton UI immediately
   const [screenReady, setScreenReady] = useState<boolean>(false);
+
+  // Fetch the original reviewed course rating
+  useEffect(() => {
+    async function fetchRatings() {
+      if (!user?.id || !courseAId || !courseBId || !originalSentiment) {
+        return;
+      }
+      
+      try {
+        const sentiment = originalSentiment as SentimentRating;
+        // Use the refresh method to ensure we get the latest rankings
+        console.log(`Refreshing latest rankings for user ${user.id} with sentiment ${sentiment}`);
+        const rankings = await rankingService.refreshRankings(user.id, sentiment);
+        
+        // Since we're consistently keeping courseA as the originalReviewedCourse,
+        // we always want to show the rating for courseB if it exists
+        const courseBRanking = rankings.find(r => r.course_id === courseBId);
+        
+        if (courseBRanking) {
+          // Format the relative_score to one decimal place for consistency
+          const formattedScore = parseFloat(courseBRanking.relative_score.toFixed(1));
+          console.log(`Found previous rating for course B (${courseBId}): ${courseBRanking.relative_score} -> formatted as ${formattedScore}`);
+          setPreviousCourseId(courseBId);
+          setPreviousCourseRating(formattedScore);
+        } else {
+          console.log(`No previous rating found for course B (${courseBId})`);
+          setPreviousCourseId(undefined);
+          setPreviousCourseRating(undefined);
+        }
+      } catch (error) {
+        console.error('Error fetching course ratings:', error);
+      }
+    }
+    
+    fetchRatings();
+  }, [user?.id, courseAId, courseBId, originalSentiment]);
 
   // Debounce loading changes to prevent flickering
   useEffect(() => {
@@ -295,6 +338,9 @@ export default function ComparisonModal() {
       <CourseComparisonScreen
         courseA={courseA}
         courseB={courseB}
+        previousCourseId={previousCourseId}
+        previousCourseRating={previousCourseRating}
+        originalSentiment={originalSentiment as SentimentRating}
         onSelect={handleSelect}
         onSkip={handleSkip}
       />

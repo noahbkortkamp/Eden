@@ -92,6 +92,8 @@ class RankingService {
    * Get all course rankings for a user in a specific sentiment category
    */
   async getUserRankings(userId: string, sentiment: SentimentRating): Promise<CourseRanking[]> {
+    console.log(`[RankingService] Getting rankings for user ${userId} in ${sentiment} category`);
+    
     const { data, error } = await supabase
       .from('course_rankings')
       .select('*')
@@ -99,7 +101,21 @@ class RankingService {
       .eq('sentiment_category', sentiment)
       .order('rank_position', { ascending: true });
 
-    if (error) throw error;
+    if (error) {
+      console.error(`[RankingService] Error fetching rankings: ${error.message}`);
+      throw error;
+    }
+    
+    console.log(`[RankingService] Found ${data?.length || 0} rankings`);
+    
+    // Log the top 3 rankings for debugging
+    if (data && data.length > 0) {
+      console.log(`[RankingService] Top 3 rankings:`);
+      data.slice(0, 3).forEach(ranking => {
+        console.log(`  Position ${ranking.rank_position}: Course ${ranking.course_id.substring(0, 8)}, Score: ${ranking.relative_score.toFixed(1)}`);
+      });
+    }
+    
     return data || [];
   }
 
@@ -631,6 +647,21 @@ class RankingService {
     });
 
     return sorted;
+  }
+
+  /**
+   * Refresh rankings to get the most current data after an update
+   * This helps ensure we have the latest scores
+   */
+  async refreshRankings(userId: string, sentiment: SentimentRating): Promise<CourseRanking[]> {
+    // Add a short delay to ensure database consistency
+    await new Promise(resolve => setTimeout(resolve, 50));
+    
+    // Fetch fresh data
+    const rankings = await this.getUserRankings(userId, sentiment);
+    console.log(`[RankingService] Refreshed ${rankings.length} rankings with latest scores`);
+    
+    return rankings;
   }
 }
 

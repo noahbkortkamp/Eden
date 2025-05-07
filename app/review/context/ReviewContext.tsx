@@ -26,9 +26,16 @@ interface ReviewContextType {
  * - More than 10 courses: 5 comparisons
  */
 const getMaxComparisons = (courseCount: number): number => {
-  if (courseCount > 10) return 5;
-  if (courseCount > 5) return 4;
-  return 3;
+  let maxComparisons = 3; // Default
+  
+  if (courseCount > 10) {
+    maxComparisons = 5;
+  } else if (courseCount > 5) {
+    maxComparisons = 4;
+  }
+  
+  console.log(`Calculated max comparisons: ${maxComparisons} based on courseCount: ${courseCount}`);
+  return maxComparisons;
 };
 
 const ReviewContext = createContext<ReviewContextType | undefined>(undefined);
@@ -209,6 +216,9 @@ export const ReviewProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         const totalComparisons = Math.min(otherCoursesWithSentiment.length, maxComparisons);
         setComparisonsRemaining(totalComparisons);
 
+        console.log(`Setting up comparison flow with ${totalComparisons} total comparisons out of ${otherCoursesWithSentiment.length} available courses`);
+        console.log(`Will compare the just-reviewed course (${review.course_id}) with other courses in the same sentiment tier`);
+
         // Now close the review modal before opening the comparison modal
         router.back();
         
@@ -222,6 +232,8 @@ export const ReviewProvider: React.FC<{ children: React.ReactNode }> = ({ childr
             courseAId: review.course_id,
             courseBId: randomCourse.course_id,
             remainingComparisons: totalComparisons,
+            originalSentiment: review.rating,
+            originalReviewedCourseId: review.course_id
           },
         });
       } else {
@@ -264,14 +276,24 @@ export const ReviewProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         // Update the state with the calculated max comparisons
         setComparisonsRemaining(maxComparisons);
 
+        // Store the first course as the "original" for this session
+        setOriginalReviewedCourseId(randomCourses[0].course_id);
+
+        // Then open the comparison modal
         router.push({
           pathname: '/(modals)/comparison',
           params: {
             courseAId: randomCourses[0].course_id,
             courseBId: randomCourses[1].course_id,
             remainingComparisons: maxComparisons,
+            originalSentiment: rating,
+            originalReviewedCourseId: randomCourses[0].course_id
           },
         });
+
+        console.log(`Starting comparison flow with ${randomCourses[0].course_id} as the constant course being compared`);
+        console.log(`First comparison will be between ${randomCourses[0].course_id} and ${randomCourses[1].course_id}`);
+        console.log(`Will perform a total of ${maxComparisons} comparisons`);
       } else {
         // Not enough reviewed courses, end the flow and go to feed
         router.replace('/(tabs)/lists');
@@ -336,16 +358,25 @@ export const ReviewProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         const newComparisonsRemaining = comparisonsRemaining - 1;
         setComparisonsRemaining(newComparisonsRemaining);
 
+        console.log(`Comparisons flow: ${comparisonsRemaining} -> ${newComparisonsRemaining} remaining`);
+        console.log(`Original course being compared consistently: ${originalReviewedCourseId}`);
+
         if (newComparisonsRemaining > 0) {
           // Get all previously compared courses
-          const comparedCourseIds = new Set([
-            ...comparisonResults.map(r => r.preferredId),
-            ...comparisonResults.map(r => r.otherId),
-            preferredCourseId,
-            otherCourseId,
-            originalReviewedCourseId // Add the original course to exclude it
-          ]);
-          
+          const comparedCourseIds = new Set();
+          // Always include the original course as it's part of every comparison
+          comparedCourseIds.add(originalReviewedCourseId);
+          // Add the current comparison courses
+          comparedCourseIds.add(preferredCourseId);
+          comparedCourseIds.add(otherCourseId);
+          // Add all previously compared courses
+          comparisonResults.forEach(result => {
+            comparedCourseIds.add(result.preferredId);
+            comparedCourseIds.add(result.otherId);
+          });
+
+          console.log(`Excluded courses from future comparisons: ${Array.from(comparedCourseIds).join(', ')}`);
+
           // Get other courses with the same sentiment for comparison, excluding already compared courses
           const otherCoursesWithSentiment = userReviews.filter(r => 
             !comparedCourseIds.has(r.course_id) &&
@@ -357,14 +388,24 @@ export const ReviewProvider: React.FC<{ children: React.ReactNode }> = ({ childr
             const shuffledCourses = [...otherCoursesWithSentiment].sort(() => Math.random() - 0.5);
             const randomCourse = shuffledCourses[0];
 
+            console.log(`Found ${otherCoursesWithSentiment.length} other courses with matching sentiment to compare`);
+            console.log(`Next comparison will be between ${originalReviewedCourseId} and ${randomCourse.course_id}`);
+
+            // Use the sentiment from the original review we already have
+            const sentiment = originalReview.rating as SentimentRating;
+
+            // Update params to include the originalReviewedCourseId for the comparison
             router.push({
               pathname: '/(modals)/comparison',
               params: {
                 courseAId: originalReviewedCourseId,
                 courseBId: randomCourse.course_id,
                 remainingComparisons: newComparisonsRemaining,
+                originalSentiment: sentiment,
+                originalReviewedCourseId: originalReviewedCourseId
               },
             });
+            console.log(`Navigating to next comparison: originalCourse vs new comparison course`);
             return;
           }
         }
@@ -394,57 +435,85 @@ export const ReviewProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       return;
     }
 
-    const newComparisonsRemaining = comparisonsRemaining - 1;
-    setComparisonsRemaining(newComparisonsRemaining);
-    
-    if (newComparisonsRemaining > 0) {
-      // Get next pair of reviewed courses with matching sentiment
-      getReviewsForUser(user.id).then(async userReviews => {
-        const originalReview = userReviews.find(r => r.course_id === originalReviewedCourseId);
-        
-        if (originalReview) {
-          // Get all previously compared courses
-          const comparedCourseIds = new Set([
-            ...comparisonResults.map(r => r.preferredId),
-            ...comparisonResults.map(r => r.otherId),
-            courseAId,
-            courseBId
-          ]);
+    try {
+      const newComparisonsRemaining = comparisonsRemaining - 1;
+      setComparisonsRemaining(newComparisonsRemaining);
+      
+      if (newComparisonsRemaining > 0) {
+        // Get next pair of reviewed courses with matching sentiment
+        getReviewsForUser(user.id).then(async userReviews => {
+          try {
+            const originalReview = userReviews.find(r => r.course_id === originalReviewedCourseId);
+            
+            if (originalReview) {
+              // Get all previously compared courses
+              const comparedCourseIds = new Set();
+              // Always include the original course as it's part of every comparison
+              comparedCourseIds.add(originalReviewedCourseId);
+              // Add the current comparison courses
+              comparedCourseIds.add(courseAId);
+              comparedCourseIds.add(courseBId);
+              // Add all previously compared courses
+              comparisonResults.forEach(result => {
+                comparedCourseIds.add(result.preferredId);
+                comparedCourseIds.add(result.otherId);
+              });
 
-          const otherCoursesWithSentiment = userReviews.filter(r => 
-            !comparedCourseIds.has(r.course_id) &&
-            r.rating === originalReview.rating
-          );
-          
-          if (otherCoursesWithSentiment.length >= 1) {
-            // Randomize properly
-            const shuffledCourses = [...otherCoursesWithSentiment].sort(() => Math.random() - 0.5);
-            const randomCourse = shuffledCourses[0];
+              console.log(`Excluded courses from future comparisons: ${Array.from(comparedCourseIds).join(', ')}`);
 
-            router.push({
-              pathname: '/(modals)/comparison',
-              params: {
-                courseAId: originalReviewedCourseId,
-                courseBId: randomCourse.course_id,
-                remainingComparisons: newComparisonsRemaining,
-              },
-            });
-            return;
+              const otherCoursesWithSentiment = userReviews.filter(r => 
+                !comparedCourseIds.has(r.course_id) &&
+                r.rating === originalReview.rating
+              );
+              
+              if (otherCoursesWithSentiment.length >= 1) {
+                // Randomize properly
+                const shuffledCourses = [...otherCoursesWithSentiment].sort(() => Math.random() - 0.5);
+                const randomCourse = shuffledCourses[0];
+
+                console.log(`Skipping to next comparison: original course ${originalReviewedCourseId} vs next course ${randomCourse.course_id}`);
+
+                router.push({
+                  pathname: '/(modals)/comparison',
+                  params: {
+                    courseAId: originalReviewedCourseId,
+                    courseBId: randomCourse.course_id,
+                    remainingComparisons: newComparisonsRemaining,
+                    originalSentiment: originalReview.rating,
+                    originalReviewedCourseId: originalReviewedCourseId
+                  },
+                });
+                return;
+              }
+            }
+            
+            // Reset state and go to feed
+            setOriginalReviewedCourseId(null);
+            setComparisonResults([]);
+            router.replace('/(tabs)/lists');
+          } catch (innerErr) {
+            console.error('Error in skipComparison inner block:', innerErr);
+            setError(innerErr instanceof Error ? innerErr.message : 'Error in comparison flow');
+            setOriginalReviewedCourseId(null);
+            setComparisonResults([]);
+            router.replace('/(tabs)/lists');
           }
-        }
-        
-        // Reset state and go to feed
+        }).catch(err => {
+          console.error('Error getting user reviews:', err);
+          setError(err instanceof Error ? err.message : 'Failed to get user reviews');
+          setOriginalReviewedCourseId(null);
+          setComparisonResults([]);
+          router.replace('/(tabs)/lists');
+        });
+      } else {
+        // End of comparison flow, go to feed
         setOriginalReviewedCourseId(null);
         setComparisonResults([]);
         router.replace('/(tabs)/lists');
-      }).catch(err => {
-        setError(err instanceof Error ? err.message : 'Failed to get user reviews');
-        setOriginalReviewedCourseId(null);
-        setComparisonResults([]);
-        router.replace('/(tabs)/lists');
-      });
-    } else {
-      // End of comparison flow, go to feed
+      }
+    } catch (err) {
+      console.error('Error in skipComparison:', err);
+      setError(err instanceof Error ? err.message : 'Failed to skip comparison');
       setOriginalReviewedCourseId(null);
       setComparisonResults([]);
       router.replace('/(tabs)/lists');

@@ -1,19 +1,34 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, Dimensions, ActivityIndicator, Pressable } from 'react-native';
-import { CourseComparisonProps } from '../../types/review';
+import { CourseComparisonProps, SentimentRating } from '../../types/review';
 import { useTheme } from '../../theme/ThemeProvider';
 
 const { width } = Dimensions.get('window');
 
+// Define sentiment colors
+const SENTIMENT_COLORS = {
+  liked: '#3CB371', // Green
+  fine: '#FFA500',  // Orange/Yellow
+  didnt_like: '#DC3545' // Red
+};
+
 export const CourseComparisonScreen: React.FC<CourseComparisonProps> = ({
   courseA,
   courseB,
+  previousCourseId,
+  previousCourseRating,
+  originalSentiment = 'liked', // Default to liked if not provided
   onSelect,
   onSkip,
 }) => {
   const theme = useTheme();
   const [isSelecting, setIsSelecting] = useState(false);
   
+  // Get the appropriate color based on sentiment
+  const getRatingColor = () => {
+    return SENTIMENT_COLORS[originalSentiment] || SENTIMENT_COLORS.liked;
+  };
+
   // Reset selecting state when courses change
   useEffect(() => {
     if (courseA && courseB) {
@@ -120,12 +135,28 @@ export const CourseComparisonScreen: React.FC<CourseComparisonProps> = ({
       transform: [{ scale: 0.98 }],
       backgroundColor: `${theme.colors.primary}10`,
     },
+    courseNameContainer: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: 8,
+    },
     courseName: {
       fontSize: 26,
       fontWeight: '700',
       color: theme.colors.text,
       textAlign: 'center',
       marginVertical: theme.spacing.md,
+    },
+    courseLocation: {
+      fontSize: 16,
+      color: theme.colors.textSecondary,
+      textAlign: 'center',
+      marginTop: 4,
+    },
+    ratingText: {
+      fontSize: 20,
+      fontWeight: '600',
     },
     vsContainer: {
       width: 40,
@@ -163,6 +194,21 @@ export const CourseComparisonScreen: React.FC<CourseComparisonProps> = ({
     }
   });
 
+  // Determine if each course has been previously reviewed
+  const isACourseReviewed = previousCourseId === courseA.id;
+  const isBCourseReviewed = previousCourseId === courseB.id;
+
+  console.log(`CourseComparisonScreen rendering with rating display:`, {
+    courseA: courseA.name,
+    courseB: courseB.name,
+    previousCourseId,
+    previousCourseRating,
+    originalSentiment,
+    ratingColor: getRatingColor(),
+    isACourseReviewed,
+    isBCourseReviewed
+  });
+
   return (
     <View style={styles.container}>
       <View style={styles.header}>
@@ -183,9 +229,22 @@ export const CourseComparisonScreen: React.FC<CourseComparisonProps> = ({
           android_ripple={{ color: `${theme.colors.primary}30` }}
           disabled={isSelecting}
         >
-          <Text style={styles.courseName}>
-            {courseA.name}
-          </Text>
+          <View>
+            <View style={styles.courseNameContainer}>
+              <Text style={styles.courseName}>
+                {courseA.name}
+              </Text>
+            </View>
+            {isACourseReviewed && previousCourseRating !== undefined ? (
+              <Text style={styles.courseLocation}>
+                {courseA.location} • <Text style={[styles.ratingText, { color: getRatingColor() }]}>{previousCourseRating.toFixed(1)}</Text>
+              </Text>
+            ) : (
+              <Text style={styles.courseLocation}>
+                {courseA.location}
+              </Text>
+            )}
+          </View>
         </Pressable>
 
         <View style={styles.vsContainer}>
@@ -202,9 +261,22 @@ export const CourseComparisonScreen: React.FC<CourseComparisonProps> = ({
           android_ripple={{ color: `${theme.colors.primary}30` }}
           disabled={isSelecting}
         >
-          <Text style={styles.courseName}>
-            {courseB.name}
-          </Text>
+          <View>
+            <View style={styles.courseNameContainer}>
+              <Text style={styles.courseName}>
+                {courseB.name}
+              </Text>
+            </View>
+            {isBCourseReviewed && previousCourseRating !== undefined ? (
+              <Text style={styles.courseLocation}>
+                {courseB.location} • <Text style={[styles.ratingText, { color: getRatingColor() }]}>{previousCourseRating.toFixed(1)}</Text>
+              </Text>
+            ) : (
+              <Text style={styles.courseLocation}>
+                {courseB.location}
+              </Text>
+            )}
+          </View>
         </Pressable>
       </View>
       
