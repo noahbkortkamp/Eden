@@ -237,7 +237,9 @@ export const CourseComparisonScreen: React.FC<CourseComparisonProps> = ({
             </View>
             {isACourseReviewed && previousCourseRating !== undefined ? (
               <Text style={styles.courseLocation}>
-                {courseA.location} • <Text style={[styles.ratingText, { color: getRatingColor() }]}>{previousCourseRating.toFixed(1)}</Text>
+                <Text>{courseA.location}</Text>
+                <Text> • </Text>
+                <Text style={[styles.ratingText, { color: getRatingColor() }]}>{previousCourseRating.toFixed(1)}</Text>
               </Text>
             ) : (
               <Text style={styles.courseLocation}>
@@ -269,7 +271,9 @@ export const CourseComparisonScreen: React.FC<CourseComparisonProps> = ({
             </View>
             {isBCourseReviewed && previousCourseRating !== undefined ? (
               <Text style={styles.courseLocation}>
-                {courseB.location} • <Text style={[styles.ratingText, { color: getRatingColor() }]}>{previousCourseRating.toFixed(1)}</Text>
+                <Text>{courseB.location}</Text>
+                <Text> • </Text>
+                <Text style={[styles.ratingText, { color: getRatingColor() }]}>{previousCourseRating.toFixed(1)}</Text>
               </Text>
             ) : (
               <Text style={styles.courseLocation}>

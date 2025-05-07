@@ -237,10 +237,17 @@ export const ReviewProvider: React.FC<{ children: React.ReactNode }> = ({ childr
           },
         });
       } else {
-        // No other courses with same sentiment, end the flow
+        // No other courses with same sentiment, end the flow by showing success screen
+        console.log(`No other courses with '${review.rating}' sentiment for comparison, going to success screen`);
         router.back(); // Close review modal
         await new Promise(resolve => setTimeout(resolve, 100));
-        router.replace('/(tabs)/lists');
+        router.push({
+          pathname: '/(modals)/review-success',
+          params: {
+            courseId: review.course_id,
+            datePlayed: review.date_played.toISOString()
+          }
+        });
       }
     } catch (err) {
       console.error('Detailed submission error:', err);
@@ -295,8 +302,24 @@ export const ReviewProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         console.log(`First comparison will be between ${randomCourses[0].course_id} and ${randomCourses[1].course_id}`);
         console.log(`Will perform a total of ${maxComparisons} comparisons`);
       } else {
-        // Not enough reviewed courses, end the flow and go to feed
-        router.replace('/(tabs)/lists');
+        // Not enough reviewed courses, show success screen for the first course
+        console.log(`Not enough courses with '${rating}' sentiment for comparison flow`);
+        // Find at least one course in this sentiment category
+        const coursesWithSentiment = userReviews.filter(r => r.rating === rating);
+        
+        if (coursesWithSentiment.length > 0) {
+          const course = coursesWithSentiment[0];
+          router.push({
+            pathname: '/(modals)/review-success',
+            params: {
+              courseId: course.course_id,
+              datePlayed: course.date_played
+            }
+          });
+        } else {
+          // If no courses found with this sentiment, go back to lists
+          router.replace('/(tabs)/lists');
+        }
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to start comparisons');
@@ -410,11 +433,23 @@ export const ReviewProvider: React.FC<{ children: React.ReactNode }> = ({ childr
           }
         }
 
-        // If we've completed all comparisons or no more courses to compare, go back to feed
-        router.replace('/(tabs)/lists');
+        // If we've completed all comparisons or no more courses to compare, go to success screen
+        console.log(`Comparisons complete, navigating to success screen for course: ${originalReviewedCourseId}`);
+        router.push({
+          pathname: '/(modals)/review-success',
+          params: {
+            courseId: originalReviewedCourseId,
+            datePlayed: originalReview.date_played
+          }
+        });
+        
+        // Reset comparison state
+        setOriginalReviewedCourseId(null);
+        setComparisonResults([]);
+        return;
       }
       
-      // Reset state and go back to feed
+      // Fallback: if original review not found, just go to lists
       setOriginalReviewedCourseId(null);
       setComparisonResults([]);
       router.replace('/(tabs)/lists');
@@ -487,10 +522,20 @@ export const ReviewProvider: React.FC<{ children: React.ReactNode }> = ({ childr
               }
             }
             
-            // Reset state and go to feed
+            // If no more courses to compare, go to success screen
+            console.log(`No more courses to compare or comparisons complete, navigating to success screen for course: ${originalReviewedCourseId}`);
+            router.push({
+              pathname: '/(modals)/review-success',
+              params: {
+                courseId: originalReviewedCourseId,
+                datePlayed: originalReview.date_played
+              }
+            });
+            
+            // Reset comparison state
             setOriginalReviewedCourseId(null);
             setComparisonResults([]);
-            router.replace('/(tabs)/lists');
+            return;
           } catch (innerErr) {
             console.error('Error in skipComparison inner block:', innerErr);
             setError(innerErr instanceof Error ? innerErr.message : 'Error in comparison flow');
@@ -498,6 +543,11 @@ export const ReviewProvider: React.FC<{ children: React.ReactNode }> = ({ childr
             setComparisonResults([]);
             router.replace('/(tabs)/lists');
           }
+          
+          // Fallback: if original review not found, just go to lists
+          setOriginalReviewedCourseId(null);
+          setComparisonResults([]);
+          router.replace('/(tabs)/lists');
         }).catch(err => {
           console.error('Error getting user reviews:', err);
           setError(err instanceof Error ? err.message : 'Failed to get user reviews');
@@ -506,10 +556,40 @@ export const ReviewProvider: React.FC<{ children: React.ReactNode }> = ({ childr
           router.replace('/(tabs)/lists');
         });
       } else {
-        // End of comparison flow, go to feed
-        setOriginalReviewedCourseId(null);
-        setComparisonResults([]);
-        router.replace('/(tabs)/lists');
+        // End of comparison flow, go to success screen instead of feed
+        getReviewsForUser(user.id).then(async userReviews => {
+          try {
+            const originalReview = userReviews.find(r => r.course_id === originalReviewedCourseId);
+            
+            if (originalReview) {
+              console.log(`Comparisons complete, navigating to success screen for course: ${originalReviewedCourseId}`);
+              router.push({
+                pathname: '/(modals)/review-success',
+                params: {
+                  courseId: originalReviewedCourseId,
+                  datePlayed: originalReview.date_played
+                }
+              });
+            } else {
+              // Fallback if original review not found
+              router.replace('/(tabs)/lists');
+            }
+            
+            // Reset state
+            setOriginalReviewedCourseId(null);
+            setComparisonResults([]);
+          } catch (innerErr) {
+            console.error('Error in success screen navigation:', innerErr);
+            setOriginalReviewedCourseId(null);
+            setComparisonResults([]);
+            router.replace('/(tabs)/lists');
+          }
+        }).catch(err => {
+          console.error('Error getting user reviews for success screen:', err);
+          setOriginalReviewedCourseId(null);
+          setComparisonResults([]);
+          router.replace('/(tabs)/lists');
+        });
       }
     } catch (err) {
       console.error('Error in skipComparison:', err);
