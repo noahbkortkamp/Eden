@@ -30,7 +30,9 @@ export default function DoneScreen() {
       
       // Get stored preferences from AsyncStorage
       const golfFrequency = await AsyncStorage.getItem('eden_golf_frequency') || 'not_specified';
-      const homeCourse = await AsyncStorage.getItem('eden_home_course') || 'not_specified';
+      
+      // Set default value for home course since we no longer collect it
+      const homeCourse = 'not_specified';
       
       // Save all preferences to Supabase
       await supabase.auth.updateUser({
@@ -43,7 +45,6 @@ export default function DoneScreen() {
       
       // Clear temporary storage
       await AsyncStorage.removeItem('eden_golf_frequency');
-      await AsyncStorage.removeItem('eden_home_course');
       
       // Check if user has any reviews or has completed their first review
       const { data: { user } } = await supabase.auth.getUser();

@@ -27,8 +27,8 @@ export default function FrequencyScreen() {
       // Store frequency in AsyncStorage for later
       await AsyncStorage.setItem('eden_golf_frequency', selectedFrequency || 'not_specified');
       
-      // Navigate to next onboarding screen
-      router.replace('/onboarding/course');
+      // Navigate directly to done screen, skipping the course selection
+      router.replace('/onboarding/done');
     } catch (error) {
       console.error('Error saving frequency:', error);
     } finally {
@@ -43,8 +43,8 @@ export default function FrequencyScreen() {
       // Store default value
       await AsyncStorage.setItem('eden_golf_frequency', 'not_specified');
       
-      // Navigate to next onboarding screen
-      router.replace('/onboarding/course');
+      // Navigate directly to done screen, skipping the course selection
+      router.replace('/onboarding/done');
     } catch (error) {
       console.error('Error skipping frequency:', error);
     } finally {
