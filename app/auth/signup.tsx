@@ -53,7 +53,7 @@ export default function SignUpScreen() {
       });
       
       // If we get here, signup was successful
-      // Navigate to onboarding instead of showing confirmation screen
+      // Will navigate through onboarding first, then to first-review
       router.replace('/onboarding/frequency');
     } catch (err) {
       console.error('Signup error:', err);

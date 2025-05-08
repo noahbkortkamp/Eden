@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { View, Text, StyleSheet, Pressable, Platform } from 'react-native';
 import { Image } from 'expo-image';
 import { useTheme } from '../../theme/ThemeProvider';
@@ -7,6 +7,8 @@ import { useRouter } from 'expo-router';
 import { DefaultAvatar } from '../../components/DefaultAvatar';
 import { format, isValid } from 'date-fns';
 import { useCourse } from '../../context/CourseContext';
+import { reviewService } from '../../services/reviewService';
+import { userService } from '../../services/userService';
 
 export interface ReviewSuccessScreenProps {
   datePlayed: Date;
@@ -25,6 +27,37 @@ export const ReviewSuccessScreen: React.FC<ReviewSuccessScreenProps> = ({
   const { user } = useAuth();
   const router = useRouter();
   const { course } = useCourse();
+  const [isFirstReview, setIsFirstReview] = useState(false);
+  const [hasMarkedFirstReview, setHasMarkedFirstReview] = useState(false);
+
+  // Check if this was the user's first review
+  useEffect(() => {
+    const checkReviewCount = async () => {
+      if (!user) return;
+      
+      try {
+        const count = await reviewService.getUserReviewCount(user.id);
+        const isFirst = count === 1; // If count is exactly 1, this was their first review
+        setIsFirstReview(isFirst);
+        
+        console.log(`🎯 User review count: ${count}, isFirstReview: ${isFirst}`);
+        
+        // Check if user already has the firstReviewCompleted flag
+        const hasAlreadyCompleted = await userService.hasCompletedFirstReview(user.id);
+        
+        // If this is the first review and they haven't been marked as completed, update their metadata
+        if (isFirst && !hasAlreadyCompleted && !hasMarkedFirstReview) {
+          console.log('🚀 Marking user as having completed their first review');
+          await userService.updateFirstReviewCompleted(user.id);
+          setHasMarkedFirstReview(true);
+        }
+      } catch (error) {
+        console.error('Error checking if first review:', error);
+      }
+    };
+    
+    checkReviewCount();
+  }, [user, hasMarkedFirstReview]);
 
   // Log component rendering for debugging
   useEffect(() => {
@@ -33,9 +66,11 @@ export const ReviewSuccessScreen: React.FC<ReviewSuccessScreenProps> = ({
       rating,
       showRating,
       visitCount, // Log it but we won't display it
-      course: course?.name
+      course: course?.name,
+      isFirstReview,
+      hasMarkedFirstReview
     });
-  }, [datePlayed, rating, showRating, visitCount, course]);
+  }, [datePlayed, rating, showRating, visitCount, course, isFirstReview, hasMarkedFirstReview]);
 
   // Safety check for course data
   if (!course) {
@@ -60,6 +95,19 @@ export const ReviewSuccessScreen: React.FC<ReviewSuccessScreenProps> = ({
     console.log('🔄 Navigating to search screen to review another course');
     // First close the current modal, then navigate to search
     router.replace('/(tabs)/search');
+  };
+
+  const handleClose = () => {
+    console.log('❌ Close button pressed, navigating to lists');
+    
+    // For first-time users coming from the first-review screen, ensure they go to the main app
+    if (isFirstReview) {
+      console.log('🏠 First review complete - navigating to main app');
+      router.replace('/(tabs)');
+    } else {
+      // Normal flow for returning users
+      router.replace('/(tabs)/lists');
+    }
   };
 
   // Format the date safely
@@ -89,10 +137,7 @@ export const ReviewSuccessScreen: React.FC<ReviewSuccessScreenProps> = ({
       {/* X button (Close) in top right corner */}
       <Pressable 
         style={styles.closeButton} 
-        onPress={() => {
-          console.log('❌ Close button pressed, navigating to lists');
-          router.replace('/(tabs)/lists');
-        }}
+        onPress={handleClose}
       >
         <Text style={[styles.closeButtonText, { color: customColors.primaryText }]}>✕</Text>
       </Pressable>
@@ -115,6 +160,13 @@ export const ReviewSuccessScreen: React.FC<ReviewSuccessScreenProps> = ({
 
         {/* Course Info Card */}
         <View style={styles.card}>
+          {/* Display first review congratulations if applicable */}
+          {isFirstReview && (
+            <View style={styles.firstReviewBanner}>
+              <Text style={styles.firstReviewText}>🎉 Your First Review!</Text>
+            </View>
+          )}
+          
           <Text style={[styles.courseName, { color: customColors.primaryText }]}>
             {course.name}
           </Text>
@@ -131,11 +183,22 @@ export const ReviewSuccessScreen: React.FC<ReviewSuccessScreenProps> = ({
             </View>
           )}
 
+          {/* First review special message */}
+          {isFirstReview && (
+            <View style={styles.specialMessage}>
+              <Text style={[styles.specialMessageText, { color: customColors.primaryText }]}>
+                Great job! Your first review helps the golfing community discover great courses.
+              </Text>
+            </View>
+          )}
+
           {/* Message for users with less than 10 reviews */}
           {!showRating && (
             <View style={styles.unlockMessage}>
               <Text style={[styles.unlockText, { color: customColors.secondaryText }]}>
-                Personalized ratings will be unlocked after reviewing 10 courses!
+                {isFirstReview 
+                  ? 'Continue reviewing courses to unlock personalized ratings! Just 9 more to go!'
+                  : 'Personalized ratings will be unlocked after reviewing 10 courses!'}
               </Text>
             </View>
           )}
@@ -149,6 +212,7 @@ export const ReviewSuccessScreen: React.FC<ReviewSuccessScreenProps> = ({
           {__DEV__ && (
             <View style={styles.debugInfo}>
               <Text style={styles.debugTitle}>Debug Info:</Text>
+              <Text style={styles.debugText}>First Review: {isFirstReview ? '✅ YES' : '❌ NO'}</Text>
               <Text style={styles.debugText}>Review Count Threshold: {showRating ? '✅ 10+' : '❌ <10'}</Text>
               <Text style={styles.debugText}>Rating: {rating ? rating.toFixed(1) : 'None'}</Text>
               <Text style={styles.debugText}>Platform: {Platform.OS}</Text>
@@ -162,7 +226,9 @@ export const ReviewSuccessScreen: React.FC<ReviewSuccessScreenProps> = ({
           style={[styles.reviewButton, { backgroundColor: customColors.primaryText }]}
           onPress={handleReviewAnother}
         >
-          <Text style={styles.reviewButtonText}>Review Another Course</Text>
+          <Text style={styles.reviewButtonText}>
+            {isFirstReview ? 'Review Your Next Course' : 'Review Another Course'}
+          </Text>
         </Pressable>
       </View>
     </View>
@@ -306,5 +372,33 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: '#666',
     marginBottom: 3,
+  },
+  firstReviewBanner: {
+    backgroundColor: '#e6f7ee',
+    borderRadius: 8,
+    padding: 10,
+    marginBottom: 16,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#9cd9b3',
+  },
+  firstReviewText: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#234D2C',
+  },
+  specialMessage: {
+    marginTop: 16,
+    marginBottom: 16,
+    padding: 12,
+    backgroundColor: '#f3f8f4',
+    borderRadius: 8,
+    borderLeftWidth: 4,
+    borderLeftColor: '#234D2C',
+  },
+  specialMessageText: {
+    fontSize: 16,
+    lineHeight: 22,
+    fontWeight: '500',
   },
 }); 

@@ -4,6 +4,8 @@ import { Text, Button } from 'react-native-paper';
 import { supabase } from '../utils/supabase';
 import { useRouter } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { reviewService } from '../services/reviewService';
+import { userService } from '../services/userService';
 
 export default function DoneScreen() {
   const [loading, setLoading] = useState(false);
@@ -43,8 +45,32 @@ export default function DoneScreen() {
       await AsyncStorage.removeItem('eden_golf_frequency');
       await AsyncStorage.removeItem('eden_home_course');
       
-      // Return to login screen instead of main app
-      // User needs to verify email before accessing main app
+      // Check if user has any reviews or has completed their first review
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        try {
+          // Check review count
+          const reviewCount = await reviewService.getUserReviewCount(user.id);
+          
+          // Check if first review has been completed via metadata
+          const hasCompletedFirstReview = await userService.hasCompletedFirstReview(user.id);
+          
+          console.log(`User has ${reviewCount} reviews, firstReviewCompleted: ${hasCompletedFirstReview}`);
+          
+          // Only show first review screen if they have 0 reviews AND haven't completed first review
+          if (reviewCount === 0 && !hasCompletedFirstReview) {
+            // Navigate to the first review screen
+            console.log('User needs to complete first review, navigating to first-review screen');
+            router.replace('/(auth)/first-review');
+            return;
+          }
+        } catch (error) {
+          console.error('Error checking review status:', error);
+          // In case of error, continue with default flow
+        }
+      }
+      
+      // If we couldn't check reviews or user has reviews/completed first review, go to login
       router.replace('/auth/login');
     } catch (error) {
       console.error('Error completing onboarding:', error);

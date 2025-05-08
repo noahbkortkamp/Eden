@@ -131,6 +131,7 @@ export const ReviewProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       const promises = [
         // Check review count
         reviewService.getUserReviewCount(user.id).then(count => {
+          console.log(`User review count after submission: ${count}`);
           if (count === 10) {
             console.log('🎉 User has reached 10 reviews! Score visibility is now ENABLED');
           }
@@ -149,6 +150,26 @@ export const ReviewProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
       // Wait for all parallel operations to complete
       const [reviewCount, _, userReviews] = await Promise.all(promises);
+      
+      // Check if this is the user's first review - if so, skip comparisons and show first review success screen
+      if (reviewCount === 1) {
+        console.log('🎉 This is the user\'s first review! Showing first review success screen.');
+        
+        // Close the review modal
+        router.back();
+        await new Promise(resolve => setTimeout(resolve, 100));
+        
+        // Navigate to the dedicated first review success screen
+        router.push({
+          pathname: '/(modals)/first-review-success',
+          params: {
+            courseId: review.course_id,
+            datePlayed: review.date_played.toISOString()
+          }
+        });
+        
+        return; // Exit early, skipping the comparison flow
+      }
       
       const reviewedCoursesWithSentiment = userReviews.filter(r => r.rating === review.rating);
 
