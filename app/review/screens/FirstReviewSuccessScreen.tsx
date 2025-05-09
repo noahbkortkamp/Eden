@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, StyleSheet, Pressable, Platform } from 'react-native';
+import { View, Text, StyleSheet, Pressable, Platform, SafeAreaView, Dimensions } from 'react-native';
 import { Image } from 'expo-image';
 import { useTheme } from '../../theme/ThemeProvider';
 import { useAuth } from '../../context/AuthContext';
@@ -7,7 +7,7 @@ import { useRouter } from 'expo-router';
 import { DefaultAvatar } from '../../components/DefaultAvatar';
 import { format, isValid } from 'date-fns';
 import { useCourse } from '../../context/CourseContext';
-import { Award, ChevronRight, Locate, Star, ThumbsUp } from 'lucide-react-native';
+import { Award, ChevronRight, Locate, Star, ThumbsUp, X } from 'lucide-react-native';
 
 export interface FirstReviewSuccessScreenProps {
   datePlayed: Date;
@@ -52,6 +52,12 @@ export const FirstReviewSuccessScreen: React.FC<FirstReviewSuccessScreenProps> =
     console.log('🏠 Navigating to main app');
     router.replace('/(tabs)');
   };
+  
+  // Handle close button press
+  const handleClose = () => {
+    console.log('❌ Close button pressed, navigating to main app');
+    router.replace('/(tabs)');
+  };
 
   // Custom theme for this screen
   const customColors = {
@@ -63,10 +69,19 @@ export const FirstReviewSuccessScreen: React.FC<FirstReviewSuccessScreenProps> =
   };
 
   return (
-    <View style={[styles.container, { backgroundColor: customColors.background }]}>
-      {/* Header with confetti/celebration imagery */}
+    <SafeAreaView style={[styles.container, { backgroundColor: customColors.background }]}>
+      {/* Close Button */}
+      <Pressable 
+        style={styles.closeButton}
+        onPress={handleClose}
+        hitSlop={{ top: 15, right: 15, bottom: 15, left: 15 }}
+      >
+        <X size={24} color="#234D2C" />
+      </Pressable>
+      
+      {/* Header with celebration icon */}
       <View style={styles.header}>
-        <Award size={64} color="#234D2C" style={styles.celebrationIcon} />
+        <Award size={60} color="#234D2C" style={styles.celebrationIcon} />
         <Text style={styles.headerTitle}>You did it!</Text>
         <Text style={styles.headerSubtitle}>Your first course review is complete!</Text>
       </View>
@@ -76,12 +91,12 @@ export const FirstReviewSuccessScreen: React.FC<FirstReviewSuccessScreenProps> =
         <Text style={styles.cardTitle}>You reviewed:</Text>
         
         <View style={styles.courseContainer}>
-          <Text style={styles.courseName}>{displayCourseName}</Text>
+          <Text style={styles.courseName} numberOfLines={1}>{displayCourseName}</Text>
           
           {displayCourseLocation && (
             <View style={styles.locationContainer}>
               <Locate size={14} color="#666" />
-              <Text style={styles.courseLocation}>{displayCourseLocation}</Text>
+              <Text style={styles.courseLocation} numberOfLines={1}>{displayCourseLocation}</Text>
             </View>
           )}
         </View>
@@ -97,7 +112,7 @@ export const FirstReviewSuccessScreen: React.FC<FirstReviewSuccessScreenProps> =
       {/* Achievement Message */}
       <View style={styles.achievementCard}>
         <View style={styles.achievementHeader}>
-          <ThumbsUp size={24} color="#234D2C" />
+          <ThumbsUp size={22} color="#234D2C" />
           <Text style={styles.achievementTitle}>First Review Complete!</Text>
         </View>
         
@@ -130,41 +145,56 @@ export const FirstReviewSuccessScreen: React.FC<FirstReviewSuccessScreenProps> =
           <Text style={styles.secondaryButtonText}>Go to Home</Text>
         </Pressable>
       </View>
-    </View>
+    </SafeAreaView>
   );
 };
+
+const { height } = Dimensions.get('window');
+const compactLayout = height < 700; // Adjust layout for smaller screens
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    padding: 20,
+    padding: 16,
+  },
+  closeButton: {
+    position: 'absolute',
+    top: Platform.OS === 'ios' ? 16 : 24,
+    right: 16,
+    zIndex: 10,
+    width: 36,
+    height: 36,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderRadius: 18,
+    backgroundColor: 'rgba(255, 255, 255, 0.7)',
   },
   header: {
     alignItems: 'center',
-    marginTop: Platform.OS === 'ios' ? 60 : 40,
-    marginBottom: 30,
+    marginTop: compactLayout ? 50 : (Platform.OS === 'ios' ? 50 : 36),
+    marginBottom: compactLayout ? 16 : 24,
   },
   celebrationIcon: {
-    marginBottom: 16,
+    marginBottom: compactLayout ? 8 : 12,
   },
   headerTitle: {
-    fontSize: 28,
+    fontSize: compactLayout ? 24 : 28,
     fontWeight: 'bold',
     color: '#234D2C',
-    marginBottom: 8,
+    marginBottom: 4,
     textAlign: 'center',
   },
   headerSubtitle: {
-    fontSize: 18,
+    fontSize: compactLayout ? 16 : 18,
     color: '#4A5E50',
     textAlign: 'center',
-    lineHeight: 24,
+    lineHeight: compactLayout ? 20 : 24,
   },
   card: {
     backgroundColor: 'white',
     borderRadius: 16,
-    padding: 20,
-    marginBottom: 20,
+    padding: compactLayout ? 16 : 20,
+    marginBottom: compactLayout ? 12 : 16,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
@@ -175,13 +205,13 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
     color: '#666',
-    marginBottom: 12,
+    marginBottom: 8,
   },
   courseContainer: {
-    marginBottom: 16,
+    marginBottom: 12,
   },
   courseName: {
-    fontSize: 22,
+    fontSize: compactLayout ? 20 : 22,
     fontWeight: 'bold',
     color: '#234D2C',
     marginBottom: 4,
@@ -194,11 +224,12 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#666',
     marginLeft: 4,
+    flex: 1,
   },
   divider: {
     height: 1,
     backgroundColor: '#f0f0f0',
-    marginVertical: 12,
+    marginVertical: 10,
   },
   dateLabel: {
     fontSize: 14,
@@ -213,30 +244,30 @@ const styles = StyleSheet.create({
   achievementCard: {
     backgroundColor: '#e6f7ee',
     borderRadius: 16,
-    padding: 20,
-    marginBottom: 30,
+    padding: compactLayout ? 16 : 20,
+    marginBottom: compactLayout ? 16 : 24,
     borderWidth: 1,
     borderColor: '#9cd9b3',
   },
   achievementHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 12,
+    marginBottom: 10,
   },
   achievementTitle: {
-    fontSize: 18,
+    fontSize: compactLayout ? 16 : 18,
     fontWeight: 'bold',
     color: '#234D2C',
-    marginLeft: 10,
+    marginLeft: 8,
   },
   achievementText: {
-    fontSize: 16,
+    fontSize: compactLayout ? 14 : 16,
     color: '#234D2C',
-    lineHeight: 22,
-    marginBottom: 20,
+    lineHeight: compactLayout ? 20 : 22,
+    marginBottom: 16,
   },
   progressContainer: {
-    marginTop: 8,
+    marginTop: 4,
   },
   progressBar: {
     height: 8,
@@ -258,16 +289,16 @@ const styles = StyleSheet.create({
   },
   buttonsContainer: {
     marginTop: 'auto',
-    marginBottom: Platform.OS === 'ios' ? 40 : 24,
+    marginBottom: Platform.OS === 'ios' ? 20 : 16,
   },
   primaryButton: {
     backgroundColor: '#234D2C',
     borderRadius: 50,
-    paddingVertical: 16,
+    paddingVertical: compactLayout ? 14 : 16,
     flexDirection: 'row',
     justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: 16,
+    marginBottom: 12,
   },
   primaryButtonText: {
     color: 'white',
@@ -277,7 +308,7 @@ const styles = StyleSheet.create({
   },
   secondaryButton: {
     borderRadius: 50,
-    paddingVertical: 16,
+    paddingVertical: compactLayout ? 12 : 16,
     alignItems: 'center',
   },
   secondaryButtonText: {
