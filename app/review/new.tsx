@@ -165,10 +165,14 @@ export default function NewReviewScreen() {
         comparison: comparisonRatings,
         tags: selectedTags
       };
+      // Calculate score using the simplified scoring function
       const score = calculateCourseScore(reviewData);
       const breakdown = getScoreBreakdown(reviewData);
       setCourseScore(score);
       setScoreBreakdown(breakdown);
+      
+      // Log the score for debugging
+      console.log(`[Scoring] Rating ${rating} stars → Score: ${score.toFixed(1)}/10`);
     }
   }, [rating, comparisonRatings, selectedTags]);
 
