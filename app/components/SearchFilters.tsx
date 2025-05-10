@@ -10,7 +10,7 @@ import {
   FilterOption,
   FilterValue,
 } from '../config/constants';
-import { colors, spacing, typography, borderRadius } from '../theme';
+import { useEdenTheme } from '../theme';
 
 interface Props {
   filters: SearchFilters;
@@ -31,10 +31,11 @@ const FilterSection = memo(({
   onToggle 
 }: FilterSectionProps) => {
   const { t } = useTranslation();
+  const theme = useEdenTheme();
 
   return (
     <View style={styles.section}>
-      <Text style={styles.sectionTitle}>{title}</Text>
+      <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>{title}</Text>
       <ScrollView 
         horizontal 
         showsHorizontalScrollIndicator={false}
@@ -47,7 +48,8 @@ const FilterSection = memo(({
               key={option.value}
               style={[
                 styles.filterOption,
-                selectedValues.includes(option.value) && styles.filterOptionSelected,
+                { backgroundColor: theme.colors.surface },
+                selectedValues.includes(option.value) && [styles.filterOptionSelected, { backgroundColor: theme.colors.primary }],
               ]}
               onPress={() => onToggle(option.value)}
               accessibilityRole="button"
@@ -57,7 +59,8 @@ const FilterSection = memo(({
               <Text
                 style={[
                   styles.filterOptionText,
-                  selectedValues.includes(option.value) && styles.filterOptionTextSelected,
+                  { color: theme.colors.textSecondary },
+                  selectedValues.includes(option.value) && [styles.filterOptionTextSelected, { color: '#FFFFFF' }],
                 ]}
               >
                 {option.label}
@@ -72,6 +75,7 @@ const FilterSection = memo(({
 
 export function SearchFiltersComponent({ filters, onFiltersChange }: Props) {
   const { t } = useTranslation();
+  const theme = useEdenTheme();
 
   const toggleDifficulty = useCallback((value: FilterValue) => {
     if (typeof value !== 'number') return;
@@ -130,7 +134,7 @@ export function SearchFiltersComponent({ filters, onFiltersChange }: Props) {
   }, [filters, onFiltersChange]);
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
       <FilterSection
         title={t('filters.difficulty')}
         options={DIFFICULTY_OPTIONS}
@@ -161,38 +165,32 @@ export function SearchFiltersComponent({ filters, onFiltersChange }: Props) {
 
 const styles = StyleSheet.create({
   container: {
-    backgroundColor: colors.background.default,
-    padding: spacing.md,
+    padding: 16,
   },
   section: {
-    marginBottom: spacing.md,
+    marginBottom: 16,
   },
   sectionTitle: {
-    fontSize: typography.fontSize.md,
-    fontWeight: typography.fontWeight.semibold,
-    color: colors.text.primary,
-    marginBottom: spacing.sm,
+    fontSize: 16,
+    fontWeight: '600',
+    marginBottom: 8,
   },
   optionsContainer: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: spacing.sm,
+    gap: 8,
   },
   filterOption: {
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.xs,
-    borderRadius: borderRadius.full,
-    backgroundColor: colors.neutral[100],
-    marginRight: spacing.sm,
+    paddingHorizontal: 16,
+    paddingVertical: 4,
+    borderRadius: 9999,
+    marginRight: 8,
   },
   filterOptionSelected: {
-    backgroundColor: colors.primary.main,
   },
   filterOptionText: {
-    fontSize: typography.fontSize.sm,
-    color: colors.text.secondary,
+    fontSize: 14,
   },
   filterOptionTextSelected: {
-    color: colors.text.inverse,
   },
 }); 

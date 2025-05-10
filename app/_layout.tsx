@@ -3,7 +3,7 @@ import { useEffect, useState } from 'react';
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { SearchProvider } from './context/SearchContext';
-import { AuthProvider, useAuth } from './context/AuthContext';
+import { AuthProvider } from './context/AuthContext';
 import { ReviewProvider } from './review/context/ReviewContext';
 import { ThemeProvider, useTheme } from './theme/ThemeProvider';
 import { View, ActivityIndicator, Text, StyleSheet, Platform } from 'react-native';
@@ -24,91 +24,71 @@ declare global {
 function AppContent() {
   const theme = useTheme();
   
-  // Add error handling with try/catch for better debugging
-  try {
-    const { user } = useAuth();
-    
-    return (
-      <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
-        <View style={{ flex: 1 }}>
-          <Stack>
-            <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-            <Stack.Screen
-              name="(modals)"
-              options={{
-                presentation: 'modal',
-                headerShown: false
-              }}
-            />
-            <Stack.Screen
-              name="auth/login"
-              options={{
-                presentation: 'modal',
-                headerShown: false,
-                title: 'Log In',
-                headerStyle: {
-                  backgroundColor: theme.colors.background,
-                },
-                headerTintColor: theme.colors.text,
-              }}
-            />
-            <Stack.Screen
-              name="auth/signup"
-              options={{
-                presentation: 'modal',
-                headerShown: false,
-                title: 'Sign Up',
-                headerStyle: {
-                  backgroundColor: theme.colors.background,
-                },
-                headerTintColor: theme.colors.text,
-              }}
-            />
-            <Stack.Screen
-              name="(modals)/review"
-              options={{
-                presentation: 'modal',
-                headerShown: false,
-                title: 'Review Course',
-                headerStyle: {
-                  backgroundColor: theme.colors.background,
-                },
-                headerTintColor: theme.colors.text,
-              }}
-            />
-            <Stack.Screen
-              name="(modals)/comparison"
-              options={{
-                presentation: 'modal',
-                headerShown: false,
-                title: 'Compare Courses',
-                headerStyle: {
-                  backgroundColor: theme.colors.background,
-                },
-                headerTintColor: theme.colors.text,
-              }}
-            />
-          </Stack>
-          <StatusBar style="auto" />
-        </View>
+  return (
+    <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
+      <View style={{ flex: 1 }}>
+        <Stack>
+          <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+          <Stack.Screen
+            name="(modals)"
+            options={{
+              presentation: 'modal',
+              headerShown: false
+            }}
+          />
+          <Stack.Screen
+            name="auth/login"
+            options={{
+              presentation: 'modal',
+              headerShown: false,
+              title: 'Log In',
+              headerStyle: {
+                backgroundColor: theme.colors.background,
+              },
+              headerTintColor: theme.colors.text,
+            }}
+          />
+          <Stack.Screen
+            name="auth/signup"
+            options={{
+              presentation: 'modal',
+              headerShown: false,
+              title: 'Sign Up',
+              headerStyle: {
+                backgroundColor: theme.colors.background,
+              },
+              headerTintColor: theme.colors.text,
+            }}
+          />
+          <Stack.Screen
+            name="(modals)/review"
+            options={{
+              presentation: 'modal',
+              headerShown: false,
+              title: 'Review Course',
+              headerStyle: {
+                backgroundColor: theme.colors.background,
+              },
+              headerTintColor: theme.colors.text,
+            }}
+          />
+          <Stack.Screen
+            name="(modals)/comparison"
+            options={{
+              presentation: 'modal',
+              headerShown: false,
+              title: 'Compare Courses',
+              headerStyle: {
+                backgroundColor: theme.colors.background,
+              },
+              headerTintColor: theme.colors.text,
+            }}
+          />
+        </Stack>
+        <StatusBar style="auto" />
       </View>
-    );
-  } catch (error) {
-    console.error("Error in AppContent:", error);
-    // Return a fallback UI when there's an error with authentication
-    return (
-      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: theme.colors.background }}>
-        <View>
-          <Text style={{ color: 'red', fontSize: 16, fontWeight: 'bold' }}>Authentication Error</Text>
-        </View>
-        <View>
-          <Text style={{ color: 'gray', marginTop: 10, textAlign: 'center', paddingHorizontal: 20 }}>
-            {error instanceof Error ? error.message : String(error)}
-          </Text>
-        </View>
-      </View>
-    );
-  }
+    </View>
+  );
 }
 
 function LoadingScreen() {

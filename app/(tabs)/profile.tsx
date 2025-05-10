@@ -1,6 +1,5 @@
 import React, { useEffect, useState } from 'react';
 import { View, StyleSheet, ScrollView, RefreshControl, TouchableOpacity } from 'react-native';
-import { Text, Button, Avatar, Card } from 'react-native-paper';
 import { useAuth } from '../context/AuthContext';
 import { useRouter } from 'expo-router';
 import { getReviewsForUser } from '../utils/reviews';
@@ -11,6 +10,21 @@ import { bookmarkService } from '../services/bookmarkService';
 import { supabase } from '../utils/supabase';
 import { usePlayedCourses } from '../context/PlayedCoursesContext';
 import type { Database } from '../utils/database.types';
+import { Image } from 'expo-image';
+
+// Import Eden design system components
+import { 
+  Card, 
+  Button, 
+  Heading1, 
+  Heading2, 
+  Heading3, 
+  BodyText, 
+  SmallText,
+  FeedbackBadge,
+  Icon
+} from '../components/eden';
+import { useEdenTheme } from '../theme';
 
 type Course = Database['public']['Tables']['courses']['Row'];
 type Review = Database['public']['Tables']['reviews']['Row'];
@@ -20,11 +34,11 @@ interface ReviewWithCourse extends Review {
   relativeScore?: number;
 }
 
-// Get badge color based on rating
-const getBadgeColor = (score: number): string => {
-  if (score >= 7.0) return '#4CAF50'; // Green
-  if (score >= 3.0) return '#FFC107'; // Yellow
-  return '#F44336'; // Red
+// Get badge color based on rating, using Eden theme colors
+const getBadgeStatus = (score: number): 'positive' | 'neutral' | 'negative' => {
+  if (score >= 7.0) return 'positive';
+  if (score >= 3.0) return 'neutral';
+  return 'negative';
 };
 
 // Fallback scores by sentiment (only used if we can't get the real relative score)
@@ -43,6 +57,7 @@ export default function ProfileScreen() {
   const [followStats, setFollowStats] = useState({ followers: 0, following: 0 });
   const [wantToPlayCount, setWantToPlayCount] = useState(0);
   const [hasEnoughReviews, setHasEnoughReviews] = useState(false);
+  const theme = useEdenTheme();
   
   // Access the shared played courses context
   const { playedCourses } = usePlayedCourses();
@@ -133,35 +148,59 @@ export default function ProfileScreen() {
     });
   };
 
+  // Generate initials from user name or email
+  const getInitials = () => {
+    if (user?.user_metadata?.name) {
+      return user.user_metadata.name[0].toUpperCase();
+    } else if (user?.email) {
+      return user.email[0].toUpperCase();
+    }
+    return '?';
+  };
+
   if (!user) {
     return (
       <View style={[styles.container, styles.centered]}>
-        <Text>Please log in to view your profile</Text>
-        <Button mode="contained" onPress={() => router.push('/auth/login')} style={styles.button}>
-          Log In
-        </Button>
+        <BodyText>Please log in to view your profile</BodyText>
+        <Button 
+          label="Log In" 
+          variant="primary" 
+          onPress={() => router.push('/auth/login')} 
+          style={styles.button}
+        />
       </View>
     );
   }
 
   return (
     <ScrollView
-      style={styles.container}
+      style={[styles.container, { backgroundColor: theme.colors.background }]}
+      contentContainerStyle={styles.content}
       refreshControl={
-        <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+        <RefreshControl 
+          refreshing={refreshing} 
+          onRefresh={onRefresh} 
+          colors={[theme.colors.primary]}
+          tintColor={theme.colors.primary}
+        />
       }
     >
       <View style={styles.header}>
-        <Avatar.Text
-          size={80}
-          label={user.user_metadata?.name?.[0]?.toUpperCase() || user.email?.[0]?.toUpperCase() || '?'}
-        />
-        <Text variant="headlineSmall" style={styles.name}>
+        <View style={styles.avatarContainer}>
+          <View style={styles.avatar}>
+            <Heading1 color="#FFFFFF">
+              {getInitials()}
+            </Heading1>
+          </View>
+        </View>
+        
+        <Heading2 style={styles.name}>
           {user.user_metadata?.name || 'User'}
-        </Text>
-        <Text variant="bodyMedium" style={styles.email}>
+        </Heading2>
+        
+        <SmallText color={theme.colors.textSecondary} style={styles.email}>
           {user.email}
-        </Text>
+        </SmallText>
         
         {/* Stats Row */}
         <View style={styles.statsRow}>
@@ -176,8 +215,8 @@ export default function ProfileScreen() {
               }
             })}
           >
-            <Text variant="titleMedium" style={styles.statCount}>{followStats.followers}</Text>
-            <Text variant="bodySmall" style={styles.statLabel}>Followers</Text>
+            <Heading3>{followStats.followers}</Heading3>
+            <SmallText color={theme.colors.textSecondary}>Followers</SmallText>
           </TouchableOpacity>
           
           <TouchableOpacity 
@@ -191,41 +230,60 @@ export default function ProfileScreen() {
               }
             })}
           >
-            <Text variant="titleMedium" style={styles.statCount}>{followStats.following}</Text>
-            <Text variant="bodySmall" style={styles.statLabel}>Following</Text>
+            <Heading3>{followStats.following}</Heading3>
+            <SmallText color={theme.colors.textSecondary}>Following</SmallText>
           </TouchableOpacity>
           
           <TouchableOpacity 
             style={styles.statItem}
             onPress={() => navigateToListsTab('played')}
           >
-            <Text variant="titleMedium" style={styles.statCount}>{reviews.length}</Text>
-            <Text variant="bodySmall" style={styles.statLabel}>Been</Text>
+            <Heading3>{reviews.length}</Heading3>
+            <SmallText color={theme.colors.textSecondary}>Been</SmallText>
           </TouchableOpacity>
           
           <TouchableOpacity 
             style={styles.statItem}
             onPress={() => navigateToListsTab('want-to-play')}
           >
-            <Text variant="titleMedium" style={styles.statCount}>{wantToPlayCount}</Text>
-            <Text variant="bodySmall" style={styles.statLabel}>Want to Play</Text>
+            <Heading3>{wantToPlayCount}</Heading3>
+            <SmallText color={theme.colors.textSecondary}>Want to Play</SmallText>
           </TouchableOpacity>
         </View>
         
-        <Button mode="outlined" onPress={signOut} style={styles.button}>
-          Sign Out
-        </Button>
+        <Button 
+          label="Sign Out" 
+          variant="secondary" 
+          onPress={signOut} 
+          style={styles.button}
+        />
       </View>
 
       <View style={styles.reviewsSection}>
-        <Text variant="titleLarge" style={styles.sectionTitle}>
+        <Heading2 style={styles.sectionTitle}>
           Your Reviews ({reviews.length})
-        </Text>
+        </Heading2>
 
         {isLoading ? (
-          <Text>Loading reviews...</Text>
+          <View style={styles.loadingContainer}>
+            <BodyText color={theme.colors.textSecondary}>Loading reviews...</BodyText>
+          </View>
         ) : reviews.length === 0 ? (
-          <Text>No reviews yet</Text>
+          <View style={styles.emptyContainer}>
+            <Icon 
+              name="GolfHole" 
+              size="hero" 
+              color={theme.colors.textSecondary}
+              style={styles.emptyIcon}
+            />
+            <BodyText color={theme.colors.textSecondary}>No reviews yet</BodyText>
+            <Button 
+              label="Explore Courses" 
+              variant="primary" 
+              onPress={() => router.push('/search')}
+              style={styles.exploreButton}
+            />
+          </View>
         ) : (
           reviews.map((review) => {
             // Use the actual relative score if available, otherwise fallback to sentiment mapping
@@ -233,42 +291,47 @@ export default function ProfileScreen() {
               ? review.relativeScore 
               : fallbackScores[review.rating] || 0;
               
-            const badgeColor = getBadgeColor(score);
+            const badgeStatus = getBadgeStatus(score);
             
             return (
-              <TouchableOpacity 
+              <Card
                 key={review.id}
+                variant="listItem"
+                pressable
                 onPress={() => router.push({
                   pathname: '/review/summary',
                   params: { userId: user.id, courseId: review.course_id }
                 })}
+                style={styles.reviewCard}
               >
-                <Card style={styles.reviewCard}>
-                  <Card.Content style={styles.cardContent}>
-                    <View style={styles.reviewInfo}>
-                      <Text style={styles.reviewTitle}>
-                        You ranked {review.course?.name || 'Unknown Course'}
-                      </Text>
-                      <Text style={styles.courseLocation}>
-                        {review.course?.location || 'Unknown Location'}
-                      </Text>
-                      <Text style={styles.courseDatePlayed}>
-                        {format(new Date(review.date_played), 'MMM d, yyyy')}
-                      </Text>
-                      {review.playing_partners && review.playing_partners.length > 0 && (
-                        <Text style={styles.playingPartners}>
-                          with {review.playing_partners.join(', ')}
-                        </Text>
-                      )}
-                    </View>
-                    <View style={[styles.ratingBadge, { backgroundColor: badgeColor }]}>
-                      <Text style={styles.ratingText}>
-                        {hasEnoughReviews ? score.toFixed(1) : '-'}
-                      </Text>
-                    </View>
-                  </Card.Content>
-                </Card>
-              </TouchableOpacity>
+                <View style={styles.cardContent}>
+                  <View style={styles.reviewInfo}>
+                    <BodyText bold style={styles.reviewTitle}>
+                      {review.course?.name || 'Unknown Course'}
+                    </BodyText>
+                    
+                    <SmallText color={theme.colors.textSecondary} style={styles.courseLocation}>
+                      {review.course?.location || 'Unknown Location'}
+                    </SmallText>
+                    
+                    <SmallText color={theme.colors.textSecondary} style={styles.courseDatePlayed}>
+                      {format(new Date(review.date_played), 'MMM d, yyyy')}
+                    </SmallText>
+                    
+                    {review.playing_partners && review.playing_partners.length > 0 && (
+                      <SmallText color={theme.colors.textSecondary} style={styles.playingPartners}>
+                        with {review.playing_partners.join(', ')}
+                      </SmallText>
+                    )}
+                  </View>
+                  
+                  <FeedbackBadge
+                    status={badgeStatus}
+                    label={hasEnoughReviews ? score.toFixed(1) : '-'}
+                    small
+                  />
+                </View>
+              </Card>
             );
           })
         )}
@@ -281,96 +344,94 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
   },
+  content: {
+    paddingBottom: 24,
+  },
   centered: {
     justifyContent: 'center',
     alignItems: 'center',
+    padding: 20,
   },
   header: {
     alignItems: 'center',
-    padding: 20,
+    padding: 24,
     borderBottomWidth: 1,
-    borderBottomColor: '#e5e5e5',
+    borderBottomColor: '#E0E0DC', // Eden border color
+  },
+  avatarContainer: {
+    marginBottom: 16,
+  },
+  avatar: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: '#234D2C', // Eden primary color
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   name: {
-    marginTop: 12,
-    fontWeight: '600',
+    marginBottom: 4,
   },
   email: {
-    marginTop: 4,
-    color: '#666',
+    marginBottom: 16,
   },
   statsRow: {
     flexDirection: 'row',
     justifyContent: 'space-around',
     width: '100%',
-    marginTop: 16,
-    marginBottom: 8,
+    marginBottom: 20,
     paddingHorizontal: 10,
   },
   statItem: {
     alignItems: 'center',
-    minWidth: 60,
-  },
-  statCount: {
-    fontWeight: 'bold',
-  },
-  statLabel: {
-    color: '#666',
-    marginTop: 2,
+    minWidth: 70,
   },
   button: {
-    marginTop: 16,
+    minWidth: 150,
   },
   reviewsSection: {
-    padding: 20,
+    padding: 24,
   },
   sectionTitle: {
     marginBottom: 16,
   },
   reviewCard: {
     marginBottom: 12,
-    borderRadius: 12,
   },
   cardContent: {
-    padding: 16,
-    position: 'relative',
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
   },
   reviewInfo: {
     flex: 1,
-    paddingRight: 50,
+    paddingRight: 12,
   },
   reviewTitle: {
-    fontSize: 16,
-    fontWeight: 'bold',
     marginBottom: 4,
   },
   courseLocation: {
-    fontSize: 14,
-    color: '#666',
     marginBottom: 2,
   },
   courseDatePlayed: {
-    fontSize: 14,
-    color: '#666',
     marginBottom: 2,
   },
   playingPartners: {
-    fontSize: 14,
-    color: '#666',
+    marginBottom: 0,
   },
-  ratingBadge: {
-    borderRadius: 16,
-    width: 40,
-    height: 40,
-    justifyContent: 'center',
+  loadingContainer: {
+    padding: 24,
     alignItems: 'center',
   },
-  ratingText: {
-    color: 'white',
-    fontWeight: 'bold',
-    fontSize: 16,
+  emptyContainer: {
+    padding: 24,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  emptyIcon: {
+    marginBottom: 16,
+  },
+  exploreButton: {
+    marginTop: 16,
   }
 }); 

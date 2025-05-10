@@ -2,10 +2,11 @@ import React from 'react';
 import { View, TouchableOpacity, Text, StyleSheet, Platform } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import i18n from '../i18n';
-import { colors, spacing, typography, borderRadius } from '../theme';
+import { useEdenTheme } from '../theme';
 
 export function LanguageSwitcher() {
   const { i18n: { language } } = useTranslation();
+  const theme = useEdenTheme();
 
   const toggleLanguage = () => {
     const newLang = language === 'en' ? 'es' : 'en';
@@ -13,9 +14,12 @@ export function LanguageSwitcher() {
   };
 
   return (
-    <View style={styles.wrapper}>
-      <TouchableOpacity style={styles.container} onPress={toggleLanguage}>
-        <Text style={styles.text}>{language.toUpperCase()}</Text>
+    <View style={[styles.wrapper, { backgroundColor: theme.colors.background }]}>
+      <TouchableOpacity 
+        style={[styles.container, { backgroundColor: theme.colors.surface }]} 
+        onPress={toggleLanguage}
+      >
+        <Text style={[styles.text, { color: theme.colors.text }]}>{language.toUpperCase()}</Text>
       </TouchableOpacity>
     </View>
   );
@@ -28,18 +32,15 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     alignItems: 'center',
-    backgroundColor: colors.neutral[50],
-    paddingVertical: spacing.xs,
+    paddingVertical: 8,
   },
   container: {
-    paddingHorizontal: spacing.sm,
-    paddingVertical: spacing.xs,
-    borderRadius: borderRadius.md,
-    backgroundColor: colors.neutral[100],
+    paddingHorizontal: 12,
+    paddingVertical: 4,
+    borderRadius: 8,
   },
   text: {
-    fontSize: typography.fontSize.sm,
-    color: colors.text.primary,
-    fontWeight: typography.fontWeight.semibold,
+    fontSize: 14,
+    fontWeight: '600',
   },
 }); 

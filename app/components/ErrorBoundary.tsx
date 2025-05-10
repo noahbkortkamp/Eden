@@ -1,6 +1,6 @@
 import React, { Component, ErrorInfo, ReactNode } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
-import { colors, spacing, typography, borderRadius } from '../theme';
+import { edenTheme } from '../theme/edenTheme';
 
 interface Props {
   children: ReactNode;
@@ -36,12 +36,20 @@ export class ErrorBoundary extends Component<Props, State> {
         return this.props.fallback;
       }
 
+      // Static theme since we can't use hooks in class components
+      const theme = edenTheme;
+
       return (
-        <View style={styles.container}>
-          <Text style={styles.title}>Something went wrong</Text>
-          <Text style={styles.message}>{this.state.error?.message}</Text>
-          <TouchableOpacity style={styles.button} onPress={this.handleReset}>
-            <Text style={styles.buttonText}>Try again</Text>
+        <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
+          <Text style={[styles.title, { color: theme.colors.text }]}>Something went wrong</Text>
+          <Text style={[styles.message, { color: theme.colors.textSecondary }]}>
+            {this.state.error?.message}
+          </Text>
+          <TouchableOpacity 
+            style={[styles.button, { backgroundColor: theme.colors.primary, borderRadius: theme.borderRadius.md }]} 
+            onPress={this.handleReset}
+          >
+            <Text style={[styles.buttonText, { color: '#FFFFFF' }]}>Try again</Text>
           </TouchableOpacity>
         </View>
       );
@@ -56,30 +64,24 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    padding: spacing.lg,
-    backgroundColor: colors.background.default,
+    padding: 24, // Direct value instead of spacing.lg
   },
   title: {
-    fontSize: typography.fontSize.xl,
-    fontWeight: typography.fontWeight.bold,
-    marginBottom: spacing.sm,
-    color: colors.text.primary,
+    fontSize: 20, // Direct value instead of typography.fontSize.xl
+    fontWeight: 'bold', // Direct value instead of typography.fontWeight.bold
+    marginBottom: 8, // Direct value instead of spacing.sm
   },
   message: {
-    fontSize: typography.fontSize.md,
-    color: colors.text.secondary,
+    fontSize: 16, // Direct value instead of typography.fontSize.md
     textAlign: 'center',
-    marginBottom: spacing.lg,
+    marginBottom: 24, // Direct value instead of spacing.lg
   },
   button: {
-    backgroundColor: colors.primary.main,
-    paddingHorizontal: spacing.lg,
-    paddingVertical: spacing.sm,
-    borderRadius: borderRadius.md,
+    paddingHorizontal: 24, // Direct value instead of spacing.lg
+    paddingVertical: 8, // Direct value instead of spacing.sm
   },
   buttonText: {
-    color: colors.text.inverse,
-    fontSize: typography.fontSize.md,
-    fontWeight: typography.fontWeight.semibold,
+    fontSize: 16, // Direct value instead of typography.fontSize.md
+    fontWeight: '600', // Direct value instead of typography.fontWeight.semibold
   },
 }); 
