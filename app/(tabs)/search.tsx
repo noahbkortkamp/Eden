@@ -26,7 +26,7 @@ import {
   BookmarkCheck,
 } from 'lucide-react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
-import { useTheme } from '../theme/ThemeProvider';
+import { useEdenTheme } from '../theme/ThemeProvider';
 import { searchCourses, getAllCourses } from '../utils/courses';
 import { useDebouncedCallback } from 'use-debounce';
 import type { Course } from '../types';
@@ -37,6 +37,7 @@ import { searchUsersByName, followUser, unfollowUser, isFollowing } from '../uti
 import { User } from '../types/index';
 import { bookmarkService } from '../services/bookmarkService';
 import { usePlayedCourses } from '../context/PlayedCoursesContext';
+import { Card, Button, BodyText, SmallText, Heading3, FeedbackBadge } from '../components/eden';
 
 // Enhanced Course type with search relevance score
 interface EnhancedCourse extends Omit<Course, 'type'> {
@@ -61,7 +62,7 @@ const CACHE_EXPIRY = 5 * 60 * 1000; // 5 minutes
 export default function SearchScreen() {
   const router = useRouter();
   const params = useLocalSearchParams();
-  const theme = useTheme();
+  const theme = useEdenTheme();
   const { user } = useAuth();
   const { setNeedsRefresh } = usePlayedCourses();
   const [searchQuery, setSearchQuery] = useState('');
@@ -416,10 +417,17 @@ export default function SearchScreen() {
     <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
       {/* Search Header */}
       <View style={styles.searchContainer}>
-        <View style={[styles.inputContainer, isSearchFocused && styles.inputContainerActive]}>
-          <SearchIcon size={20} color={theme.colors.text} style={styles.searchIcon} />
+        <View style={[
+          styles.inputContainer, 
+          { backgroundColor: theme.colors.surface },
+          isSearchFocused && [styles.inputContainerActive, {
+            borderColor: theme.colors.primary,
+            borderWidth: 1
+          }]
+        ]}>
+          <SearchIcon size={20} color={theme.colors.textSecondary} style={styles.searchIcon} />
           <TextInput
-            style={[styles.input, { color: theme.colors.text }]}
+            style={[styles.input, { color: theme.colors.text, fontFamily: 'SF Pro Text, -apple-system, sans-serif' }]}
             placeholder="Search courses or members..."
             placeholderTextColor={theme.colors.textSecondary}
             value={searchQuery}
@@ -431,7 +439,7 @@ export default function SearchScreen() {
           />
           {searchQuery !== '' && (
             <TouchableOpacity style={styles.clearButton} onPress={handleCancelPress}>
-              <XIcon size={18} color={theme.colors.text} />
+              <XIcon size={18} color={theme.colors.textSecondary} />
             </TouchableOpacity>
           )}
         </View>
@@ -444,7 +452,7 @@ export default function SearchScreen() {
             styles.tabButton,
             activeTab === 'courses' && [
               styles.activeTabButton,
-              { backgroundColor: `${theme.colors.primary}20` }
+              { backgroundColor: `${theme.colors.primary}15` }
             ]
           ]}
           onPress={() => handleTabChange('courses')}
@@ -453,18 +461,13 @@ export default function SearchScreen() {
             size={20}
             color={activeTab === 'courses' ? theme.colors.primary : theme.colors.textSecondary}
           />
-          <Text
-            style={[
-              styles.tabText,
-              {
-                color: activeTab === 'courses'
-                  ? theme.colors.primary
-                  : theme.colors.textSecondary
-              }
-            ]}
+          <SmallText 
+            color={activeTab === 'courses' ? theme.colors.primary : theme.colors.textSecondary}
+            style={styles.tabText}
+            bold
           >
             Courses
-          </Text>
+          </SmallText>
         </TouchableOpacity>
 
         <TouchableOpacity
@@ -472,7 +475,7 @@ export default function SearchScreen() {
             styles.tabButton,
             activeTab === 'members' && [
               styles.activeTabButton,
-              { backgroundColor: `${theme.colors.primary}20` }
+              { backgroundColor: `${theme.colors.primary}15` }
             ]
           ]}
           onPress={() => handleTabChange('members')}
@@ -481,18 +484,13 @@ export default function SearchScreen() {
             size={20}
             color={activeTab === 'members' ? theme.colors.primary : theme.colors.textSecondary}
           />
-          <Text
-            style={[
-              styles.tabText,
-              {
-                color: activeTab === 'members'
-                  ? theme.colors.primary
-                  : theme.colors.textSecondary
-              }
-            ]}
+          <SmallText 
+            color={activeTab === 'members' ? theme.colors.primary : theme.colors.textSecondary}
+            style={styles.tabText}
+            bold
           >
             Members
-          </Text>
+          </SmallText>
         </TouchableOpacity>
       </View>
 
@@ -500,22 +498,21 @@ export default function SearchScreen() {
       {loading && (
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color={theme.colors.primary} />
-          <Text style={[styles.loadingText, { color: theme.colors.textSecondary }]}>
+          <BodyText color={theme.colors.textSecondary} style={styles.loadingText}>
             {activeTab === 'courses' ? 'Finding courses...' : 'Finding members...'}
-          </Text>
+          </BodyText>
         </View>
       )}
 
       {/* Error State */}
       {!loading && error && (
         <View style={styles.centerContainer}>
-          <Text style={[styles.errorText, {color: theme.colors.error}]}>{error}</Text>
-          <TouchableOpacity 
-            style={styles.retryButton} 
+          <BodyText color={theme.colors.error} style={styles.errorText}>{error}</BodyText>
+          <Button 
+            label="Retry" 
+            variant="primary"
             onPress={() => activeTab === 'courses' ? loadCourses() : debouncedSearch(searchQuery)}
-          >
-            <Text style={styles.retryButtonText}>Retry</Text>
-          </TouchableOpacity>
+          />
         </View>
       )}
 
@@ -524,18 +521,18 @@ export default function SearchScreen() {
         ((activeTab === 'courses' && courses.length === 0) || 
          (activeTab === 'members' && users.length === 0)) && (
         <View style={styles.centerContainer}>
-          <Text style={[styles.noResultsText, {color: theme.colors.textSecondary}]}>
+          <BodyText color={theme.colors.textSecondary} style={styles.noResultsText}>
             No {activeTab === 'courses' ? 'courses' : 'members'} found for "{searchQuery}"
-          </Text>
+          </BodyText>
         </View>
       )}
 
       {/* Empty Initial State - Only show when not loading and no query */}
       {!loading && !error && !searchQuery.trim() && activeTab === 'members' && users.length === 0 && (
         <View style={styles.centerContainer}>
-          <Text style={[styles.noResultsText, {color: theme.colors.textSecondary}]}>
+          <BodyText color={theme.colors.textSecondary} style={styles.noResultsText}>
             Search for members by name or username
-          </Text>
+          </BodyText>
         </View>
       )}
 
@@ -550,65 +547,73 @@ export default function SearchScreen() {
           maxToRenderPerBatch={5}
           windowSize={5}
           removeClippedSubviews={true}
+          contentContainerStyle={styles.listContent}
           renderItem={({ item }) => (
-            <TouchableOpacity
-              style={[styles.courseItem, { backgroundColor: theme.colors.surface, borderBottomColor: theme.colors.border }]}
+            <Card
+              variant="listItem"
+              pressable
               onPress={() => handleCoursePress(item.id)}
+              style={styles.courseCard}
             >
               <View style={styles.courseItemContent}>
                 <View style={styles.courseHeader}>
-                  <Text style={[styles.courseName, { color: theme.colors.text }]}>{item.name}</Text>
+                  <BodyText bold style={styles.courseName}>{item.name}</BodyText>
                   
-                  {/* Indicate if user has reviewed this course */}
-                  {reviewedCourseIds.has(item.id) && (
-                    <View style={styles.reviewIndicator}>
-                      <CheckCircle size={14} color={theme.colors.success} />
-                      <Text style={[styles.indicatorText, { color: theme.colors.success }]}>Played</Text>
-                    </View>
-                  )}
+                  <View style={styles.headerRightContent}>
+                    {/* Indicate if user has reviewed this course */}
+                    {reviewedCourseIds.has(item.id) && (
+                      <FeedbackBadge status="positive" label="Played" small />
+                    )}
+                    
+                    {/* Bookmark button */}
+                    <TouchableOpacity
+                      style={styles.bookmarkButton}
+                      onPress={() => handleBookmarkToggle(item.id)}
+                      disabled={bookmarkLoading[item.id]}
+                    >
+                      {bookmarkLoading[item.id] ? (
+                        <ActivityIndicator size="small" color={theme.colors.primary} />
+                      ) : bookmarkedCourseIds.has(item.id) ? (
+                        <BookmarkCheck size={20} color={theme.colors.primary} />
+                      ) : (
+                        <Bookmark size={20} color={theme.colors.textSecondary} />
+                      )}
+                    </TouchableOpacity>
+                  </View>
                 </View>
                 
                 <View style={styles.courseLocation}>
                   <MapPin size={14} color={theme.colors.textSecondary} />
-                  <Text style={[styles.locationText, { color: theme.colors.textSecondary }]}>
+                  <SmallText color={theme.colors.textSecondary} style={styles.locationText}>
                     {item.location || 'Location not available'}
-                  </Text>
+                  </SmallText>
                 </View>
                 
                 <View style={styles.courseDetails}>
                   {item.par && (
-                    <Text style={[styles.courseDetailText, { color: theme.colors.textSecondary }]}>
-                      Par {item.par}
-                    </Text>
+                    <View style={[styles.courseDetailChip, { backgroundColor: theme.colors.background }]}>
+                      <SmallText color={theme.colors.textSecondary}>
+                        Par {item.par}
+                      </SmallText>
+                    </View>
                   )}
                   {item.yardage && (
-                    <Text style={[styles.courseDetailText, { color: theme.colors.textSecondary }]}>
-                      {item.yardage} yards
-                    </Text>
+                    <View style={[styles.courseDetailChip, { backgroundColor: theme.colors.background }]}>
+                      <SmallText color={theme.colors.textSecondary}>
+                        {item.yardage} yards
+                      </SmallText>
+                    </View>
                   )}
                   {item.type && (
-                    <Text style={[styles.courseDetailText, { color: theme.colors.textSecondary }]}>
-                      {item.type}
-                    </Text>
+                    <View style={[styles.courseDetailChip, { backgroundColor: theme.colors.background }]}>
+                      <SmallText color={theme.colors.textSecondary}>
+                        {item.type}
+                      </SmallText>
+                    </View>
                   )}
                 </View>
               </View>
-              
-              {/* Bookmark button */}
-              <TouchableOpacity
-                style={styles.bookmarkButton}
-                onPress={() => handleBookmarkToggle(item.id)}
-                disabled={bookmarkLoading[item.id]}
-              >
-                {bookmarkLoading[item.id] ? (
-                  <ActivityIndicator size="small" color={theme.colors.primary} />
-                ) : bookmarkedCourseIds.has(item.id) ? (
-                  <BookmarkCheck size={20} color={theme.colors.primary} />
-                ) : (
-                  <Bookmark size={20} color={theme.colors.textSecondary} />
-                )}
-              </TouchableOpacity>
-            </TouchableOpacity>
+            </Card>
           )}
           ListFooterComponent={<View style={styles.listFooter} />}
         />
@@ -625,8 +630,12 @@ export default function SearchScreen() {
           maxToRenderPerBatch={5}
           windowSize={5}
           removeClippedSubviews={true}
+          contentContainerStyle={styles.listContent}
           renderItem={({ item }) => (
-            <View style={[styles.userItem, { backgroundColor: theme.colors.surface }]}>
+            <Card
+              variant="listItem"
+              style={styles.userCard}
+            >
               <View style={styles.userInfo}>
                 <View style={styles.avatarContainer}>
                   {item.avatar_url ? (
@@ -637,52 +646,39 @@ export default function SearchScreen() {
                       transition={200}
                     />
                   ) : (
-                    <View style={[styles.defaultAvatar, { backgroundColor: theme.colors.background }]}>
-                      <Text style={[styles.defaultAvatarText, { color: theme.colors.primary }]}>
+                    <View style={[styles.defaultAvatar, { backgroundColor: theme.colors.primary }]}>
+                      <BodyText color="#FFFFFF" style={styles.defaultAvatarText}>
                         {(item.full_name?.charAt(0) || item.username?.charAt(0) || '?').toUpperCase()}
-                      </Text>
+                      </BodyText>
                     </View>
                   )}
                 </View>
                 <View style={styles.userDetails}>
-                  <Text style={[styles.userName, { color: theme.colors.text }]}>
+                  <BodyText bold style={styles.userName}>
                     {item.full_name || 'Anonymous Golfer'}
-                  </Text>
+                  </BodyText>
                   {item.username && (
-                    <Text style={[styles.userUsername, { color: theme.colors.textSecondary }]}>
+                    <SmallText color={theme.colors.textSecondary} style={styles.userUsername}>
                       @{item.username}
-                    </Text>
+                    </SmallText>
                   )}
                 </View>
               </View>
               
+              {/* Follow/Following Button */}
               {user && user.id !== item.id && (
-                <TouchableOpacity
-                  style={[
-                    styles.followButton,
-                    followingStatus[item.id] ? 
-                      [styles.followingButton, { backgroundColor: theme.colors.background }] : 
-                      { backgroundColor: theme.colors.background }
-                  ]}
-                  onPress={() => handleFollow(item.id)}
-                  disabled={followLoading[item.id]}
-                >
-                  {followLoading[item.id] ? (
-                    <ActivityIndicator size="small" color={theme.colors.primary} />
-                  ) : followingStatus[item.id] ? (
-                    <>
-                      <Check size={16} color={theme.colors.success} />
-                      <Text style={[styles.followButtonText, { color: theme.colors.success }]}>Following</Text>
-                    </>
-                  ) : (
-                    <>
-                      <UserPlus size={16} color={theme.colors.primary} />
-                      <Text style={[styles.followButtonText, { color: theme.colors.primary }]}>Follow</Text>
-                    </>
-                  )}
-                </TouchableOpacity>
+                followLoading[item.id] ? (
+                  <ActivityIndicator size="small" color={theme.colors.primary} />
+                ) : (
+                  <Button
+                    label={followingStatus[item.id] ? "Following" : "Follow"}
+                    variant={followingStatus[item.id] ? "secondary" : "primary"}
+                    onPress={() => handleFollow(item.id)}
+                    style={styles.followButtonStyle}
+                  />
+                )
               )}
-            </View>
+            </Card>
           )}
           ListFooterComponent={<View style={styles.listFooter} />}
         />
@@ -699,19 +695,17 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 12,
     borderBottomWidth: 1,
-    borderBottomColor: 'rgba(0,0,0,0.1)',
+    borderBottomColor: 'rgba(0,0,0,0.05)',
   },
   inputContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#f0f0f0',
-    borderRadius: 8,
+    borderRadius: 12,
     paddingHorizontal: 12,
-    height: 40,
+    height: 44,
   },
   inputContainerActive: {
     borderWidth: 1,
-    borderColor: '#4285F4',
   },
   searchIcon: {
     marginRight: 8,
@@ -727,25 +721,22 @@ const styles = StyleSheet.create({
   tabContainer: {
     flexDirection: 'row',
     paddingHorizontal: 16,
-    paddingVertical: 8,
+    paddingVertical: 12,
     borderBottomWidth: 1,
-    borderBottomColor: 'rgba(0,0,0,0.1)',
   },
   tabButton: {
     flexDirection: 'row',
     alignItems: 'center',
     paddingVertical: 8,
-    paddingHorizontal: 12,
+    paddingHorizontal: 16,
     marginRight: 12,
-    borderRadius: 20,
+    borderRadius: 24,
   },
   activeTabButton: {
-    borderRadius: 20,
+    borderRadius: 24,
   },
   tabText: {
-    marginLeft: 4,
-    fontSize: 14,
-    fontWeight: '500',
+    marginLeft: 8,
   },
   loadingContainer: {
     flex: 1,
@@ -754,8 +745,7 @@ const styles = StyleSheet.create({
     padding: 20,
   },
   loadingText: {
-    marginTop: 8,
-    fontSize: 16,
+    marginTop: 12,
   },
   centerContainer: {
     flex: 1,
@@ -764,101 +754,66 @@ const styles = StyleSheet.create({
     padding: 20,
   },
   noResultsText: {
-    fontSize: 16,
     textAlign: 'center',
   },
   errorText: {
-    fontSize: 16,
     marginBottom: 16,
     textAlign: 'center',
   },
-  retryButton: {
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 8,
-    backgroundColor: '#4285F4',
-  },
-  retryButtonText: {
-    color: 'white',
-    fontWeight: '600',
-  },
-  courseItem: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+  listContent: {
     padding: 16,
-    marginHorizontal: 16,
-    marginTop: 12,
-    borderRadius: 8,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
-    elevation: 2,
+  },
+  courseCard: {
+    marginBottom: 12,
+    padding: 0,
   },
   courseItemContent: {
     flex: 1,
+    padding: 16,
   },
   courseHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 4,
+    justifyContent: 'space-between',
+    marginBottom: 8,
   },
   courseName: {
-    fontSize: 16,
-    fontWeight: '600',
+    flex: 1,
     marginRight: 8,
   },
-  reviewIndicator: {
+  headerRightContent: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: 'rgba(46, 204, 113, 0.1)',
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 4,
+    gap: 8,
   },
-  indicatorText: {
-    fontSize: 12,
-    marginLeft: 2,
+  bookmarkButton: {
+    padding: 4,
   },
   courseLocation: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 6,
+    marginBottom: 12,
   },
   locationText: {
-    fontSize: 14,
-    marginLeft: 4,
+    marginLeft: 6,
   },
   courseDetails: {
     flexDirection: 'row',
     flexWrap: 'wrap',
   },
-  courseDetailText: {
-    fontSize: 12,
-    backgroundColor: 'rgba(0,0,0,0.05)',
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 4,
-    marginRight: 6,
+  courseDetailChip: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
+    marginRight: 8,
     marginBottom: 4,
   },
-  bookmarkButton: {
-    padding: 8,
-  },
-  userItem: {
+  userCard: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    padding: 16,
-    marginHorizontal: 16,
-    marginTop: 12,
-    borderRadius: 8,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
-    elevation: 2,
+    marginBottom: 12,
+    padding: 12,
   },
   userInfo: {
     flexDirection: 'row',
@@ -872,7 +827,6 @@ const styles = StyleSheet.create({
     width: 44,
     height: 44,
     borderRadius: 22,
-    backgroundColor: 'rgba(0, 0, 0, 0.1)',
   },
   defaultAvatar: {
     width: 44,
@@ -883,36 +837,17 @@ const styles = StyleSheet.create({
   },
   defaultAvatarText: {
     fontSize: 18,
-    fontWeight: '600',
   },
   userDetails: {
     flex: 1,
   },
   userName: {
-    fontSize: 16,
-    fontWeight: '600',
     marginBottom: 2,
   },
   userUsername: {
-    fontSize: 14,
   },
-  followButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 6,
-    paddingHorizontal: 10,
-    borderRadius: 20,
-    minWidth: 90,
-    justifyContent: 'center',
-  },
-  followingButton: {
-    borderWidth: 1,
-    borderColor: 'transparent',
-  },
-  followButtonText: {
-    marginLeft: 4,
-    fontSize: 14,
-    fontWeight: '500',
+  followButtonStyle: {
+    minWidth: 100,
   },
   listFooter: {
     height: 20,
