@@ -14,7 +14,7 @@ import { PlayedCoursesList } from '../components/PlayedCoursesList';
 import { WantToPlayCoursesList } from '../components/WantToPlayCoursesList';
 import BasicWantToPlayList from '../components/BasicWantToPlayList';
 import { MapPin, X, Bookmark as BookmarkIcon, Search, Star, Plus } from 'lucide-react-native';
-import { Heading1, BodyText } from '../components/eden/Typography';
+import { Heading1, BodyText, Heading2 } from '../components/eden/Typography';
 import { Icon } from '../components/eden/Icon';
 
 export default function ListsScreen() {
@@ -876,7 +876,15 @@ export default function ListsScreen() {
       case 'recommended':
         return (
           <View style={edenStyles.tabContent}>
-            <BodyText center>Coming soon</BodyText>
+            <View style={edenStyles.comingSoonContainer}>
+              <View style={edenStyles.comingSoonIconContainer}>
+                <Star size={32} color={theme.colors.primary} strokeWidth={1.5} />
+              </View>
+              <Heading2 color={theme.colors.primary} style={edenStyles.comingSoonHeading}>Coming soon</Heading2>
+              <BodyText center style={edenStyles.comingSoonText}>
+                Personalized course recommendations based on your playing history and preferences will appear here.
+              </BodyText>
+            </View>
           </View>
         );
       default:
@@ -939,6 +947,30 @@ const edenStyles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     padding: 24,
+  },
+  comingSoonContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 24,
+  },
+  comingSoonIconContainer: {
+    width: 72,
+    height: 72,
+    borderRadius: 36,
+    backgroundColor: 'rgba(35, 77, 44, 0.1)', // Light green background
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  comingSoonHeading: {
+    marginBottom: 12,
+  },
+  comingSoonText: {
+    maxWidth: '80%',
+    color: '#666666', // Using a direct color value instead of theme.colors.textSecondary
+    textAlign: 'center',
+    lineHeight: 24,
   },
   notificationBanner: {
     flexDirection: 'row',
