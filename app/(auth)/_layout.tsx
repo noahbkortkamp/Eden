@@ -1,6 +1,7 @@
 import React from 'react';
 import { Stack } from 'expo-router';
 import { useAuth } from '../context/AuthContext';
+import { edenTheme } from '../theme/edenTheme';
 
 export default function AuthLayout() {
   const { user } = useAuth();
@@ -11,12 +12,17 @@ export default function AuthLayout() {
   }
 
   return (
-    <Stack>
+    <Stack screenOptions={{ 
+      headerShown: false,
+      contentStyle: { backgroundColor: edenTheme.colors.background },
+      animation: 'none',
+      headerBackVisible: false,
+      presentation: 'modal'
+    }}>
       <Stack.Screen
         name="first-review"
         options={{
           title: 'First Review',
-          headerShown: false,
           gestureEnabled: false, // Prevent back gesture
         }}
       />

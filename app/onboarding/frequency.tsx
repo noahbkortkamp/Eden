@@ -1,8 +1,9 @@
-import React, { useState } from 'react';
-import { View, StyleSheet, TouchableOpacity } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { View, StyleSheet, TouchableOpacity, SafeAreaView } from 'react-native';
 import { Text, Button } from 'react-native-paper';
-import { useRouter } from 'expo-router';
+import { useRouter, useLocalSearchParams } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { edenTheme } from '../theme/edenTheme';
 
 const frequencyOptions = [
   { label: 'Monthly', value: 'monthly' },
@@ -15,6 +16,15 @@ export default function FrequencyScreen() {
   const [selectedFrequency, setSelectedFrequency] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const router = useRouter();
+  const params = useLocalSearchParams();
+  
+  // Check if we have a noHeader parameter coming from signup
+  useEffect(() => {
+    // This will force the screen to use the modal presentation style
+    if (params.noHeader === 'true') {
+      console.log('Coming from signup flow, ensuring no header is shown');
+    }
+  }, [params]);
 
   const handleFrequencySelect = async (value: string) => {
     setSelectedFrequency(value);
@@ -53,64 +63,82 @@ export default function FrequencyScreen() {
   };
 
   return (
-    <View style={styles.container}>
-      <Text variant="headlineMedium" style={styles.title}>
-        How often do you play golf?
-      </Text>
-      
-      <View style={styles.optionsGrid}>
-        {frequencyOptions.map((option) => (
-          <TouchableOpacity
-            key={option.value}
-            style={[
-              styles.optionButton,
-              selectedFrequency === option.value && styles.selectedOption,
-            ]}
-            onPress={() => handleFrequencySelect(option.value)}
-          >
-            <Text 
+    <SafeAreaView style={styles.safeArea}>
+      <View style={styles.container}>
+        <Text 
+          variant="headlineMedium" 
+          style={[styles.title, { 
+            fontFamily: edenTheme.typography.h2.fontFamily, 
+            fontWeight: edenTheme.typography.h2.fontWeight as any
+          }]}
+        >
+          How often do you play golf?
+        </Text>
+        
+        <View style={styles.optionsGrid}>
+          {frequencyOptions.map((option) => (
+            <TouchableOpacity
+              key={option.value}
               style={[
-                styles.optionText,
-                selectedFrequency === option.value && styles.selectedOptionText
+                styles.optionButton,
+                selectedFrequency === option.value && styles.selectedOption,
               ]}
+              onPress={() => handleFrequencySelect(option.value)}
             >
-              {option.label}
-            </Text>
-          </TouchableOpacity>
-        ))}
-      </View>
+              <Text 
+                style={[
+                  styles.optionText,
+                  selectedFrequency === option.value && styles.selectedOptionText
+                ]}
+              >
+                {option.label}
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </View>
 
-      <Button
-        mode="contained"
-        onPress={handleContinue}
-        loading={loading}
-        disabled={loading || !selectedFrequency}
-        style={styles.continueButton}
-        buttonColor="#245E2C"
-      >
-        Continue
-      </Button>
-      
-      <Button
-        mode="text"
-        onPress={handleSkip}
-        disabled={loading}
-        style={styles.skipButton}
-      >
-        Skip
-      </Button>
-    </View>
+        <Button
+          mode="contained"
+          onPress={handleContinue}
+          loading={loading}
+          disabled={loading || !selectedFrequency}
+          style={styles.continueButton}
+          buttonColor={edenTheme.components.button.primary.backgroundColor}
+          labelStyle={{
+            fontFamily: edenTheme.typography.button.fontFamily,
+            fontWeight: edenTheme.typography.button.fontWeight as any,
+            color: edenTheme.typography.button.color,
+          }}
+        >
+          Continue
+        </Button>
+        
+        <Button
+          mode="text"
+          onPress={handleSkip}
+          disabled={loading}
+          style={styles.skipButton}
+          textColor={edenTheme.colors.textSecondary}
+        >
+          Skip
+        </Button>
+      </View>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
+  safeArea: {
+    flex: 1,
+    backgroundColor: edenTheme.colors.background,
+  },
   container: {
     flex: 1,
-    padding: 20,
-    backgroundColor: '#fff',
+    padding: edenTheme.spacing.lg,
+    backgroundColor: edenTheme.colors.background,
   },
   title: {
-    marginBottom: 32,
+    marginBottom: edenTheme.spacing.xl,
     textAlign: 'center',
     fontWeight: 'bold',
   },
@@ -118,35 +146,36 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     flexWrap: 'wrap',
     justifyContent: 'space-between',
-    marginBottom: 32,
+    marginBottom: edenTheme.spacing.xl,
   },
   optionButton: {
     width: '48%',
-    padding: 16,
-    backgroundColor: '#f5f5f5',
-    borderRadius: 12,
-    marginBottom: 16,
+    padding: edenTheme.spacing.md,
+    backgroundColor: edenTheme.colors.surface,
+    borderRadius: edenTheme.borderRadius.md,
+    marginBottom: edenTheme.spacing.md,
     alignItems: 'center',
     justifyContent: 'center',
     minHeight: 100,
   },
   selectedOption: {
-    backgroundColor: '#245E2C', // Masters green
+    backgroundColor: edenTheme.colors.primary,
   },
   optionText: {
     fontSize: 16,
     fontWeight: '500',
     textAlign: 'center',
+    color: edenTheme.colors.text,
   },
   selectedOptionText: {
-    color: '#fff',
+    color: edenTheme.colors.text.inverse || '#fff',
   },
   continueButton: {
-    marginTop: 16,
-    backgroundColor: '#245E2C', // Masters green
-    padding: 8,
+    marginTop: edenTheme.spacing.md,
+    borderRadius: edenTheme.borderRadius.md,
+    paddingVertical: edenTheme.spacing.xs,
   },
   skipButton: {
-    marginTop: 8,
+    marginTop: edenTheme.spacing.xs,
   },
 }); 

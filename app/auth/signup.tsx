@@ -1,9 +1,10 @@
-import React, { useState } from 'react';
-import { View, StyleSheet, TouchableOpacity } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { View, StyleSheet, TouchableOpacity, SafeAreaView, TouchableWithoutFeedback, Keyboard, KeyboardAvoidingView, Platform, ScrollView, LayoutAnimation } from 'react-native';
 import { Text, TextInput, Button } from 'react-native-paper';
 import { Link, useRouter } from 'expo-router';
 import { useAuth } from '../context/AuthContext';
 import { MaterialIcons } from '@expo/vector-icons';
+import { edenTheme } from '../theme/edenTheme';
 
 const isValidEmail = (email: string) => {
   const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -20,6 +21,33 @@ export default function SignUpScreen() {
   const [showPassword, setShowPassword] = useState(false);
   const router = useRouter();
   const { signUp } = useAuth();
+
+  // Configure keyboard animations
+  useEffect(() => {
+    const keyboardWillShowListener = Keyboard.addListener(
+      Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow',
+      () => {
+        LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+      }
+    );
+    
+    const keyboardWillHideListener = Keyboard.addListener(
+      Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide',
+      () => {
+        LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+      }
+    );
+
+    return () => {
+      keyboardWillShowListener.remove();
+      keyboardWillHideListener.remove();
+    };
+  }, []);
+
+  const dismissKeyboard = () => {
+    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+    Keyboard.dismiss();
+  };
 
   const handleSignUp = async () => {
     // Reset states
@@ -52,9 +80,11 @@ export default function SignUpScreen() {
         name
       });
       
-      // If we get here, signup was successful
-      // Will navigate through onboarding first, then to first-review
-      router.replace('/onboarding/frequency');
+      // Use a different navigation approach to avoid header issues
+      router.push({
+        pathname: '/onboarding/frequency',
+        params: { noHeader: 'true' }
+      });
     } catch (err) {
       console.error('Signup error:', err);
       setError(err instanceof Error ? err.message : 'An error occurred during sign up');
@@ -65,156 +95,237 @@ export default function SignUpScreen() {
 
   if (confirmationSent) {
     return (
-      <View style={styles.container}>
-        <Text variant="headlineMedium" style={styles.title}>Check Your Email</Text>
-        <Text style={styles.message}>
-          We've sent a confirmation link to {email}. Please check your email and click the link to complete your registration.
-        </Text>
-        <Text style={styles.submessage}>
-          After confirming your email, you can return to the app and log in.
-        </Text>
-        <Link href="/auth/login" asChild>
-          <Button 
-            mode="contained" 
-            style={styles.button}
-            buttonColor="#245E2C"
-          >
-            Return to Login
-          </Button>
-        </Link>
-      </View>
+      <SafeAreaView style={styles.safeArea}>
+        <TouchableWithoutFeedback onPress={dismissKeyboard} accessible={false}>
+          <View style={styles.container}>
+            <Text 
+              variant="headlineMedium" 
+              style={[styles.title, { 
+                fontFamily: edenTheme.typography.h2.fontFamily, 
+                fontWeight: edenTheme.typography.h2.fontWeight as any
+              }]}
+            >
+              Check Your Email
+            </Text>
+            <Text style={[styles.message, { color: edenTheme.colors.text }]}>
+              We've sent a confirmation link to {email}. Please check your email and click the link to complete your registration.
+            </Text>
+            <Text style={[styles.submessage, { color: edenTheme.colors.textSecondary }]}>
+              After confirming your email, you can return to the app and log in.
+            </Text>
+            <Link href="/auth/login" asChild>
+              <Button 
+                mode="contained" 
+                style={styles.button}
+                buttonColor={edenTheme.components.button.primary.backgroundColor}
+                labelStyle={{
+                  fontFamily: edenTheme.typography.button.fontFamily,
+                  fontWeight: edenTheme.typography.button.fontWeight as any,
+                  color: edenTheme.typography.button.color,
+                }}
+              >
+                Return to Login
+              </Button>
+            </Link>
+          </View>
+        </TouchableWithoutFeedback>
+      </SafeAreaView>
     );
   }
 
   return (
-    <View style={styles.container}>
-      <Text variant="headlineLarge" style={styles.title}>Create your account</Text>
-      
-      {error ? <Text style={styles.error}>{error}</Text> : null}
+    <SafeAreaView style={styles.safeArea}>
+      <TouchableWithoutFeedback onPress={dismissKeyboard} accessible={false}>
+        <KeyboardAvoidingView 
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          style={styles.keyboardAvoidingView}
+          keyboardVerticalOffset={Platform.OS === 'ios' ? 10 : 0}
+        >
+          <ScrollView 
+            contentContainerStyle={styles.scrollViewContent}
+            keyboardShouldPersistTaps="handled"
+            scrollEnabled={false}
+          >
+            <View style={styles.container}>
+              <Text 
+                variant="headlineLarge" 
+                style={[styles.title, { 
+                  fontFamily: edenTheme.typography.h1.fontFamily, 
+                  fontWeight: edenTheme.typography.h1.fontWeight as any
+                }]}
+              >
+                Create your account
+              </Text>
+              
+              {error ? <Text style={styles.error}>{error}</Text> : null}
 
-      <TextInput
-        label="Full Name"
-        value={name}
-        onChangeText={setName}
-        style={styles.input}
-        disabled={loading}
-        mode="outlined"
-        outlineColor="#ddd"
-        activeOutlineColor="#245E2C"
-      />
+              <TextInput
+                label="Full Name"
+                value={name}
+                onChangeText={setName}
+                style={styles.input}
+                disabled={loading}
+                mode="outlined"
+                outlineColor={edenTheme.components.input.default.borderColor}
+                activeOutlineColor={edenTheme.colors.primary}
+                theme={{
+                  colors: {
+                    background: edenTheme.components.input.default.backgroundColor,
+                    text: edenTheme.colors.text,
+                  }
+                }}
+                returnKeyType="next"
+                blurOnSubmit={false}
+              />
 
-      <TextInput
-        label="Email"
-        value={email}
-        onChangeText={(text) => {
-          setEmail(text.trim());
-          setError('');
-        }}
-        autoCapitalize="none"
-        keyboardType="email-address"
-        style={styles.input}
-        disabled={loading}
-        mode="outlined"
-        outlineColor="#ddd"
-        activeOutlineColor="#245E2C"
-      />
+              <TextInput
+                label="Email"
+                value={email}
+                onChangeText={(text) => {
+                  setEmail(text.trim());
+                  setError('');
+                }}
+                autoCapitalize="none"
+                keyboardType="email-address"
+                style={styles.input}
+                disabled={loading}
+                mode="outlined"
+                outlineColor={edenTheme.components.input.default.borderColor}
+                activeOutlineColor={edenTheme.colors.primary}
+                theme={{
+                  colors: {
+                    background: edenTheme.components.input.default.backgroundColor,
+                    text: edenTheme.colors.text,
+                  }
+                }}
+                returnKeyType="next"
+                blurOnSubmit={false}
+              />
 
-      <TextInput
-        label="Password"
-        value={password}
-        onChangeText={(text) => {
-          setPassword(text);
-          setError('');
-        }}
-        secureTextEntry={!showPassword}
-        style={styles.input}
-        disabled={loading}
-        mode="outlined"
-        outlineColor="#ddd"
-        activeOutlineColor="#245E2C"
-        right={
-          <TextInput.Icon 
-            icon={showPassword ? 'eye-off' : 'eye'} 
-            onPress={() => setShowPassword(!showPassword)}
-          />
-        }
-      />
+              <TextInput
+                label="Password"
+                value={password}
+                onChangeText={(text) => {
+                  setPassword(text);
+                  setError('');
+                }}
+                secureTextEntry={!showPassword}
+                style={styles.input}
+                disabled={loading}
+                mode="outlined"
+                outlineColor={edenTheme.components.input.default.borderColor}
+                activeOutlineColor={edenTheme.colors.primary}
+                theme={{
+                  colors: {
+                    background: edenTheme.components.input.default.backgroundColor,
+                    text: edenTheme.colors.text,
+                  }
+                }}
+                right={
+                  <TextInput.Icon 
+                    icon={showPassword ? 'eye-off' : 'eye'} 
+                    color={edenTheme.colors.textSecondary}
+                    onPress={() => setShowPassword(!showPassword)}
+                  />
+                }
+                returnKeyType="done"
+                onSubmitEditing={dismissKeyboard}
+              />
 
-      <Button
-        mode="contained"
-        onPress={handleSignUp}
-        loading={loading}
-        disabled={loading}
-        style={styles.button}
-        buttonColor="#245E2C"
-      >
-        Continue
-      </Button>
-      
-      <Text style={styles.terms}>
-        By signing up, you agree to the Terms and Privacy Policy
-      </Text>
+              <Button
+                mode="contained"
+                onPress={handleSignUp}
+                loading={loading}
+                disabled={loading}
+                style={styles.button}
+                buttonColor={edenTheme.components.button.primary.backgroundColor}
+                labelStyle={{
+                  fontFamily: edenTheme.typography.button.fontFamily,
+                  fontWeight: edenTheme.typography.button.fontWeight as any,
+                  color: edenTheme.typography.button.color,
+                }}
+              >
+                Continue
+              </Button>
+              
+              <Text style={[styles.terms, { color: edenTheme.colors.textSecondary }]}>
+                By signing up, you agree to the Terms and Privacy Policy
+              </Text>
 
-      <View style={styles.footer}>
-        <Text>Already have an account? </Text>
-        <Link href="/auth/login">
-          <Text style={styles.link}>Sign In</Text>
-        </Link>
-      </View>
-    </View>
+              <View style={styles.footer}>
+                <Text style={{ color: edenTheme.colors.text }}>Already have an account? </Text>
+                <Link href="/auth/login">
+                  <Text style={[styles.link, { color: edenTheme.colors.primary }]}>Sign In</Text>
+                </Link>
+              </View>
+            </View>
+          </ScrollView>
+        </KeyboardAvoidingView>
+      </TouchableWithoutFeedback>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
+  safeArea: {
+    flex: 1,
+    backgroundColor: edenTheme.colors.background,
+  },
+  keyboardAvoidingView: {
+    flex: 1,
+  },
+  scrollViewContent: {
+    flexGrow: 1,
+    justifyContent: 'center',
+  },
   container: {
     flex: 1,
-    padding: 24,
-    backgroundColor: '#fff',
+    padding: edenTheme.spacing.lg,
+    paddingHorizontal: edenTheme.spacing.xl,
+    backgroundColor: edenTheme.colors.background,
     justifyContent: 'center',
   },
   title: {
     textAlign: 'center',
-    marginBottom: 32,
+    marginBottom: edenTheme.spacing.xl,
     fontWeight: 'bold',
   },
   input: {
-    marginBottom: 20,
-    backgroundColor: '#fff',
+    marginBottom: edenTheme.spacing.md,
+    backgroundColor: edenTheme.components.input.default.backgroundColor,
+    borderRadius: edenTheme.borderRadius.sm,
   },
   button: {
-    marginTop: 16,
-    borderRadius: 8,
-    paddingVertical: 6,
+    marginTop: edenTheme.spacing.md,
+    borderRadius: edenTheme.borderRadius.md,
+    paddingVertical: edenTheme.spacing.xs,
   },
   error: {
-    color: 'red',
-    marginBottom: 20,
+    color: edenTheme.colors.error,
+    marginBottom: edenTheme.spacing.md,
     textAlign: 'center',
   },
   footer: {
     flexDirection: 'row',
     justifyContent: 'center',
-    marginTop: 32,
+    marginTop: edenTheme.spacing.xl,
   },
   link: {
-    color: '#245E2C',
-    fontWeight: '600',
+    fontWeight: edenTheme.typography.buttonSecondary.fontWeight as any,
   },
   message: {
     textAlign: 'center',
-    marginBottom: 16,
+    marginBottom: edenTheme.spacing.md,
     fontSize: 16,
     lineHeight: 24,
   },
   submessage: {
     textAlign: 'center',
-    marginBottom: 24,
-    color: '#666',
+    marginBottom: edenTheme.spacing.lg,
   },
   terms: {
-    fontSize: 12,
-    color: '#666',
+    fontSize: edenTheme.typography.caption.fontSize,
     textAlign: 'center',
-    marginTop: 16,
+    marginTop: edenTheme.spacing.md,
   },
 }); 

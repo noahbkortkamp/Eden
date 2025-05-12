@@ -22,7 +22,12 @@ export default function AuthLayout() {
 
   // If not logged in, show the auth stack
   return (
-    <Stack>
+    <Stack 
+      screenOptions={{ 
+        headerShown: false,
+        contentStyle: { backgroundColor: 'transparent' } 
+      }}
+    >
       <Stack.Screen
         name="login"
         options={{

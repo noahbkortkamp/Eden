@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
+import { View, StyleSheet, ScrollView, TouchableOpacity, SafeAreaView } from 'react-native';
 import { Text, Button, TextInput, ActivityIndicator } from 'react-native-paper';
 import { useRouter } from 'expo-router';
 import { useAuth } from '../context/AuthContext';
@@ -7,6 +7,7 @@ import { supabase } from '../utils/supabase';
 import { reviewService } from '../services/reviewService';
 import { userService } from '../services/userService';
 import { Search, MapPin } from 'lucide-react-native';
+import { edenTheme } from '../theme/edenTheme';
 
 // Course type definition
 type Course = {
@@ -103,7 +104,7 @@ export default function FirstReviewScreen() {
   if (initialLoading) {
     return (
       <View style={[styles.container, styles.loadingContainer]}>
-        <ActivityIndicator size="large" color="#245E2C" />
+        <ActivityIndicator size="large" color={edenTheme.colors.primary} />
         <Text style={styles.loadingText}>
           Setting up your experience...
         </Text>
@@ -112,18 +113,24 @@ export default function FirstReviewScreen() {
   }
 
   return (
-    <View style={styles.container}>
+    <SafeAreaView style={styles.safeArea}>
       <ScrollView 
         style={styles.scrollView}
         contentContainerStyle={styles.scrollContent}
         keyboardShouldPersistTaps="handled"
       >
         <View style={styles.header}>
-          <Text variant="headlineMedium" style={styles.title}>
+          <Text 
+            variant="headlineMedium" 
+            style={[styles.title, { 
+              fontFamily: edenTheme.typography.h2.fontFamily, 
+              fontWeight: edenTheme.typography.h2.fontWeight as any
+            }]}
+          >
             Leave Your First Review
           </Text>
           
-          <Text style={styles.subtitle}>
+          <Text style={[styles.subtitle, { color: edenTheme.colors.textSecondary }]}>
             Help other golfers by sharing your experience at a course you've played.
           </Text>
         </View>
@@ -135,19 +142,30 @@ export default function FirstReviewScreen() {
             onChangeText={setSearchQuery}
             style={styles.searchInput}
             onSubmitEditing={handleSearch}
-            left={<TextInput.Icon icon={() => <Search size={20} color="#555" />} />}
+            left={<TextInput.Icon icon={() => <Search size={20} color={edenTheme.colors.textSecondary} />} />}
             mode="outlined"
-            outlineColor="#ddd"
-            activeOutlineColor="#245E2C"
+            outlineColor={edenTheme.components.input.default.borderColor}
+            activeOutlineColor={edenTheme.colors.primary}
+            theme={{
+              colors: {
+                background: edenTheme.components.input.default.backgroundColor,
+                text: edenTheme.colors.text,
+              }
+            }}
           />
           
           <Button 
             mode="contained" 
             onPress={handleSearch}
             style={styles.searchButton}
-            buttonColor="#245E2C"
+            buttonColor={edenTheme.components.button.primary.backgroundColor}
             loading={loading}
             disabled={loading}
+            labelStyle={{
+              fontFamily: edenTheme.typography.button.fontFamily,
+              fontWeight: edenTheme.typography.button.fontWeight as any,
+              color: edenTheme.typography.button.color,
+            }}
           >
             Search
           </Button>
@@ -155,7 +173,7 @@ export default function FirstReviewScreen() {
         
         {loading && (
           <View style={styles.loadingContainer}>
-            <ActivityIndicator size="large" color="#245E2C" />
+            <ActivityIndicator size="large" color={edenTheme.colors.primary} />
           </View>
         )}
         
@@ -174,7 +192,7 @@ export default function FirstReviewScreen() {
                 <View style={styles.courseInfo}>
                   <Text style={styles.courseName}>{course.name}</Text>
                   <View style={styles.locationContainer}>
-                    <MapPin size={14} color="#666" />
+                    <MapPin size={14} color={edenTheme.colors.textSecondary} />
                     <Text style={styles.courseLocation}>{course.location}</Text>
                   </View>
                 </View>
@@ -193,70 +211,81 @@ export default function FirstReviewScreen() {
         
         <View style={styles.skipContainer}>
           <TouchableOpacity onPress={handleSkip}>
-            <Text style={styles.skipText}>Skip for now</Text>
+            <Text style={[styles.skipText, { color: edenTheme.colors.textSecondary }]}>
+              Skip for now
+            </Text>
           </TouchableOpacity>
         </View>
       </ScrollView>
-    </View>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
+  safeArea: {
+    flex: 1,
+    backgroundColor: edenTheme.colors.background,
+  },
   container: {
     flex: 1,
-    backgroundColor: '#fff',
+    backgroundColor: edenTheme.colors.background,
   },
   scrollView: {
     flex: 1,
   },
   scrollContent: {
-    padding: 24,
-    paddingTop: 40,
+    padding: edenTheme.spacing.lg,
+    paddingTop: edenTheme.spacing.xl,
   },
   header: {
-    marginBottom: 30,
+    marginBottom: edenTheme.spacing.xl,
   },
   title: {
     fontWeight: 'bold',
     textAlign: 'center',
-    marginBottom: 16,
+    marginBottom: edenTheme.spacing.md,
   },
   subtitle: {
     fontSize: 16,
     textAlign: 'center',
-    color: '#666',
     lineHeight: 22,
   },
   searchContainer: {
-    marginBottom: 24,
+    marginBottom: edenTheme.spacing.lg,
   },
   searchInput: {
-    marginBottom: 12,
-    backgroundColor: '#fff',
+    marginBottom: edenTheme.spacing.sm,
+    backgroundColor: edenTheme.components.input.default.backgroundColor,
+    borderRadius: edenTheme.borderRadius.sm,
   },
   searchButton: {
-    borderRadius: 8,
-    paddingVertical: 6,
+    borderRadius: edenTheme.borderRadius.md,
+    paddingVertical: edenTheme.spacing.xs,
   },
   loadingContainer: {
-    padding: 20,
+    padding: edenTheme.spacing.lg,
     alignItems: 'center',
   },
+  loadingText: {
+    marginTop: edenTheme.spacing.md,
+    color: edenTheme.colors.text,
+    fontSize: 16,
+    textAlign: 'center',
+  },
   resultsContainer: {
-    marginTop: 10,
+    marginTop: edenTheme.spacing.sm,
   },
   resultsTitle: {
     fontSize: 16,
     fontWeight: '600',
-    marginBottom: 12,
-    color: '#333',
+    marginBottom: edenTheme.spacing.sm,
+    color: edenTheme.colors.text,
   },
   courseItem: {
-    flexDirection: 'row',
-    padding: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: '#eee',
-    alignItems: 'center',
+    padding: edenTheme.spacing.md,
+    backgroundColor: edenTheme.colors.surface,
+    borderRadius: edenTheme.borderRadius.md,
+    marginBottom: edenTheme.spacing.sm,
   },
   courseInfo: {
     flex: 1,
@@ -265,6 +294,7 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
     marginBottom: 4,
+    color: edenTheme.colors.text,
   },
   locationContainer: {
     flexDirection: 'row',
@@ -272,31 +302,24 @@ const styles = StyleSheet.create({
   },
   courseLocation: {
     fontSize: 14,
-    color: '#666',
     marginLeft: 4,
+    color: edenTheme.colors.textSecondary,
   },
   emptyContainer: {
-    padding: 20,
+    padding: edenTheme.spacing.lg,
     alignItems: 'center',
   },
   emptyText: {
+    color: edenTheme.colors.textSecondary,
     fontSize: 16,
-    color: '#666',
     textAlign: 'center',
   },
   skipContainer: {
-    marginTop: 40,
+    marginTop: edenTheme.spacing.xl,
     alignItems: 'center',
   },
   skipText: {
     fontSize: 16,
-    color: '#666',
     textDecorationLine: 'underline',
-  },
-  loadingText: {
-    marginTop: 16,
-    fontSize: 16,
-    color: '#666',
-    textAlign: 'center',
   },
 }); 

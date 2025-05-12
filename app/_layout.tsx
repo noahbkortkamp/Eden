@@ -27,13 +27,45 @@ function AppContent() {
   return (
     <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
       <View style={{ flex: 1 }}>
-        <Stack>
+        <Stack 
+          initialRouteName="index"
+          screenOptions={{ 
+            headerShown: false,
+            headerBackVisible: false,
+            contentStyle: { backgroundColor: theme.colors.background },
+            animation: 'fade',
+            presentation: 'transparentModal'
+          }}
+        >
+          <Stack.Screen name="index" options={{ headerShown: false }} />
           <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
           <Stack.Screen
             name="(modals)"
             options={{
               presentation: 'modal',
               headerShown: false
+            }}
+          />
+          <Stack.Screen
+            name="auth"
+            options={{
+              headerShown: false
+            }}
+          />
+          <Stack.Screen
+            name="onboarding"
+            options={{
+              headerShown: false,
+              animation: 'none',
+              presentation: 'transparentModal'
+            }}
+          />
+          <Stack.Screen
+            name="(auth)"
+            options={{
+              headerShown: false,
+              animation: 'none',
+              presentation: 'transparentModal'
             }}
           />
           <Stack.Screen

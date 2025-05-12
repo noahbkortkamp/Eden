@@ -1,9 +1,10 @@
-import React, { useState } from 'react';
-import { View, StyleSheet } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { View, StyleSheet, SafeAreaView, TouchableWithoutFeedback, Keyboard, KeyboardAvoidingView, Platform, ScrollView, LayoutAnimation } from 'react-native';
 import { Text, TextInput, Button } from 'react-native-paper';
 import { Link } from 'expo-router';
 import { useAuth } from '../context/AuthContext';
 import { errorHandler } from '../utils/errorHandling';
+import { edenTheme } from '../theme/edenTheme';
 
 export default function LoginScreen() {
   const [email, setEmail] = useState('');
@@ -13,6 +14,33 @@ export default function LoginScreen() {
   const [error, setError] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const { signIn, signInWithGoogle } = useAuth();
+
+  // Configure keyboard animations
+  useEffect(() => {
+    const keyboardWillShowListener = Keyboard.addListener(
+      Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow',
+      () => {
+        LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+      }
+    );
+    
+    const keyboardWillHideListener = Keyboard.addListener(
+      Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide',
+      () => {
+        LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+      }
+    );
+
+    return () => {
+      keyboardWillShowListener.remove();
+      keyboardWillHideListener.remove();
+    };
+  }, []);
+
+  const dismissKeyboard = () => {
+    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+    Keyboard.dismiss();
+  };
 
   const handleLogin = async () => {
     if (!email || !password) {
@@ -54,130 +82,196 @@ export default function LoginScreen() {
   };
 
   return (
-    <View style={styles.container}>
-      <Text variant="headlineLarge" style={styles.title}>Welcome Back</Text>
-      
-      {error ? <Text style={styles.error}>{error}</Text> : null}
+    <SafeAreaView style={styles.safeArea}>
+      <TouchableWithoutFeedback onPress={dismissKeyboard} accessible={false}>
+        <KeyboardAvoidingView 
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          style={styles.keyboardAvoidingView}
+          keyboardVerticalOffset={Platform.OS === 'ios' ? 10 : 0}
+        >
+          <ScrollView 
+            contentContainerStyle={styles.scrollViewContent}
+            keyboardShouldPersistTaps="handled"
+            scrollEnabled={false}
+          >
+            <View style={styles.container}>
+              <Text 
+                variant="headlineLarge" 
+                style={[styles.title, { 
+                  fontFamily: edenTheme.typography.h1.fontFamily, 
+                  fontWeight: edenTheme.typography.h1.fontWeight as any
+                }]}
+              >
+                Welcome Back
+              </Text>
+              
+              {error ? <Text style={styles.error}>{error}</Text> : null}
 
-      <TextInput
-        label="Email"
-        value={email}
-        onChangeText={setEmail}
-        autoCapitalize="none"
-        keyboardType="email-address"
-        style={styles.input}
-        mode="outlined"
-        outlineColor="#ddd"
-        activeOutlineColor="#245E2C"
-      />
+              <TextInput
+                label="Email"
+                value={email}
+                onChangeText={setEmail}
+                autoCapitalize="none"
+                keyboardType="email-address"
+                style={styles.input}
+                mode="outlined"
+                outlineColor={edenTheme.components.input.default.borderColor}
+                activeOutlineColor={edenTheme.colors.primary}
+                theme={{
+                  colors: {
+                    background: edenTheme.components.input.default.backgroundColor,
+                    text: edenTheme.colors.text,
+                  }
+                }}
+                blurOnSubmit={false}
+                returnKeyType="next"
+              />
 
-      <TextInput
-        label="Password"
-        value={password}
-        onChangeText={setPassword}
-        secureTextEntry={!showPassword}
-        style={styles.input}
-        mode="outlined"
-        outlineColor="#ddd"
-        activeOutlineColor="#245E2C"
-        right={
-          <TextInput.Icon 
-            icon={showPassword ? 'eye-off' : 'eye'} 
-            onPress={() => setShowPassword(!showPassword)}
-          />
-        }
-      />
+              <TextInput
+                label="Password"
+                value={password}
+                onChangeText={setPassword}
+                secureTextEntry={!showPassword}
+                style={styles.input}
+                mode="outlined"
+                outlineColor={edenTheme.components.input.default.borderColor}
+                activeOutlineColor={edenTheme.colors.primary}
+                theme={{
+                  colors: {
+                    background: edenTheme.components.input.default.backgroundColor,
+                    text: edenTheme.colors.text,
+                  }
+                }}
+                right={
+                  <TextInput.Icon 
+                    icon={showPassword ? 'eye-off' : 'eye'} 
+                    color={edenTheme.colors.textSecondary}
+                    onPress={() => setShowPassword(!showPassword)}
+                  />
+                }
+                returnKeyType="done"
+                onSubmitEditing={dismissKeyboard}
+              />
 
-      <Button
-        mode="contained"
-        onPress={handleLogin}
-        loading={loading}
-        disabled={loading || googleLoading}
-        style={styles.button}
-        buttonColor="#245E2C"
-      >
-        Sign In
-      </Button>
-      
-      <View style={styles.divider}>
-        <View style={styles.dividerLine} />
-        <Text style={styles.dividerText}>OR</Text>
-        <View style={styles.dividerLine} />
-      </View>
-      
-      <Button
-        mode="outlined"
-        onPress={handleGoogleSignIn}
-        loading={googleLoading}
-        disabled={loading || googleLoading}
-        style={styles.googleButton}
-        icon="google"
-      >
-        Continue with Google
-      </Button>
+              <Button
+                mode="contained"
+                onPress={handleLogin}
+                loading={loading}
+                disabled={loading || googleLoading}
+                style={styles.button}
+                buttonColor={edenTheme.components.button.primary.backgroundColor}
+                labelStyle={{
+                  fontFamily: edenTheme.typography.button.fontFamily,
+                  fontWeight: edenTheme.typography.button.fontWeight as any,
+                  color: edenTheme.typography.button.color,
+                }}
+              >
+                Sign In
+              </Button>
+              
+              <View style={styles.divider}>
+                <View style={styles.dividerLine} />
+                <Text style={[styles.dividerText, { color: edenTheme.colors.textSecondary }]}>OR</Text>
+                <View style={styles.dividerLine} />
+              </View>
+              
+              <Button
+                mode="outlined"
+                onPress={handleGoogleSignIn}
+                loading={googleLoading}
+                disabled={loading || googleLoading}
+                style={styles.googleButton}
+                icon="google"
+                textColor={edenTheme.components.button.secondary.color}
+                labelStyle={{
+                  fontFamily: edenTheme.typography.buttonSecondary.fontFamily,
+                  fontWeight: edenTheme.typography.buttonSecondary.fontWeight as any,
+                }}
+                theme={{
+                  colors: {
+                    outline: edenTheme.components.button.secondary.borderColor,
+                  }
+                }}
+              >
+                Continue with Google
+              </Button>
 
-      <View style={styles.footer}>
-        <Text>Don't have an account? </Text>
-        <Link href="/auth/signup">
-          <Text style={styles.link}>Sign Up</Text>
-        </Link>
-      </View>
-    </View>
+              <View style={styles.footer}>
+                <Text style={{ color: edenTheme.colors.text }}>Don't have an account? </Text>
+                <Link href="/auth/signup">
+                  <Text style={[styles.link, { color: edenTheme.colors.primary }]}>Sign Up</Text>
+                </Link>
+              </View>
+            </View>
+          </ScrollView>
+        </KeyboardAvoidingView>
+      </TouchableWithoutFeedback>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
+  safeArea: {
+    flex: 1,
+    backgroundColor: edenTheme.colors.background,
+  },
+  keyboardAvoidingView: {
+    flex: 1,
+  },
+  scrollViewContent: {
+    flexGrow: 1,
+    justifyContent: 'center',
+  },
   container: {
     flex: 1,
-    padding: 24,
-    backgroundColor: '#fff',
+    padding: edenTheme.spacing.lg,
+    paddingHorizontal: edenTheme.spacing.xl,
+    backgroundColor: edenTheme.colors.background,
     justifyContent: 'center',
   },
   title: {
     textAlign: 'center',
-    marginBottom: 32,
+    marginBottom: edenTheme.spacing.xl,
     fontWeight: 'bold',
   },
   input: {
-    marginBottom: 20,
-    backgroundColor: '#fff',
+    marginBottom: edenTheme.spacing.md,
+    backgroundColor: edenTheme.components.input.default.backgroundColor,
+    borderRadius: edenTheme.borderRadius.sm,
   },
   button: {
-    marginTop: 16,
-    borderRadius: 8,
-    paddingVertical: 6,
+    marginTop: edenTheme.spacing.md,
+    borderRadius: edenTheme.borderRadius.md,
+    paddingVertical: edenTheme.spacing.xs,
   },
   error: {
-    color: 'red',
-    marginBottom: 20,
+    color: edenTheme.colors.error,
+    marginBottom: edenTheme.spacing.md,
     textAlign: 'center',
   },
   footer: {
     flexDirection: 'row',
     justifyContent: 'center',
-    marginTop: 32,
+    marginTop: edenTheme.spacing.xl,
   },
   link: {
-    color: '#245E2C',
-    fontWeight: '600',
+    fontWeight: edenTheme.typography.buttonSecondary.fontWeight as any,
   },
   divider: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginVertical: 20,
+    marginVertical: edenTheme.spacing.md,
   },
   dividerLine: {
     flex: 1,
     height: 1,
-    backgroundColor: '#ddd',
+    backgroundColor: edenTheme.colors.border,
   },
   dividerText: {
-    marginHorizontal: 10,
-    color: '#666',
+    marginHorizontal: edenTheme.spacing.xs,
   },
   googleButton: {
-    borderRadius: 8,
-    paddingVertical: 6,
-    borderColor: '#ddd',
+    borderRadius: edenTheme.borderRadius.md,
+    paddingVertical: edenTheme.spacing.xs,
   },
 }); 
