@@ -8,6 +8,7 @@ import { reviewService } from '../services/reviewService';
 import { userService } from '../services/userService';
 import { Search, MapPin } from 'lucide-react-native';
 import { edenTheme } from '../theme/edenTheme';
+import { debounce } from 'lodash'; // You may need to install lodash if not already installed
 
 // Course type definition
 type Course = {
@@ -24,6 +25,7 @@ export default function FirstReviewScreen() {
   const [loading, setLoading] = useState(false);
   const [initialLoading, setInitialLoading] = useState(true);
   const [searchResults, setSearchResults] = useState<Course[]>([]);
+  const [topCourses, setTopCourses] = useState<Course[]>([]);
   const [hasUserReview, setHasUserReview] = useState(false);
 
   // Check if user already has reviews or has been marked as having completed first review
@@ -54,6 +56,9 @@ export default function FirstReviewScreen() {
         }
         
         console.log('✅ User needs to complete first review, showing prompt screen');
+        
+        // Load initial courses in alphabetical order
+        await loadInitialCourses();
       } catch (error) {
         console.error('Error checking user status:', error);
       } finally {
@@ -64,9 +69,29 @@ export default function FirstReviewScreen() {
     checkUserStatus();
   }, [user]);
 
-  // Search for courses based on user input
-  const handleSearch = async () => {
-    if (!searchQuery.trim()) return;
+  // Load initial popular courses to show in the default view
+  const loadInitialCourses = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('courses')
+        .select('id, name, location, type')
+        .order('name', { ascending: true })
+        .limit(20);
+      
+      if (error) throw error;
+      
+      setTopCourses(data || []);
+    } catch (error) {
+      console.error('Error loading initial courses:', error);
+    }
+  };
+
+  // Debounced search function to search as user types
+  const debouncedSearch = debounce(async (query: string) => {
+    if (!query.trim()) {
+      setSearchResults([]);
+      return;
+    }
     
     try {
       setLoading(true);
@@ -75,7 +100,7 @@ export default function FirstReviewScreen() {
       const { data, error } = await supabase
         .from('courses')
         .select('id, name, location, type')
-        .ilike('name', `%${searchQuery}%`)
+        .ilike('name', `%${query}%`)
         .limit(10);
       
       if (error) throw error;
@@ -86,6 +111,12 @@ export default function FirstReviewScreen() {
     } finally {
       setLoading(false);
     }
+  }, 300); // 300ms debounce delay
+  
+  // Handle text input change
+  const handleSearchInputChange = (text: string) => {
+    setSearchQuery(text);
+    debouncedSearch(text);
   };
 
   // Handle selecting a course to review
@@ -101,6 +132,23 @@ export default function FirstReviewScreen() {
     router.replace('/(tabs)');
   };
 
+  // Render a single course item
+  const renderCourseItem = (course: Course) => (
+    <TouchableOpacity
+      key={course.id}
+      style={styles.courseItem}
+      onPress={() => handleCourseSelect(course)}
+    >
+      <View style={styles.courseInfo}>
+        <Text style={styles.courseName}>{course.name}</Text>
+        <View style={styles.locationContainer}>
+          <MapPin size={14} color={edenTheme.colors.textSecondary} />
+          <Text style={styles.courseLocation}>{course.location}</Text>
+        </View>
+      </View>
+    </TouchableOpacity>
+  );
+
   if (initialLoading) {
     return (
       <View style={[styles.container, styles.loadingContainer]}>
@@ -114,109 +162,98 @@ export default function FirstReviewScreen() {
 
   return (
     <SafeAreaView style={styles.safeArea}>
-      <ScrollView 
-        style={styles.scrollView}
-        contentContainerStyle={styles.scrollContent}
-        keyboardShouldPersistTaps="handled"
-      >
-        <View style={styles.header}>
-          <Text 
-            variant="headlineMedium" 
-            style={[styles.title, { 
-              fontFamily: edenTheme.typography.h2.fontFamily, 
-              fontWeight: edenTheme.typography.h2.fontWeight as any
-            }]}
-          >
-            Leave Your First Review
-          </Text>
-          
-          <Text style={[styles.subtitle, { color: edenTheme.colors.textSecondary }]}>
-            Help other golfers by sharing your experience at a course you've played.
-          </Text>
-        </View>
-        
-        <View style={styles.searchContainer}>
-          <TextInput
-            label="Search for a course you've played"
-            value={searchQuery}
-            onChangeText={setSearchQuery}
-            style={styles.searchInput}
-            onSubmitEditing={handleSearch}
-            left={<TextInput.Icon icon={() => <Search size={20} color={edenTheme.colors.textSecondary} />} />}
-            mode="outlined"
-            outlineColor={edenTheme.components.input.default.borderColor}
-            activeOutlineColor={edenTheme.colors.primary}
-            theme={{
-              colors: {
-                background: edenTheme.components.input.default.backgroundColor,
-                text: edenTheme.colors.text,
-              }
-            }}
-          />
-          
-          <Button 
-            mode="contained" 
-            onPress={handleSearch}
-            style={styles.searchButton}
-            buttonColor={edenTheme.components.button.primary.backgroundColor}
-            loading={loading}
-            disabled={loading}
-            labelStyle={{
-              fontFamily: edenTheme.typography.button.fontFamily,
-              fontWeight: edenTheme.typography.button.fontWeight as any,
-              color: edenTheme.typography.button.color,
-            }}
-          >
-            Search
-          </Button>
-        </View>
-        
-        {loading && (
-          <View style={styles.loadingContainer}>
-            <ActivityIndicator size="large" color={edenTheme.colors.primary} />
-          </View>
-        )}
-        
-        {!loading && searchResults.length > 0 && (
-          <View style={styles.resultsContainer}>
-            <Text style={styles.resultsTitle}>
-              {searchResults.length} {searchResults.length === 1 ? 'Course' : 'Courses'} Found
+      <View style={styles.container}>
+        <View style={styles.fixedHeaderContainer}>
+          <View style={styles.header}>
+            <Text 
+              variant="headlineMedium" 
+              style={[styles.title, { 
+                fontFamily: edenTheme.typography.h2.fontFamily, 
+                fontWeight: edenTheme.typography.h2.fontWeight as any
+              }]}
+            >
+              Leave Your First Review
             </Text>
             
-            {searchResults.map(course => (
-              <TouchableOpacity
-                key={course.id}
-                style={styles.courseItem}
-                onPress={() => handleCourseSelect(course)}
-              >
-                <View style={styles.courseInfo}>
-                  <Text style={styles.courseName}>{course.name}</Text>
-                  <View style={styles.locationContainer}>
-                    <MapPin size={14} color={edenTheme.colors.textSecondary} />
-                    <Text style={styles.courseLocation}>{course.location}</Text>
-                  </View>
-                </View>
-              </TouchableOpacity>
-            ))}
-          </View>
-        )}
-        
-        {!loading && searchQuery && searchResults.length === 0 && (
-          <View style={styles.emptyContainer}>
-            <Text style={styles.emptyText}>
-              No courses found. Try a different search term.
+            <Text style={[styles.subtitle, { color: edenTheme.colors.textSecondary }]}>
+              Help other golfers by sharing your experience at a course you've played.
             </Text>
           </View>
-        )}
-        
-        <View style={styles.skipContainer}>
-          <TouchableOpacity onPress={handleSkip}>
-            <Text style={[styles.skipText, { color: edenTheme.colors.textSecondary }]}>
-              Skip for now
-            </Text>
-          </TouchableOpacity>
+          
+          <View style={styles.searchContainer}>
+            <TextInput
+              label="Search for a course you've played"
+              value={searchQuery}
+              onChangeText={handleSearchInputChange}
+              style={styles.searchInput}
+              left={<TextInput.Icon icon={() => <Search size={20} color={edenTheme.colors.textSecondary} />} />}
+              mode="outlined"
+              outlineColor={edenTheme.components.input.default.borderColor}
+              activeOutlineColor={edenTheme.colors.primary}
+              theme={{
+                colors: {
+                  background: edenTheme.components.input.default.backgroundColor,
+                  text: edenTheme.colors.text,
+                }
+              }}
+              autoFocus={false}
+            />
+          </View>
         </View>
-      </ScrollView>
+        
+        <View style={styles.scrollableContent}>
+          {loading && (
+            <View style={styles.loadingContainer}>
+              <ActivityIndicator size="large" color={edenTheme.colors.primary} />
+            </View>
+          )}
+          
+          {!loading && (
+            <ScrollView 
+              style={styles.scrollView}
+              contentContainerStyle={styles.scrollContent}
+              keyboardShouldPersistTaps="handled"
+              showsVerticalScrollIndicator={false}
+            >
+              {searchQuery.trim() !== '' && searchResults.length > 0 && (
+                <View style={styles.resultsContainer}>
+                  <Text style={styles.resultsTitle}>
+                    {searchResults.length} {searchResults.length === 1 ? 'Course' : 'Courses'} Found
+                  </Text>
+                  
+                  {searchResults.map(course => renderCourseItem(course))}
+                </View>
+              )}
+              
+              {searchQuery.trim() !== '' && searchResults.length === 0 && (
+                <View style={styles.emptyContainer}>
+                  <Text style={styles.emptyText}>
+                    No courses found. Try a different search term.
+                  </Text>
+                </View>
+              )}
+              
+              {searchQuery.trim() === '' && topCourses.length > 0 && (
+                <View style={styles.resultsContainer}>
+                  <Text style={styles.resultsTitle}>
+                    Popular Courses
+                  </Text>
+                  
+                  {topCourses.map(course => renderCourseItem(course))}
+                </View>
+              )}
+              
+              <View style={styles.skipContainer}>
+                <TouchableOpacity onPress={handleSkip}>
+                  <Text style={[styles.skipText, { color: edenTheme.colors.textSecondary }]}>
+                    Skip for now
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            </ScrollView>
+          )}
+        </View>
+      </View>
     </SafeAreaView>
   );
 }
@@ -230,12 +267,28 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: edenTheme.colors.background,
   },
+  fixedHeaderContainer: {
+    paddingHorizontal: edenTheme.spacing.lg,
+    paddingTop: edenTheme.spacing.xl,
+    backgroundColor: edenTheme.colors.background,
+    zIndex: 1,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 3,
+    elevation: 3,
+    paddingBottom: edenTheme.spacing.md,
+  },
+  scrollableContent: {
+    flex: 1,
+  },
   scrollView: {
     flex: 1,
   },
   scrollContent: {
     padding: edenTheme.spacing.lg,
-    paddingTop: edenTheme.spacing.xl,
+    paddingTop: edenTheme.spacing.sm,
+    paddingBottom: edenTheme.spacing.xl * 2,
   },
   header: {
     marginBottom: edenTheme.spacing.xl,
@@ -257,10 +310,6 @@ const styles = StyleSheet.create({
     marginBottom: edenTheme.spacing.sm,
     backgroundColor: edenTheme.components.input.default.backgroundColor,
     borderRadius: edenTheme.borderRadius.sm,
-  },
-  searchButton: {
-    borderRadius: edenTheme.borderRadius.md,
-    paddingVertical: edenTheme.spacing.xs,
   },
   loadingContainer: {
     padding: edenTheme.spacing.lg,
