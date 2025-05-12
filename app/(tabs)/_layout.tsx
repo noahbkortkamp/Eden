@@ -58,7 +58,7 @@ export default function TabLayout() {
       <Tabs.Screen
         name="lists"
         options={{
-          title: 'Your Lists',
+          title: 'Your Courses',
           tabBarIcon: ({ color }) => <List size={24} color={color} />,
           headerStyle: {
             backgroundColor: theme.colors.background,

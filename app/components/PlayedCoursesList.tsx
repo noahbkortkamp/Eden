@@ -1,30 +1,34 @@
 import React, { useEffect, useRef, useState, useMemo, useCallback } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, SafeAreaView, Platform, Dimensions } from 'react-native';
+import { View, ScrollView, SafeAreaView, Platform, Dimensions, StyleSheet, TouchableOpacity } from 'react-native';
 import { useTheme } from '../theme/ThemeProvider';
-import { MapPin, Search, Calendar } from 'lucide-react-native';
+import { MapPin, DollarSign, Calendar } from 'lucide-react-native';
 import { Course } from '../types/review';
 import { usePlayedCourses } from '../context/PlayedCoursesContext';
 import { router } from 'expo-router';
 import { format } from 'date-fns';
+import { Heading3, BodyText, SmallText } from './eden/Typography';
+import { Button } from './eden/Button';
+import { EmptyTabState } from './eden/Tabs';
+import { Card } from './eden/Card';
+import { Icon } from './eden/Icon';
 
 interface PlayedCoursesListProps {
   courses: Course[];
-  onCoursePress?: (course: Course) => void;
-  reviewCount?: number;
+  handleCoursePress?: (course: Course) => void;
+  showScores?: boolean;
 }
 
 // Convert to memoized component to prevent unnecessary re-renders
 export const PlayedCoursesList = React.memo(({
   courses,
-  onCoursePress,
-  reviewCount = 0,
+  handleCoursePress,
+  showScores = false,
 }: PlayedCoursesListProps) => {
   const theme = useTheme();
   const scrollViewRef = useRef<ScrollView>(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
   // Get the global course state
   const { playedCourses: globalPlayedCourses } = usePlayedCourses();
-  const hasTenReviews = reviewCount >= 10;
   
   // Add internal state to persist the courses data
   const [internalCourses, setInternalCourses] = useState<Course[]>(
@@ -88,272 +92,208 @@ export const PlayedCoursesList = React.memo(({
     resetScroll();
   }, [resetScroll]);
 
-  // Memoize expensive calculations
+  // Helper function to display price level
   const getPriceLevel = useCallback((level: number) => {
     return '$'.repeat(Math.min(level, 5));
   }, []);
-
+  
+  // Helper function to get score color
   const getScoreColor = useCallback((score: number) => {
     if (score >= 7.0) return '#22c55e'; // Green for good scores (7.0-10.0)
     if (score >= 3.0) return '#eab308'; // Yellow for average scores (3.0-6.9)
     return '#ef4444'; // Red for poor scores (0.0-2.9)
   }, []);
 
-  // Get screen dimensions for responsive layout - memoize to prevent recalculations
-  const screenWidth = useMemo(() => Dimensions.get('window').width, []);
-  
-  const styles = useMemo(() => StyleSheet.create({
-    safeArea: {
-      flex: 1,
-      backgroundColor: theme.colors.background,
-    },
-    container: {
-      flexGrow: 1,
-      paddingHorizontal: theme.spacing.md,
-      paddingTop: theme.spacing.md,
-    },
-    scrollContent: {
-      flexGrow: 1,
-      paddingBottom: Platform.OS === 'ios' ? 100 : 90, // Extra padding for tab bar
-    },
-    courseCard: {
-      backgroundColor: theme.colors.surface,
-      borderRadius: theme.borderRadius.lg,
-      padding: theme.spacing.md,
-      marginBottom: theme.spacing.md,
-      borderWidth: 1,
-      borderColor: theme.colors.border,
-      width: screenWidth - (theme.spacing.md * 2), // Ensure width matches screen
-    },
-    courseName: {
-      fontSize: 20,
-      fontWeight: '600',
-      color: theme.colors.text,
-      marginBottom: theme.spacing.xs,
-      flexWrap: 'wrap', // Allow text to wrap
-    },
-    locationContainer: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      marginBottom: theme.spacing.md,
-      flexWrap: 'wrap', // Allow wrapping for long locations
-    },
-    locationText: {
-      fontSize: 16,
-      color: theme.colors.textSecondary,
-      marginLeft: theme.spacing.xs,
-      flex: 1, // Take remaining space
-      flexWrap: 'wrap', // Allow text to wrap
-    },
-    detailsContainer: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      justifyContent: 'space-between',
-      flexWrap: 'nowrap', // Don't allow wrapping here
-    },
-    leftSection: {
-      flex: 1,
-    },
-    courseType: {
-      paddingHorizontal: theme.spacing.sm,
-      paddingVertical: theme.spacing.xs,
-      backgroundColor: theme.colors.background,
-      borderRadius: theme.borderRadius.full,
-      borderWidth: 1,
-      borderColor: theme.colors.border,
-      alignSelf: 'flex-start',
-      maxWidth: '100%', // Limit width
-    },
-    courseTypeText: {
-      fontSize: 14,
-      color: theme.colors.textSecondary,
-    },
-    centerSection: {
-      flex: 1,
-      alignItems: 'center',
-    },
-    priceLevel: {
-      fontSize: 16,
-      color: theme.colors.textSecondary,
-    },
-    rightSection: {
-      flex: 1,
-      alignItems: 'flex-end',
-    },
-    scoreContainer: {
-      width: 48,
-      height: 48,
-      borderRadius: 8,
-      justifyContent: 'center',
-      alignItems: 'center',
-    },
-    scoreText: {
-      fontSize: 20,
-      fontWeight: '600',
-      color: '#ffffff',
-    },
-    emptyState: {
-      padding: theme.spacing.lg,
-      alignItems: 'center',
-      justifyContent: 'center',
-      flex: 1,
-    },
-    emptyStateText: {
-      fontSize: 16,
-      color: theme.colors.textSecondary,
-      textAlign: 'center',
-    },
-    reviewCountMessage: {
-      padding: theme.spacing.sm,
-      backgroundColor: theme.colors.primary + '20', // Semi-transparent primary color
-      borderRadius: 8,
-      marginVertical: theme.spacing.sm,
-      marginHorizontal: theme.spacing.md,
-      alignItems: 'center',
-    },
-    reviewCountText: {
-      fontSize: 14,
-      color: theme.colors.primary,
-      fontWeight: '500',
-      textAlign: 'center',
-    },
-    addReviewButton: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      justifyContent: 'center',
-      paddingVertical: theme.spacing.md,
-      paddingHorizontal: theme.spacing.lg,
-      borderRadius: theme.borderRadius.lg,
-      marginTop: theme.spacing.sm,
-    },
-    addReviewButtonText: {
-      color: '#fff',
-      fontSize: 16,
-      fontWeight: '600',
-    },
-    datePlayedContainer: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      marginBottom: theme.spacing.xs,
-    },
-    datePlayedText: {
-      fontSize: 14,
-      color: theme.colors.textSecondary,
-      marginLeft: theme.spacing.xs,
-    },
-  }), [theme, screenWidth]);
-
   // IMPORTANT: Memoize coursesToRender calculation but initialize with valid data
   const coursesToRender = useMemo(() => {
     // Immediately use whatever data is available (props > internal state > context)
     return (courses && courses.length > 0) ? courses : 
       (internalCourses && internalCourses.length > 0) ? internalCourses :
-      (globalPlayedCourses && globalPlayedCourses.length > 0) ? globalPlayedCourses :
-      [];
+      (globalPlayedCourses && globalPlayedCourses.length > 0) ? globalPlayedCourses : [];
   }, [courses, internalCourses, globalPlayedCourses]);
-  
-  // Memoize the course press handler
-  const handleCoursePress = useCallback((course: Course) => {
-    onCoursePress?.(course);
-  }, [onCoursePress]);
-  
-  // Check if we have ANY courses to display
-  if (!coursesToRender || coursesToRender.length === 0) {
+
+  // Handle course click
+  const onCourseSelect = useCallback((course: Course) => {
+    // Prefer props click handler, but have a default fallback that's useful
+    if (handleCoursePress) {
+      handleCoursePress(course);
+    } else {
+      // Default behavior - navigate to course details
+      router.push({
+        pathname: `/course/${course.id}`,
+        params: { id: course.id }
+      });
+    }
+  }, [handleCoursePress]);
+
+  // Render empty state
+  if (coursesToRender.length === 0) {
     return (
-      <SafeAreaView style={styles.safeArea}>
-        <View style={[styles.container, styles.emptyState]}>
-          <Text style={styles.emptyStateText}>No courses found</Text>
-          <Text style={[styles.emptyStateText, {fontSize: 13, marginTop: 10, marginBottom: 20}]}>
-            Try adding some course reviews to see them here.
-          </Text>
-          <TouchableOpacity 
-            style={[styles.addReviewButton, { backgroundColor: theme.colors.primary }]} 
-            onPress={() => router.push('/search')}
-            activeOpacity={0.7}
-          >
-            <Search size={18} color="#fff" style={{ marginRight: 8 }} />
-            <Text style={styles.addReviewButtonText}>Find a course to review</Text>
-          </TouchableOpacity>
-        </View>
-      </SafeAreaView>
+      <EmptyTabState
+        message="You haven't played any courses yet. Start by searching for a course to review."
+        icon="Golf"
+      />
     );
   }
-  
+
   return (
-    <SafeAreaView style={styles.safeArea}>
+    <SafeAreaView style={edenStyles.safeArea}>
       <ScrollView 
         ref={scrollViewRef}
-        style={styles.container}
-        contentContainerStyle={styles.scrollContent}
+        contentContainerStyle={edenStyles.scrollContent}
         showsVerticalScrollIndicator={true}
-        bounces={true}
-        overScrollMode="always"
-        removeClippedSubviews={Platform.OS === 'android'} // Only use on Android
-        scrollEventThrottle={16} // Optimize scroll performance
-        maxToRenderPerBatch={5} // Limit batch rendering for better performance
-        windowSize={5} // Keep fewer items in memory
-        keyboardShouldPersistTaps="handled"
-        keyboardDismissMode="on-drag"
       >
-        {!hasTenReviews && (
-          <View style={styles.reviewCountMessage}>
-            <Text style={styles.reviewCountText}>
-              Submit {10 - reviewCount} more {10 - reviewCount === 1 ? 'review' : 'reviews'} to unlock course scores!
-            </Text>
-          </View>
-        )}
-        {coursesToRender.map((course) => (
-          <TouchableOpacity
-            key={course.id}
-            style={styles.courseCard}
-            onPress={() => handleCoursePress(course)}
-            activeOpacity={0.7}
-          >
-            <Text style={styles.courseName} numberOfLines={2}>{course.name}</Text>
+        {coursesToRender.map((course) => {
+          // Format date if available
+          const datePlayed = course.date_played ? 
+            format(new Date(course.date_played), 'MMM d, yyyy') : null;
             
-            {course.date_played && (
-              <View style={styles.datePlayedContainer}>
-                <Calendar size={14} color={theme.colors.textSecondary} />
-                <Text style={styles.datePlayedText}>
-                  {format(new Date(course.date_played), 'MMM d, yyyy')}
-                </Text>
-              </View>
-            )}
-            
-            <View style={styles.locationContainer}>
-              <MapPin size={16} color={theme.colors.textSecondary} />
-              <Text style={styles.locationText} numberOfLines={2}>{course.location}</Text>
-            </View>
-            <View style={styles.detailsContainer}>
-              <View style={styles.leftSection}>
-                <View style={styles.courseType}>
-                  <Text style={styles.courseTypeText} numberOfLines={1}>{course.type}</Text>
+          return (
+            <Card 
+              key={course.id}
+              variant="course"
+              pressable
+              onPress={() => onCourseSelect(course)}
+              style={edenStyles.courseCard}
+            >
+              <View>
+                <Heading3 numberOfLines={2} style={edenStyles.courseName}>
+                  {course.name}
+                </Heading3>
+                
+                {datePlayed && (
+                  <View style={edenStyles.datePlayedContainer}>
+                    <Calendar size={14} color={theme.colors.textSecondary} />
+                    <SmallText style={edenStyles.datePlayedText}>
+                      {datePlayed}
+                    </SmallText>
+                  </View>
+                )}
+                
+                <View style={edenStyles.locationContainer}>
+                  <MapPin size={16} color={theme.colors.textSecondary} />
+                  <SmallText style={edenStyles.locationText} numberOfLines={2}>
+                    {course.location || 'Unknown location'}
+                  </SmallText>
+                </View>
+                
+                <View style={edenStyles.detailsContainer}>
+                  <View style={edenStyles.leftSection}>
+                    <View style={edenStyles.courseType}>
+                      <SmallText style={edenStyles.courseTypeText} numberOfLines={1}>
+                        {course.type || 'Golf Course'}
+                      </SmallText>
+                    </View>
+                  </View>
+                  
+                  <View style={edenStyles.centerSection}>
+                    <SmallText style={edenStyles.priceLevel}>
+                      {getPriceLevel(course.price_level || 0)}
+                    </SmallText>
+                  </View>
+                  
+                  <View style={edenStyles.rightSection}>
+                    <View style={[
+                      edenStyles.scoreContainer, 
+                      { backgroundColor: getScoreColor(course.rating || 0) }
+                    ]}>
+                      <SmallText style={edenStyles.scoreText}>
+                        {(showScores) ? (course.rating ? course.rating.toFixed(1) : '-') : '-'}
+                      </SmallText>
+                    </View>
+                  </View>
                 </View>
               </View>
-              
-              <View style={styles.centerSection}>
-                <Text style={styles.priceLevel}>{getPriceLevel(course.price_level)}</Text>
-              </View>
-              
-              <View style={styles.rightSection}>
-                <View 
-                  style={[
-                    styles.scoreContainer, 
-                    { backgroundColor: getScoreColor(course.rating || 0) }
-                  ]}
-                >
-                  <Text style={styles.scoreText}>
-                    {(hasTenReviews || course.showScores) ? (course.rating ? course.rating.toFixed(1) : '-') : '-'}
-                  </Text>
-                </View>
-              </View>
-            </View>
-          </TouchableOpacity>
-        ))}
+            </Card>
+          );
+        })}
       </ScrollView>
     </SafeAreaView>
   );
 });
 
-// Add display name for debugging
-PlayedCoursesList.displayName = 'PlayedCoursesList'; 
+// Eden styled styles
+const edenStyles = StyleSheet.create({
+  safeArea: {
+    flex: 1,
+    backgroundColor: '#F8F5EC', // Eden background color
+  },
+  scrollContent: {
+    flexGrow: 1,
+    padding: 16,
+    paddingBottom: Platform.OS === 'ios' ? 100 : 90, // Extra padding for tab bar
+  },
+  courseCard: {
+    marginBottom: 16,
+  },
+  courseName: {
+    marginBottom: 8,
+    flexWrap: 'wrap',
+  },
+  datePlayedContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  datePlayedText: {
+    marginLeft: 8,
+    color: '#4A5E50', // Eden secondary text color
+  },
+  locationContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 16,
+    flexWrap: 'wrap',
+  },
+  locationText: {
+    marginLeft: 8,
+    color: '#4A5E50', // Eden secondary text color
+    flex: 1,
+    flexWrap: 'wrap',
+  },
+  detailsContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  leftSection: {
+    flex: 1,
+  },
+  courseType: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    backgroundColor: '#F5F3ED', // Eden disabled background
+    borderRadius: 99, // Full radius for pill shape
+    borderWidth: 1,
+    borderColor: '#E0E0DC', // Eden border color
+    alignSelf: 'flex-start',
+  },
+  courseTypeText: {
+    color: '#4A5E50', // Eden secondary text color
+    fontSize: 12,
+  },
+  centerSection: {
+    flex: 1,
+    alignItems: 'center',
+  },
+  priceLevel: {
+    fontSize: 16,
+    color: '#4A5E50', // Eden secondary text color
+  },
+  rightSection: {
+    flex: 1,
+    alignItems: 'flex-end',
+  },
+  scoreContainer: {
+    width: 40,
+    height: 40,
+    borderRadius: 8,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  scoreText: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#FFFFFF',
+  },
+}); 

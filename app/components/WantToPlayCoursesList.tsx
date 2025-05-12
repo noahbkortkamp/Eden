@@ -1,22 +1,27 @@
 import React, { useEffect, useState, useRef } from 'react';
-import { View, Text, StyleSheet, FlatList, TouchableOpacity, ActivityIndicator } from 'react-native';
+import { View, FlatList, ActivityIndicator, StyleSheet, TouchableOpacity } from 'react-native';
 import { Course } from '../types/review';
 import { useTheme } from '../theme/ThemeProvider';
-import { MapPin, BookmarkIcon, X } from 'lucide-react-native';
+import { MapPin, X } from 'lucide-react-native';
 import { usePlayedCourses } from '../context/PlayedCoursesContext';
 import { supabase } from '../utils/supabase';
 import { useAuth } from '../context/AuthContext';
+import { Heading3, BodyText, SmallText } from './eden/Typography';
+import { Button } from './eden/Button';
+import { EmptyTabState } from './eden/Tabs';
+import { Icon } from './eden/Icon';
+import { useCallback } from 'react';
 
 interface WantToPlayCoursesListProps {
   courses: Course[];
-  onCoursePress: (course: Course) => void;
-  reviewCount?: number;
+  handleCoursePress: (course: Course) => void;
+  showScores?: boolean;
 }
 
 export const WantToPlayCoursesList = React.memo(({ 
   courses, 
-  onCoursePress, 
-  reviewCount = 0 
+  handleCoursePress, 
+  showScores = false
 }: WantToPlayCoursesListProps) => {
   const theme = useTheme();
   const { user } = useAuth();
@@ -106,53 +111,51 @@ export const WantToPlayCoursesList = React.memo(({
     }
   };
   
-  // Empty state component
-  const EmptyStateView = () => (
-    <View style={styles.emptyStateContainer}>
-      <BookmarkIcon size={80} color={theme.colors.textSecondary} style={{opacity: 0.8}} />
-      <Text style={styles.emptyStateText}>
-        No bookmarked courses yet
-      </Text>
-      <Text style={styles.emptyStateSubText}>
-        Bookmark courses from the search page
-      </Text>
-    </View>
-  );
-  
   // If there are no courses to display
   if (internalCourses.length === 0) {
     console.log('WantToPlayCoursesList - No courses to display, showing empty state');
-    return <EmptyStateView />;
+    return (
+      <EmptyTabState
+        message="You haven't bookmarked any courses yet. Bookmark courses from the search page."
+        icon="Bookmark"
+      />
+    );
   }
   
   console.log(`WantToPlayCoursesList rendering ${internalCourses.length} courses`);
   
-  // Render the courses list - simplified structure
+  // Render the courses list - using Eden design system with a simpler list format
   return (
-    <View style={styles.container}>
+    <View style={edenStyles.container}>
+      <View style={edenStyles.header}>
+        <SmallText color={theme.colors.textSecondary}>
+          {internalCourses.length} Bookmarked {internalCourses.length === 1 ? 'Course' : 'Courses'}
+        </SmallText>
+      </View>
+      
       <FlatList
         data={internalCourses}
         keyExtractor={(item) => item.id.toString()}
         renderItem={({ item }) => (
-          <View style={styles.courseRow}>
+          <View style={edenStyles.courseRow}>
             <TouchableOpacity
-              style={styles.courseContent}
-              onPress={() => onCoursePress(item)}
+              style={edenStyles.courseContent}
+              onPress={() => handleCoursePress(item)}
               activeOpacity={0.7}
             >
-              <Text style={styles.courseName} numberOfLines={1}>
+              <BodyText style={edenStyles.courseName} numberOfLines={1}>
                 {item.name}
-              </Text>
-              <View style={styles.locationContainer}>
+              </BodyText>
+              <View style={edenStyles.locationContainer}>
                 <MapPin size={14} color={theme.colors.textSecondary} />
-                <Text style={styles.locationText} numberOfLines={1}>
+                <SmallText style={edenStyles.locationText} numberOfLines={1}>
                   {item.location || 'No location data'}
-                </Text>
+                </SmallText>
               </View>
             </TouchableOpacity>
             
             <TouchableOpacity
-              style={styles.removeButton}
+              style={edenStyles.removeButton}
               onPress={() => removeBookmark(item.id)}
               disabled={removingId === item.id}
             >
@@ -164,33 +167,24 @@ export const WantToPlayCoursesList = React.memo(({
             </TouchableOpacity>
           </View>
         )}
-        contentContainerStyle={styles.listContentContainer}
+        contentContainerStyle={edenStyles.listContent}
         showsVerticalScrollIndicator={true}
-        ListHeaderComponent={() => (
-          <Text style={styles.listHeader}>
-            {internalCourses.length} Bookmarked {internalCourses.length === 1 ? 'Course' : 'Courses'}
-          </Text>
-        )}
       />
     </View>
   );
 });
 
-const styles = StyleSheet.create({
+// Eden styled styles
+const edenStyles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#fff',
-    width: '100%',
+    backgroundColor: '#F8F5EC', // Eden background color
   },
-  listHeader: {
-    fontSize: 16,
-    fontWeight: '600',
-    marginTop: 16,
-    marginBottom: 8,
-    marginLeft: 16,
-    color: '#666',
+  header: {
+    paddingHorizontal: 20,
+    paddingVertical: 12,
   },
-  listContentContainer: {
+  listContent: {
     paddingHorizontal: 16,
     paddingBottom: 120,
   },
@@ -199,7 +193,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingVertical: 16,
     borderBottomWidth: 1,
-    borderBottomColor: 'rgba(0,0,0,0.1)',
+    borderBottomColor: '#E0E0DC', // Eden border color
     width: '100%',
   },
   courseContent: {
@@ -210,7 +204,7 @@ const styles = StyleSheet.create({
     fontSize: 17,
     fontWeight: '600',
     marginBottom: 4,
-    color: '#000',
+    color: '#234D2C', // Eden primary text color
   },
   locationContainer: {
     flexDirection: 'row',
@@ -219,33 +213,10 @@ const styles = StyleSheet.create({
   locationText: {
     fontSize: 14,
     marginLeft: 4,
-    color: '#666',
+    color: '#4A5E50', // Eden secondary text color
   },
   removeButton: {
     padding: 10,
     marginLeft: 8,
-  },
-  emptyStateContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingHorizontal: 24,
-    backgroundColor: '#fff',
-    minHeight: 300,
-  },
-  emptyStateText: {
-    fontSize: 18,
-    fontWeight: '600',
-    marginTop: 16,
-    marginBottom: 8,
-    textAlign: 'center',
-    color: '#333',
-  },
-  emptyStateSubText: {
-    fontSize: 14,
-    textAlign: 'center',
-    marginBottom: 24,
-    lineHeight: 20,
-    color: '#666',
   }
 }); 

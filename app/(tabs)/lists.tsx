@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useCallback, useRef, useMemo } from 'react';
 import { View, StyleSheet, ActivityIndicator, Text, TouchableOpacity, ScrollView, Dimensions, Platform, FlatList } from 'react-native';
 import { useTheme } from '../theme/ThemeProvider';
-import { CourseListTabs } from '../components/CourseListTabs';
+import { Tabs, TabRoute } from '../components/eden/Tabs';
 import { Course } from '../types/review';
 import { supabase } from '../utils/supabase';
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
@@ -13,7 +13,9 @@ import { reviewService } from '../services/reviewService';
 import { PlayedCoursesList } from '../components/PlayedCoursesList';
 import { WantToPlayCoursesList } from '../components/WantToPlayCoursesList';
 import BasicWantToPlayList from '../components/BasicWantToPlayList';
-import { MapPin, X, Bookmark as BookmarkIcon, Search } from 'lucide-react-native';
+import { MapPin, X, Bookmark as BookmarkIcon, Search, Star, Plus } from 'lucide-react-native';
+import { Heading1, BodyText } from '../components/eden/Typography';
+import { Icon } from '../components/eden/Icon';
 
 export default function ListsScreen() {
   const theme = useTheme();
@@ -50,7 +52,8 @@ export default function ListsScreen() {
   // Minimum time between refreshes (2 seconds)
   const REFRESH_THROTTLE_MS = 2000;
 
-  const [userReviewCount, setUserReviewCount] = useState(0);
+  const [userReviewCount, setUserReviewCount] = useState<number | null>(null);
+  const [isReviewCountLoading, setIsReviewCountLoading] = useState(true);
   
   // Add a ref to track the last update timestamp
   const currentTimestampRef = useRef(lastUpdateTimestamp);
@@ -64,6 +67,7 @@ export default function ListsScreen() {
     // Immediately check review count on startup
     if (user) {
       console.log('🚀 STARTUP CHECK: Immediately checking review count for user', user.id);
+      setIsReviewCountLoading(true);
       reviewService.getUserReviewCount(user.id)
         .then(count => {
           console.log(`🚨 INITIAL LOAD: User has ${count} reviews. Score visibility ${count >= 10 ? 'SHOULD BE ENABLED' : 'DISABLED'}`);
@@ -79,10 +83,14 @@ export default function ListsScreen() {
             setPlayedCourses(updatedPlayedCourses);
             setRefreshKey(Date.now());
           }
+          setIsReviewCountLoading(false);
         })
         .catch(err => {
           console.error('Error fetching user review count on startup:', err);
+          setIsReviewCountLoading(false);
         });
+    } else {
+      setIsReviewCountLoading(false);
     }
     
     return () => console.log('📌 ListsScreen Unmounted');
@@ -93,19 +101,24 @@ export default function ListsScreen() {
     async function loadUserReviewCount() {
       if (user) {
         try {
+          setIsReviewCountLoading(true);
           const count = await reviewService.getUserReviewCount(user.id);
           console.log(`🔢 User has ${count} reviews. Score visibility: ${count >= 10 ? 'ENABLED' : 'DISABLED'}`);
           const previousCount = userReviewCount;
           setUserReviewCount(count);
           
           // If user has crossed the 10 review threshold, force refresh the data
-          if (previousCount < 10 && count >= 10) {
+          if (previousCount !== null && previousCount < 10 && count >= 10) {
             console.log('🎉 User just crossed 10 review threshold! Forcing data refresh');
             loadData();
           }
+          setIsReviewCountLoading(false);
         } catch (err) {
           console.error('Error fetching user review count:', err);
+          setIsReviewCountLoading(false);
         }
+      } else {
+        setIsReviewCountLoading(false);
       }
     }
     
@@ -192,19 +205,19 @@ export default function ListsScreen() {
       // Update played courses with correct showScores flag
       const updatedPlayedCourses = playedCourses.map(course => ({
         ...course,
-        showScores: userReviewCount >= 10
+        showScores: userReviewCount !== null && userReviewCount >= 10
       }));
       
       // Update want to play courses
       const updatedWantToPlayCourses = wantToPlayCourses.map(course => ({
         ...course,
-        showScores: userReviewCount >= 10
+        showScores: userReviewCount !== null && userReviewCount >= 10
       }));
       
       // Update recommended courses
       const updatedRecommendedCourses = recommendedCourses.map(course => ({
         ...course,
-        showScores: userReviewCount >= 10
+        showScores: userReviewCount !== null && userReviewCount >= 10
       }));
       
       // Update all course lists
@@ -296,7 +309,7 @@ export default function ListsScreen() {
     if (!user) return [];
 
     console.log('🔍 DEBUG: Starting fetchPlayedCourses for user', user.id);
-    console.log(`🔍 DEBUG: Current userReviewCount: ${userReviewCount}, showScores will be ${userReviewCount >= 10}`);
+    console.log(`🔍 DEBUG: Current userReviewCount: ${userReviewCount}, showScores will be ${userReviewCount !== null && userReviewCount >= 10}`);
     
     try {
       // More aggressive approach to fetch data using a simpler join
@@ -362,7 +375,7 @@ export default function ListsScreen() {
             updated_at: item.courses.updated_at,
             rating: 0, // Will be updated with ranking score
             sentiment: item.rating, // Store the original sentiment
-            showScores: userReviewCount >= 10, // Add this flag to each course
+            showScores: userReviewCount !== null && userReviewCount >= 10, // Add this flag to each course
             date_played: item.date_played // Include date played
           };
         });
@@ -448,7 +461,7 @@ export default function ListsScreen() {
           ...course,
           rating: Number(score.toFixed(1)),
           scoreDetails: scoreDetails, // Including scoring details for debugging
-          showScores: userReviewCount >= 10 // Add this flag to each course
+          showScores: userReviewCount !== null && userReviewCount >= 10 // Add this flag to each course
         };
       });
 
@@ -519,7 +532,7 @@ export default function ListsScreen() {
           updated_at: new Date().toISOString(),
           rating: 5.0, // Default rating
           sentiment: courseSentiments[course.id] || 'fine',
-          showScores: userReviewCount >= 10, // Add this flag to each course
+          showScores: userReviewCount !== null && userReviewCount >= 10, // Add this flag to each course
           date_played: courseDates[course.id] || new Date().toISOString() // Add date played
         }));
         
@@ -771,278 +784,105 @@ export default function ListsScreen() {
     }
   };
 
-  const styles = StyleSheet.create({
-    container: {
-      flex: 1,
-      backgroundColor: theme.colors.background,
-    },
-    loadingContainer: {
-      justifyContent: 'center',
-      alignItems: 'center',
-    },
-    errorContainer: {
-      justifyContent: 'center',
-      alignItems: 'center',
-      padding: 20,
-    },
-    errorText: {
-      fontSize: 16,
-      color: theme.colors.error,
-      textAlign: 'center',
-      marginBottom: 20,
-      fontWeight: 'bold',
-    },
-    header: {
-      padding: 16,
-      paddingTop: Platform.OS === 'ios' ? 44 : 16,
-      backgroundColor: theme.colors.background,
-      borderBottomWidth: 1,
-      borderBottomColor: theme.colors.border,
-    },
-    headerTitle: {
-      fontSize: 24,
-      fontWeight: 'bold',
-      color: theme.colors.text,
-    },
-    debugPanel: {
-      position: 'absolute',
-      bottom: 90,
-      left: 10,
-      right: 10,
-      backgroundColor: 'rgba(0, 0, 0, 0.8)',
-      borderRadius: 8,
-      padding: 10,
-      zIndex: 100,
-    },
-    debugHeader: {
-      flexDirection: 'row',
-      justifyContent: 'space-between',
-      marginBottom: 10,
-    },
-    debugTitle: {
-      color: '#FFFFFF',
-      fontWeight: 'bold',
-    },
-    debugCloseButton: {
-      color: '#FF9999',
-    },
-    debugButtons: {
-      flexDirection: 'row',
-      flexWrap: 'wrap',
-      gap: 8,
-    },
-    debugButton: {
-      backgroundColor: '#10B981',
-      paddingVertical: 6,
-      paddingHorizontal: 12,
-      borderRadius: 4,
-    },
-    debugButtonText: {
-      color: '#FFFFFF',
-      fontSize: 12,
-    },
-  });
+  // Convert the courseType to a numeric tab index
+  const tabIndex = useMemo(() => {
+    switch (courseType) {
+      case 'played': return 0;
+      case 'want-to-play': return 1;
+      case 'recommended': return 2;
+      default: return 0;
+    }
+  }, [courseType]);
 
-  // Update only the Want to Play tab rendering
-  const memoizedCourseListTabs = React.useMemo(() => {
-    console.log('🔄 Creating memoized CourseListTabs with', wantToPlayCourses.length, 'want-to-play courses');
-    return (
-      <CourseListTabs
-        refreshKey={refreshKey}
-        courseType={courseType}
-        setCourseType={setCourseType}
-        playedCourses={playedCourses}
-        wantToPlayCourses={wantToPlayCourses}
-        recommendedCourses={recommendedCourses}
-        handleCoursePress={handleCoursePress}
-        isLoading={isCoursesLoading}
-        reviewCount={userReviewCount || 0}
-        showScores={userReviewCount >= 10}
-        renderWantToPlayScene={() => {
-          console.log('📱 DIRECTLY Rendering Want to Play tab with', wantToPlayCourses.length, 'courses');
-          
-          // Clean, styled component based on the working debug implementation
-          return (
-            <View style={{
-              flex: 1,
-              backgroundColor: 'white',
-              width: '100%',
-            }}>
-              {wantToPlayCourses.length > 0 ? (
-                <>
-                  <Text style={{
-                    fontSize: 16,
-                    fontWeight: '600',
-                    marginTop: 16,
-                    marginBottom: 8,
-                    marginLeft: 16,
-                    color: '#666',
-                  }}>
-                    {wantToPlayCourses.length} Bookmarked {wantToPlayCourses.length === 1 ? 'Course' : 'Courses'}
-                  </Text>
-                  
-                  <FlatList
-                    data={wantToPlayCourses}
-                    keyExtractor={(item) => item.id.toString()}
-                    renderItem={({ item }) => (
-                      <View style={{
-                        flexDirection: 'row',
-                        alignItems: 'center',
-                        paddingVertical: 16,
-                        paddingHorizontal: 16,
-                        borderBottomWidth: 1,
-                        borderBottomColor: 'rgba(0,0,0,0.1)',
-                        width: '100%',
-                      }}>
-                        <TouchableOpacity
-                          style={{
-                            flex: 1,
-                            paddingRight: 8,
-                          }}
-                          onPress={() => handleCoursePress(item)}
-                          activeOpacity={0.7}
-                        >
-                          <Text style={{
-                            fontSize: 17,
-                            fontWeight: '600',
-                            marginBottom: 4,
-                            color: '#000',
-                          }} numberOfLines={1}>
-                            {item.name}
-                          </Text>
-                          <View style={{
-                            flexDirection: 'row',
-                            alignItems: 'center',
-                          }}>
-                            <MapPin size={14} color="#666" />
-                            <Text style={{
-                              fontSize: 14,
-                              marginLeft: 4,
-                              color: '#666',
-                            }} numberOfLines={1}>
-                              {item.location || 'No location data'}
-                            </Text>
-                          </View>
-                        </TouchableOpacity>
-                        
-                        {user && (
-                          <TouchableOpacity
-                            style={{
-                              padding: 10,
-                              marginLeft: 8,
-                            }}
-                            onPress={async () => {
-                              if (!user) return;
-                              
-                              try {
-                                const { error } = await supabase
-                                  .from('want_to_play_courses')
-                                  .delete()
-                                  .match({ 
-                                    user_id: user.id, 
-                                    course_id: item.id
-                                  });
+  // Define the tab routes
+  const tabRoutes: TabRoute[] = [
+    { key: 'played', title: 'Played' },
+    { key: 'wantToPlay', title: 'Want to Play' },
+    { key: 'recommended', title: 'Recommended' },
+  ];
 
-                                if (error) {
-                                  console.error('Error removing bookmark:', error);
-                                  throw error;
-                                }
+  // Handle tab change
+  const handleTabChange = (index: number) => {
+    let newType: 'played' | 'recommended' | 'want-to-play';
+    switch (index) {
+      case 0:
+        newType = 'played';
+        break;
+      case 1:
+        newType = 'want-to-play';
+        break;
+      case 2:
+        newType = 'recommended';
+        break;
+      default:
+        newType = 'played';
+    }
+    setCourseType(newType);
+  };
 
-                                console.log(`Successfully removed bookmark for course ${item.id}`);
-                                
-                                // Trigger global refresh
-                                setNeedsRefresh();
-                              } catch (error) {
-                                console.error('Error removing bookmark:', error);
-                              }
-                            }}
-                          >
-                            <X size={20} color="#666" />
-                          </TouchableOpacity>
-                        )}
-                      </View>
-                    )}
-                    contentContainerStyle={{
-                      paddingBottom: 120,
-                    }}
-                    showsVerticalScrollIndicator={true}
-                  />
-                </>
-              ) : (
-                <View style={{
-                  flex: 1, 
-                  justifyContent: 'center',
-                  alignItems: 'center',
-                  paddingHorizontal: 24,
-                  backgroundColor: 'white'
-                }}>
-                  <BookmarkIcon size={80} color="#666" style={{opacity: 0.8}} />
-                  <Text style={{
-                    fontSize: 20,
-                    fontWeight: '600',
-                    marginTop: 20,
-                    marginBottom: 10,
-                    textAlign: 'center',
-                    color: '#333',
-                  }}>
-                    No bookmarked courses yet
-                  </Text>
-                  <Text style={{
-                    fontSize: 15,
-                    textAlign: 'center',
-                    marginBottom: 30,
-                    lineHeight: 22,
-                    color: '#666',
-                    maxWidth: 280,
-                  }}>
-                    Bookmarking is a way to save courses you want to play at a later date.
-                  </Text>
-                  
-                  <TouchableOpacity
-                    style={{
-                      backgroundColor: theme.colors.primary,
-                      paddingVertical: 14,
-                      paddingHorizontal: 24,
-                      borderRadius: 10,
-                      flexDirection: 'row',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      width: 280,
-                      elevation: 3,
-                      shadowColor: '#000',
-                      shadowOffset: { width: 0, height: 2 },
-                      shadowOpacity: 0.2,
-                      shadowRadius: 3,
-                    }}
-                    onPress={() => {
-                      console.log('Navigating to search tab from empty state');
-                      router.push('/(tabs)/search');
-                    }}
-                    activeOpacity={0.7}
-                  >
-                    <Search size={20} color="white" style={{ marginRight: 10 }} />
-                    <Text style={{ color: 'white', fontSize: 16, fontWeight: 'bold' }}>
-                      Find Courses to Bookmark
-                    </Text>
-                  </TouchableOpacity>
+  // Render tab content
+  const renderTabContent = useCallback((route: TabRoute) => {
+    if (isCoursesLoading) {
+      return (
+        <View style={edenStyles.loadingContainer}>
+          <ActivityIndicator size="large" color={theme.colors.primary} />
+        </View>
+      );
+    }
+
+    if (error) {
+      return (
+        <View style={edenStyles.errorContainer}>
+          <BodyText color={theme.colors.error}>{error}</BodyText>
+        </View>
+      );
+    }
+
+    switch (route.key) {
+      case 'played':
+        return (
+          <View style={edenStyles.tabContent}>
+            {!isReviewCountLoading && userReviewCount !== null && userReviewCount < 10 && (
+              <TouchableOpacity 
+                style={edenStyles.notificationBanner}
+                onPress={() => router.push('/(tabs)/search')}
+                activeOpacity={0.8}
+              >
+                <BodyText style={edenStyles.notificationText}>
+                  Submit {10 - userReviewCount} more {10 - userReviewCount === 1 ? 'review' : 'reviews'} to unlock your personalized course ratings.
+                </BodyText>
+                <View style={edenStyles.addButtonContainer}>
+                  <Plus size={18} color={theme.colors.primary} />
                 </View>
-              )}
-            </View>
-          );
-        }}
-      />
-    );
-  }, [
-    refreshKey,
-    courseType,
-    isCoursesLoading,
-    playedCourses,
-    wantToPlayCourses,
-    recommendedCourses,
-    handleCoursePress,
-    userReviewCount,
-    user
-  ]);
+              </TouchableOpacity>
+            )}
+            <PlayedCoursesList 
+              courses={playedCourses} 
+              handleCoursePress={handleCoursePress}
+              showScores={userReviewCount !== null && userReviewCount >= 10}
+            />
+          </View>
+        );
+      case 'wantToPlay':
+        return (
+          <View style={edenStyles.tabContent}>
+            <WantToPlayCoursesList
+              courses={wantToPlayCourses}
+              handleCoursePress={handleCoursePress}
+              showScores={userReviewCount !== null && userReviewCount >= 10}
+            />
+          </View>
+        );
+      case 'recommended':
+        return (
+          <View style={edenStyles.tabContent}>
+            <BodyText center>Coming soon</BodyText>
+          </View>
+        );
+      default:
+        return null;
+    }
+  }, [playedCourses, wantToPlayCourses, recommendedCourses, isCoursesLoading, error, userReviewCount, isReviewCountLoading, handleCoursePress]);
 
   // Handle initial tab selection and data loading
   useEffect(() => {
@@ -1058,660 +898,80 @@ export default function ListsScreen() {
     }
   }, [initialTab, user]);
 
-  if (loading) {
-    return (
-      <View style={[styles.container, styles.loadingContainer]}>
-        <ActivityIndicator size="large" color={theme.colors.primary} />
-      </View>
-    );
+  if (!user) {
+    return null;
   }
-
-  if (error) {
-    return (
-      <View style={[styles.container, styles.errorContainer]}>
-        <Text style={styles.errorText}>{error}</Text>
-        
-        {/* Add a prominent Dismiss button at the top */}
-        {playedCourses.length > 0 && (
-          <TouchableOpacity 
-            onPress={() => {
-              console.log('🔍 DEBUG: Dismissing error panel to show courses');
-              setError(null);
-            }}
-            style={{
-              paddingVertical: 10,
-              paddingHorizontal: 20,
-              backgroundColor: '#10B981', // Green color for positive action
-              borderRadius: 8,
-              marginBottom: 15
-            }}
-          >
-            <Text style={{ color: '#FFFFFF', fontWeight: '600' }}>DISMISS & SHOW COURSES ({playedCourses.length})</Text>
-          </TouchableOpacity>
-        )}
-        
-        <View style={{ flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', gap: 10 }}>
-          <TouchableOpacity 
-            onPress={loadData}
-            style={{
-              paddingVertical: 10,
-              paddingHorizontal: 20,
-              backgroundColor: theme.colors.primary,
-              borderRadius: 8,
-              marginTop: 10
-            }}
-          >
-            <Text style={{ color: '#FFFFFF', fontWeight: '600' }}>Refresh Data</Text>
-          </TouchableOpacity>
-          
-          <TouchableOpacity 
-            onPress={() => {
-              // Manually call the function that's defined at module level
-              console.log('🔍 DEBUG: Manually triggering Direct Fetch');
-              // Define a simplified version inline that has access to component state
-              setLoading(true);
-              setError(null);
-              
-              // Get all reviews for this user
-              supabase
-                .from('reviews')
-                .select('*')
-                .eq('user_id', user?.id)
-                .then(({ data: reviews, error: reviewsError }) => {
-                  if (reviewsError) {
-                    console.error('Error fetching reviews:', reviewsError);
-                    setError('Error fetching reviews: ' + reviewsError.message);
-                    setLoading(false);
-                    return;
-                  }
-                  
-                  if (!reviews || reviews.length === 0) {
-                    setError('No reviews found for your account');
-                    setLoading(false);
-                    return;
-                  }
-                  
-                  // Get course IDs and fetch courses
-                  const courseIds = reviews.map(r => r.course_id);
-                  supabase
-                    .from('courses')
-                    .select('*')
-                    .in('id', courseIds)
-                    .then(({ data: courses, error: coursesError }) => {
-                      if (coursesError) {
-                        setError('Error fetching courses: ' + coursesError.message);
-                        setLoading(false);
-                        return;
-                      }
-                      
-                      // Create simple course objects
-                      const simpleCourses = courses.map(course => {
-                        const review = reviews.find(r => r.course_id === course.id);
-                        return {
-                          id: course.id,
-                          name: course.name,
-                          location: course.location || 'Unknown location',
-                          type: course.type || 'Golf Course',
-                          price_level: course.price_level || 3,
-                          rating: 8.5, // Fixed rating for testing
-                          sentiment: review?.rating || 'liked',
-                          description: '',
-                          created_at: course.created_at || new Date().toISOString(),
-                          updated_at: course.updated_at || new Date().toISOString(),
-                          showScores: userReviewCount >= 10 // Add this flag to each course
-                        };
-                      });
-                      
-                      setPlayedCourses(simpleCourses);
-                      setError('Using directly fetched data');
-                      setLoading(false);
-                      
-                      // Force refresh
-                      setRefreshKey(Date.now());
-                    });
-                });
-            }}
-            style={{
-              paddingVertical: 8,
-              paddingHorizontal: 16,
-              backgroundColor: '#4a5568',
-              borderRadius: 6
-            }}
-          >
-            <Text style={{ color: '#FFFFFF', fontSize: 13 }}>Try Direct Fetch</Text>
-          </TouchableOpacity>
-          
-          <TouchableOpacity 
-            onPress={() => {
-              console.log('🚨 EMERGENCY: Attempting to get courses directly from profile data');
-              setLoading(true);
-              setError(null);
-              setUsingTestData(true); // Prevent automatic reloading
-              
-              try {
-                if (!user?.id) {
-                  setError('No user ID available. Please log in again.');
-                  setLoading(false);
-                  return;
-                }
-                
-                // DIRECT APPROACH: Get ALL reviews in the system, then filter by user ID clientside
-                // This is less efficient but might work if there's an issue with the user_id filter
-                console.log('🚨 EMERGENCY: Getting ALL reviews');
-                supabase
-                  .from('reviews')
-                  .select('*')
-                  .then(({ data: allReviews, error: reviewsError }) => {
-                    if (reviewsError) {
-                      console.error('🚨 EMERGENCY: Error getting all reviews:', reviewsError.message);
-                      setError(`Error: ${reviewsError.message}`);
-                      setLoading(false);
-                      return;
-                    }
-                    
-                    // Filter reviews by user ID manually
-                    const userReviews = allReviews.filter(r => r.user_id === user.id);
-                    console.log('🚨 EMERGENCY: Found user reviews:', userReviews.length);
-                    
-                    if (userReviews.length === 0) {
-                      setError('No reviews found for your account. Try adding some reviews first.');
-                      setLoading(false);
-                      return;
-                    }
-                    
-                    // Get course IDs from the reviews
-                    const courseIds = userReviews.map(r => r.course_id);
-                    console.log('🚨 EMERGENCY: Course IDs from user reviews:', courseIds);
-                    
-                    // Get course data
-                    supabase
-                      .from('courses')
-                      .select('*')
-                      .then(({ data: coursesData, error: coursesError }) => {
-                        if (coursesError) {
-                          console.error('🚨 EMERGENCY: Error getting all courses:', coursesError.message);
-                          setError(`Error: ${coursesError.message}`);
-                          setLoading(false);
-                          return;
-                        }
-                        
-                        // Filter courses by IDs from reviews
-                        const userCourses = coursesData.filter(c => courseIds.includes(c.id));
-                        console.log('🚨 EMERGENCY: Found user courses:', userCourses.length);
-                        
-                        if (userCourses.length === 0) {
-                          setError('No courses found matching your reviews.');
-                          setLoading(false);
-                          return;
-                        }
-                        
-                        // Create a map of sentiment ratings from reviews
-                        const sentimentMap = {};
-                        userReviews.forEach(review => {
-                          sentimentMap[review.course_id] = review.rating;
-                        });
-                        
-                        // Create course objects with sentiment and appropriate ratings
-                        const processedCourses = userCourses.map(course => {
-                          const sentiment = sentimentMap[course.id] || 'fine';
-                          
-                          // Assign a base score based on sentiment
-                          let score = 5.0;
-                          if (sentiment === 'liked') score = 9.0;
-                          else if (sentiment === 'fine') score = 5.5;
-                          else if (sentiment === 'didnt_like') score = 2.0;
-                          
-                          return {
-                            id: course.id,
-                            name: course.name,
-                            location: course.location || 'Unknown',
-                            type: course.type || 'Golf Course',
-                            price_level: course.price_level || 3,
-                            description: '',
-                            created_at: course.created_at || new Date().toISOString(),
-                            updated_at: course.updated_at || new Date().toISOString(),
-                            sentiment: sentiment,
-                            rating: score,
-                            showScores: userReviewCount >= 10 // Add this flag to each course
-                          };
-                        });
-                        
-                        // Group by sentiment for proper scoring
-                        const likedCourses = processedCourses.filter(c => c.sentiment === 'liked');
-                        const fineCourses = processedCourses.filter(c => c.sentiment === 'fine');
-                        const didntLikeCourses = processedCourses.filter(c => c.sentiment === 'didnt_like');
-                        
-                        // Update scores based on position within sentiment group
-                        const scoredCourses = processedCourses.map(course => {
-                          let finalScore = course.rating;
-                          
-                          if (course.sentiment === 'liked') {
-                            const position = likedCourses.findIndex(c => c.id === course.id);
-                            const total = likedCourses.length;
-                            
-                            if (position === 0 || total === 1) {
-                              finalScore = 10.0; // Top course always gets 10.0
-                            } else {
-                              finalScore = 7.0 + ((10.0 - 7.0) * (total - position - 1) / Math.max(total - 1, 1));
-                            }
-                          } else if (course.sentiment === 'fine') {
-                            const position = fineCourses.findIndex(c => c.id === course.id);
-                            const total = fineCourses.length;
-                            
-                            if (position === 0 || total === 1) {
-                              finalScore = 6.9; // Top course always gets 6.9
-                            } else {
-                              finalScore = 3.0 + ((6.9 - 3.0) * (total - position - 1) / Math.max(total - 1, 1));
-                            }
-                          } else if (course.sentiment === 'didnt_like') {
-                            const position = didntLikeCourses.findIndex(c => c.id === course.id);
-                            const total = didntLikeCourses.length;
-                            
-                            if (position === 0 || total === 1) {
-                              finalScore = 2.9; // Top course always gets 2.9
-                            } else {
-                              finalScore = 0.0 + ((2.9 - 0.0) * (total - position - 1) / Math.max(total - 1, 1));
-                            }
-                          }
-                          
-                          return {
-                            ...course,
-                            rating: parseFloat(finalScore.toFixed(1)),
-                            showScores: userReviewCount >= 10 // Add this flag to each course
-                          };
-                        });
-                        
-                        // Sort by rating (highest first)
-                        const sortedCourses = scoredCourses.sort((a, b) => b.rating - a.rating);
-                        
-                        console.log('🚨 EMERGENCY: Final processed courses:', sortedCourses.map(c => ({
-                          name: c.name,
-                          sentiment: c.sentiment,
-                          rating: c.rating
-                        })));
-                        
-                        try {
-                          // Update the context state instead of local state
-                          setPlayedCourses(sortedCourses);
-                          setError('Using emergency direct data loading.');
-                          
-                          // Force a complete re-render with multiple updates
-                          setRefreshKey(Date.now());
-                          
-                          // Add an additional delayed refresh for safety
-                          setTimeout(() => {
-                            setRefreshKey(prev => prev + 1);
-                            console.log('EMERGENCY: Triggered secondary refresh');
-                          }, 300);
-                        } catch (stateError) {
-                          console.error('🚨 EMERGENCY: Error updating state:', stateError);
-                          setError(`Error updating state: ${stateError.message}`);
-                        } finally {
-                          setLoading(false);
-                        }
-                      })
-                      .catch(err => {
-                        console.error('🚨 EMERGENCY: Unexpected fetch error:', err);
-                        setError(`Unexpected fetch error: ${err.message}`);
-                        setLoading(false);
-                      });
-                  })
-                  .catch(err => {
-                    console.error('🚨 EMERGENCY: Unexpected reviews error:', err);
-                    setError(`Unexpected reviews error: ${err.message}`);
-                    setLoading(false);
-                  });
-              } catch (error) {
-                console.error('🚨 EMERGENCY: Unexpected error:', error);
-                setError(`Unexpected error: ${error.message}`);
-                setLoading(false);
-              }
-            }}
-            style={{
-              alignSelf: 'center',
-              paddingVertical: 6,
-              paddingHorizontal: 12,
-              backgroundColor: '#805ad5',
-              borderRadius: 4,
-              marginTop: 8
-            }}
-          >
-            <Text style={{ color: '#FFFFFF', fontSize: 12 }}>Get Profile Courses</Text>
-          </TouchableOpacity>
-          
-          <TouchableOpacity 
-            onPress={() => {
-              // Inline hardcoded data function
-              console.log('🔍 DEBUG: Using hardcoded data');
-              
-              // Add this line to prevent automatic reloading
-              setUsingTestData(true);
-              
-              const hardcodedCourses = [
-                {
-                  id: 'hc1',
-                  name: 'TEST - Augusta National',
-                  location: 'Augusta, GA',
-                  type: 'Championship Course',
-                  price_level: 5,
-                  description: 'Home of the Masters',
-                  created_at: new Date().toISOString(),
-                  updated_at: new Date().toISOString(),
-                  rating: 10.0,
-                  sentiment: 'liked',
-                  showScores: userReviewCount >= 10 // Add this flag to each course
-                },
-                {
-                  id: 'hc2',
-                  name: 'TEST - Pebble Beach',
-                  location: 'Pebble Beach, CA',
-                  type: 'Resort Course',
-                  price_level: 4,
-                  description: 'Iconic oceanside course',
-                  created_at: new Date().toISOString(),
-                  updated_at: new Date().toISOString(),
-                  rating: 8.5,
-                  sentiment: 'liked',
-                  showScores: userReviewCount >= 10 // Add this flag to each course
-                },
-                {
-                  id: 'hc3',
-                  name: 'TEST - St Andrews',
-                  location: 'St Andrews, Scotland',
-                  type: 'Links Course',
-                  price_level: 3,
-                  description: 'The home of golf',
-                  created_at: new Date().toISOString(),
-                  updated_at: new Date().toISOString(),
-                  rating: 6.9,
-                  sentiment: 'fine',
-                  showScores: userReviewCount >= 10 // Add this flag to each course
-                }
-              ];
-              
-              setPlayedCourses(hardcodedCourses);
-              setRefreshKey(Date.now());
-              setError('Using test data');
-              setLoading(false);
-            }}
-            style={{
-              paddingVertical: 8,
-              paddingHorizontal: 16,
-              backgroundColor: '#e53e3e',
-              borderRadius: 6
-            }}
-          >
-            <Text style={{ color: '#FFFFFF', fontSize: 13 }}>Use Test Data</Text>
-          </TouchableOpacity>
-        </View>
-      </View>
-    );
-  }
-
-  // Debug output to verify data before rendering
-  console.log('📊 Rendering Lists screen with:', {
-    playedCount: playedCourses?.length || 0,
-    wantToPlayCount: wantToPlayCourses?.length || 0,
-    recommendedCount: recommendedCourses?.length || 0,
-    playedNames: playedCourses?.map(c => c.name) || []
-  });
-
-  // Add a deep inspection of the playedCourses array
-  console.log('🔎 DEEP DIAGNOSTIC: Final playedCourses state before rendering:', {
-    isArray: Array.isArray(playedCourses),
-    length: playedCourses?.length || 0,
-    isEmpty: playedCourses?.length === 0,
-    validCourseObjects: playedCourses?.every(c => 
-      c && typeof c === 'object' && 'id' in c && 'name' in c && 'rating' in c
-    ),
-    firstThreeCourses: playedCourses?.slice(0, 3).map(c => ({
-      id: c.id,
-      name: c.name,
-      rating: c.rating,
-      sentiment: c.sentiment,
-      allProps: Object.keys(c)
-    }))
-  });
 
   return (
-    <View style={styles.container}>
-      <View style={styles.header}>
-        <Text style={styles.headerTitle}>Your Lists</Text>
-      </View>
+    <View style={edenStyles.container}>
+      <Tabs
+        routes={tabRoutes}
+        selectedIndex={tabIndex}
+        onIndexChange={handleTabChange}
+        renderScene={renderTabContent}
+        style={edenStyles.tabs}
+      />
       
-      {/* Main content with optimized rendering */}
-      {memoizedCourseListTabs}
+      {/* ... existing debug panel and other UI elements ... */}
     </View>
   );
 }
 
-// Update the triggerDirectFetch function with a much simpler approach
-const triggerDirectFetch = async () => {
-  try {
-    setLoading(true);
-    setError(null);
-    
-    console.log('🔍 SUPER SIMPLE: Starting simplified fetch approach');
-    console.log('🔍 SUPER SIMPLE: User ID is:', user?.id);
-    
-    if (!user?.id) {
-      console.error('🔍 SUPER SIMPLE: No user ID available! Authentication issue.');
-      setError('Authentication issue: No user ID available. Please log out and back in.');
-      setLoading(false);
-      return;
-    }
-    
-    // STEP 1: Just try to get ANY reviews for this user
-    console.log('🔍 SUPER SIMPLE: Checking for reviews...');
-    const { data: reviews, error: reviewsError } = await supabase
-      .from('reviews')
-      .select('*')
-      .eq('user_id', user.id);
-    
-    if (reviewsError) {
-      console.error('🔍 SUPER SIMPLE: Error fetching reviews:', reviewsError.message);
-      setError(`Error fetching reviews: ${reviewsError.message}`);
-      setLoading(false);
-      return;
-    }
-    
-    console.log('🔍 SUPER SIMPLE: Reviews result:', {
-      count: reviews?.length || 0,
-      reviews: reviews?.map(r => ({
-        id: r.id,
-        courseId: r.course_id,
-        sentiment: r.rating,
-        userId: r.user_id
-      }))
-    });
-    
-    if (!reviews || reviews.length === 0) {
-      console.log('🔍 SUPER SIMPLE: No reviews found for this user ID');
-      setError('No reviews found for your account. Try adding some course reviews first.');
-      setLoading(false);
-      return;
-    }
-    
-    // STEP 2: Get all the course data in one simple query
-    const courseIds = reviews.map(r => r.course_id);
-    console.log('🔍 SUPER SIMPLE: Course IDs from reviews:', courseIds);
-    
-    const { data: courses, error: coursesError } = await supabase
-      .from('courses')
-      .select('*')
-      .in('id', courseIds);
-    
-    if (coursesError) {
-      console.error('🔍 SUPER SIMPLE: Error fetching courses:', coursesError.message);
-      setError(`Error fetching courses: ${coursesError.message}`);
-      setLoading(false);
-      return;
-    }
-    
-    console.log('🔍 SUPER SIMPLE: Courses result:', {
-      expected: courseIds.length,
-      found: courses?.length || 0,
-      courses: courses?.map(c => ({ id: c.id, name: c.name }))
-    });
-    
-    if (!courses || courses.length === 0) {
-      console.log('🔍 SUPER SIMPLE: No courses found matching the review course IDs');
-      setError('No courses found matching your reviews. Database issue detected.');
-      setLoading(false);
-      return;
-    }
-    
-    // STEP 3: Create a simple map of reviews by course ID for sentiment lookup
-    const reviewByCourseId = {};
-    reviews.forEach(review => {
-      reviewByCourseId[review.course_id] = review;
-    });
-    
-    // STEP 4: Create very basic course objects with fixed scores based on sentiment
-    const simpleCourses = courses.map(course => {
-      const review = reviewByCourseId[course.id];
-      const sentiment = review?.rating || 'unknown';
-      
-      // Assign a simple score based on sentiment
-      let score = 5.0;
-      if (sentiment === 'liked') score = 8.0;
-      else if (sentiment === 'fine') score = 5.0;
-      else if (sentiment === 'didnt_like') score = 2.0;
-      
-      return {
-        id: course.id,
-        name: course.name,
-        location: course.location || 'Unknown location',
-        type: course.type || 'Golf Course',
-        price_level: course.price_level || 3,
-        description: '',
-        created_at: course.created_at || new Date().toISOString(),
-        updated_at: course.updated_at || new Date().toISOString(),
-        rating: score,
-        showScores: userReviewCount >= 10 // Add this flag to each course
-      };
-    });
-    
-    console.log('🔍 SUPER SIMPLE: Created simple course objects:', {
-      count: simpleCourses.length,
-      courses: simpleCourses.map(c => ({
-        id: c.id,
-        name: c.name,
-        sentiment: c.sentiment,
-        score: c.rating
-      }))
-    });
-    
-    // Success! Update the context state with our simple course objects
-    setPlayedCourses(simpleCourses);
-    setError('Using simplified scoring (fixed values based on sentiment). Restart app for normal scoring.');
-    
-    console.log('🔍 SUPER SIMPLE: Successfully set played courses state:', {
-      count: simpleCourses.length,
-      success: true
-    });
-  } catch (error) {
-    console.error('🔍 SUPER SIMPLE: Unexpected error:', error);
-    setError(`Unexpected error: ${error.message}`);
-  } finally {
-    setLoading(false);
-  }
-};
+// Eden styled styles
+const edenStyles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: '#F8F5EC', // Eden background color
+  },
+  tabs: {
+    flex: 1,
+  },
+  tabContent: {
+    flex: 1,
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  errorContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 24,
+  },
+  notificationBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F2E7C9', // Eden neutral feedback color
+    paddingVertical: 16,
+    paddingLeft: 18,
+    paddingRight: 14,
+    marginHorizontal: 16,
+    marginVertical: 12,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#E0D9B7', // Slightly darker border for definition
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+    elevation: 2,
+  },
+  notificationText: {
+    flex: 1,
+    color: '#234D2C', // Eden primary text color
+    lineHeight: 20,
+  },
+  addButtonContainer: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: 'rgba(35, 77, 44, 0.1)', // Light green background
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginLeft: 14,
+  },
+});
 
-// Update the useHardcodedData function to set the flag and prevent reloads
-const useHardcodedData = () => {
-  console.log('🚨 EMERGENCY: Using hardcoded course data');
-  
-  // Set the flag to prevent automatic reloading
-  setUsingTestData(true);
-  
-  // Create hardcoded courses that match the Course type
-  const hardcodedCourses = [
-    {
-      id: 'hc1',
-      name: 'TEST - Augusta National',
-      location: 'Augusta, GA',
-      type: 'Championship Course',
-      price_level: 5,
-      description: 'Home of the Masters',
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-      rating: 10.0,
-      sentiment: 'liked',
-      showScores: userReviewCount >= 10 // Add this flag to each course
-    },
-    {
-      id: 'hc2',
-      name: 'TEST - Pebble Beach',
-      location: 'Pebble Beach, CA',
-      type: 'Resort Course',
-      price_level: 4,
-      description: 'Iconic oceanside course',
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-      rating: 8.5,
-      sentiment: 'liked',
-      showScores: userReviewCount >= 10 // Add this flag to each course
-    },
-    {
-      id: 'hc3',
-      name: 'TEST - St Andrews',
-      location: 'St Andrews, Scotland',
-      type: 'Links Course',
-      price_level: 3,
-      description: 'The home of golf',
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-      rating: 6.9,
-      sentiment: 'fine',
-      showScores: userReviewCount >= 10 // Add this flag to each course
-    },
-    {
-      id: 'hc4',
-      name: 'TEST - Torrey Pines',
-      location: 'La Jolla, CA',
-      type: 'Public Course',
-      price_level: 2,
-      description: 'Beautiful municipal course',
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-      rating: 2.9,
-      sentiment: 'didnt_like',
-      showScores: userReviewCount >= 10 // Add this flag to each course
-    }
-  ];
-  
-  console.log('🚨 EMERGENCY: Hardcoded courses data created:', {
-    count: hardcodedCourses.length,
-    firstCourse: hardcodedCourses[0],
-    isArray: Array.isArray(hardcodedCourses)
-  });
-  
-  // Set the courses directly
-  setPlayedCourses(hardcodedCourses);
-  
-  // Also update the Tab's key to force a fresh render
-  setRefreshKey(Date.now());
-  
-  // Force a stronger re-render to ensure the courses stay displayed
-  setTimeout(() => {
-    console.log('🚨 EMERGENCY: Reinforcing hardcoded data with a second update');
-    
-    // This double update ensures the state change persists
-    setPlayedCourses([...hardcodedCourses]);
-    
-    // Force a refresh again after a short delay
-    setTimeout(() => {
-      setRefreshKey(Date.now() + 1);
-    }, 300);
-  }, 500);
-  
-  setError('⚠️ Using hardcoded test data - this is not from your database. Automatic reloading disabled.');
-  setLoading(false);
-};
-
-// After the toggleDirectFetch function, add a new emergency function to directly get profile page courses
-// Add a new emergency function to get courses directly from profile
-const getCoursesFromProfile = async () => {
-  // Delete this entire function or comment it out - we're replacing all calls with inline functions
-}; 
+// ... rest of the existing styles ... 
