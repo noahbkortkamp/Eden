@@ -2,19 +2,20 @@ import React, { memo, useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView, ActivityIndicator } from 'react-native';
 import { Image } from 'expo-image';
 import { format } from 'date-fns';
-import { useTheme } from '../theme/ThemeProvider';
+import { useTheme, useEdenTheme } from '../theme/ThemeProvider';
 import { ThumbsUp, ThumbsDown, Minus, Bookmark, BookmarkCheck } from 'lucide-react-native';
 import { useRouter } from 'expo-router';
 import { LikeButton } from './LikeButton';
 import { CommentsButton } from './CommentsButton';
 import { bookmarkService } from '../services/bookmarkService';
 import { useAuth } from '../context/AuthContext';
+import EDEN_COLORS from '../theme/edenColors';
 
 // Define sentiment ranges with their colors and icons
 const SENTIMENT_RANGES = {
-  liked: { min: 7.0, max: 10.0, color: '#22c55e', icon: ThumbsUp },
-  fine: { min: 3.0, max: 6.9, color: '#f59e0b', icon: Minus },
-  didnt_like: { min: 0.0, max: 2.9, color: '#ef4444', icon: ThumbsDown }
+  liked: { min: 7.0, max: 10.0, color: EDEN_COLORS.SUCCESS, icon: ThumbsUp },
+  fine: { min: 3.0, max: 6.9, color: EDEN_COLORS.WARNING, icon: Minus },
+  didnt_like: { min: 0.0, max: 2.9, color: EDEN_COLORS.DANGER, icon: ThumbsDown }
 };
 
 // Helper function to determine sentiment from numeric rating
@@ -125,7 +126,7 @@ const FriendReviewCard = memo<FriendReviewCardProps>(({ review, onPress }) => {
   
   return (
     <TouchableOpacity 
-      style={[styles.container, { backgroundColor: theme.colors.surface }]}
+      style={[styles.container, { backgroundColor: EDEN_COLORS.PAPER_BACKGROUND }]}
       onPress={onPress}
     >
       <View style={styles.header}>
@@ -141,17 +142,17 @@ const FriendReviewCard = memo<FriendReviewCardProps>(({ review, onPress }) => {
               transition={200}
             />
           ) : (
-            <View style={[styles.avatarPlaceholder, { backgroundColor: theme.colors.secondary }]}>
+            <View style={[styles.avatarPlaceholder, { backgroundColor: EDEN_COLORS.PRIMARY }]}>
               <Text style={styles.avatarText}>
                 {firstLetter}
               </Text>
             </View>
           )}
           <View>
-            <Text style={[styles.userName, { color: theme.colors.text }]}>
+            <Text style={[styles.userName, { color: EDEN_COLORS.PRIMARY }]}>
               {review.full_name}
             </Text>
-            <Text style={[styles.date, { color: theme.colors.textSecondary }]}>
+            <Text style={[styles.date, { color: '#8E8E93' }]}>
               {format(new Date(review.created_at), 'MMM d, yyyy')}
             </Text>
           </View>
@@ -166,8 +167,8 @@ const FriendReviewCard = memo<FriendReviewCardProps>(({ review, onPress }) => {
       </View>
 
       {/* Main content header - "User played Course with X people" */}
-      <Text style={[styles.mainHeader, { color: theme.colors.text }]} numberOfLines={2}>
-        <Text onPress={handleUserPress} style={styles.userNameInText}>
+      <Text style={[styles.mainHeader, { color: '#000000' }]} numberOfLines={2}>
+        <Text onPress={handleUserPress} style={[styles.userNameInText, { color: EDEN_COLORS.PRIMARY }]}>
           {review.full_name}
         </Text> played {review.course_name}
         {hasPlayingPartners ? ` with ${review.playing_partners.length} ${review.playing_partners.length === 1 ? 'person' : 'people'}` : ''}
@@ -176,7 +177,7 @@ const FriendReviewCard = memo<FriendReviewCardProps>(({ review, onPress }) => {
       {/* Show review content if available - with max lines */}
       {review.notes && (
         <Text 
-          style={[styles.notes, { color: theme.colors.text }]} 
+          style={[styles.notes, { color: '#000000' }]} 
           numberOfLines={3}
         >
           {review.notes}
@@ -207,13 +208,13 @@ const FriendReviewCard = memo<FriendReviewCardProps>(({ review, onPress }) => {
       
       {/* Favorite holes - only if present */}
       {review.favorite_holes && review.favorite_holes.length > 0 && (
-        <Text style={[styles.favoriteHoles, { color: theme.colors.textSecondary }]}>
+        <Text style={[styles.favoriteHoles, { color: '#8E8E93' }]}>
           Favorite holes: {review.favorite_holes.join(', ')}
         </Text>
       )}
 
       {/* Social interactions */}
-      <View style={styles.interactionsContainer}>
+      <View style={[styles.interactionsContainer, { borderTopColor: EDEN_COLORS.BORDER }]}>
         <View style={styles.leftInteractions}>
           <LikeButton 
             reviewId={review.id} 
@@ -235,11 +236,11 @@ const FriendReviewCard = memo<FriendReviewCardProps>(({ review, onPress }) => {
           disabled={bookmarkLoading}
         >
           {bookmarkLoading ? (
-            <ActivityIndicator size="small" color={theme.colors.primary} />
+            <ActivityIndicator size="small" color={EDEN_COLORS.PRIMARY} />
           ) : isBookmarked ? (
-            <BookmarkCheck size={22} color={theme.colors.primary} />
+            <BookmarkCheck size={22} color={EDEN_COLORS.PRIMARY} />
           ) : (
-            <Bookmark size={22} color={theme.colors.textSecondary} />
+            <Bookmark size={22} color="#8E8E93" />
           )}
         </TouchableOpacity>
       </View>
@@ -260,6 +261,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.1,
     shadowRadius: 4,
     elevation: 2,
+    backgroundColor: EDEN_COLORS.PAPER_BACKGROUND,
   },
   header: {
     flexDirection: 'row',
@@ -343,7 +345,6 @@ const styles = StyleSheet.create({
     marginTop: 12,
     paddingTop: 12,
     borderTopWidth: 1,
-    borderTopColor: '#f0f0f0',
     justifyContent: 'space-between',
   },
   leftInteractions: {

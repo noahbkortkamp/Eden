@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback, useReducer, memo, useRef, forwardRef, useImperativeHandle } from 'react';
 import { View, StyleSheet, FlatList, ActivityIndicator, Text, TouchableOpacity } from 'react-native';
-import { useTheme } from '../theme/ThemeProvider';
+import { useTheme, useEdenTheme } from '../theme/ThemeProvider';
 import { FriendReviewCard } from './FriendReviewCard';
 import { getFriendsReviews } from '../utils/friends';
 import { useAuth } from '../context/AuthContext';
@@ -8,6 +8,7 @@ import { useRouter } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Users } from 'lucide-react-native';
 import { supabase } from '../utils/supabase';
+import EDEN_COLORS from '../theme/edenColors';
 
 // How long to keep cache valid (in milliseconds)
 const CACHE_EXPIRY_TIME = 15 * 60 * 1000; // Increased to 15 minutes for better performance
@@ -400,21 +401,21 @@ export const FriendsReviewsFeed = forwardRef<FriendsReviewsFeedRef, FriendsRevie
   // Rendering logic based on state
   if (state.loading && !state.refreshing && !state.isLoadingMore) {
     return (
-      <View style={[styles.fillContainer, styles.loadingContainer, { backgroundColor: theme.colors.background }]}>
-        <ActivityIndicator size="large" color={theme.colors.primary} />
+      <View style={[styles.fillContainer, styles.loadingContainer, { backgroundColor: EDEN_COLORS.BACKGROUND }]}>
+        <ActivityIndicator size="large" color={EDEN_COLORS.PRIMARY} />
       </View>
     );
   }
   
   if (state.error) {
     return (
-      <View style={[styles.fillContainer, styles.errorContainer, { backgroundColor: theme.colors.background }]}>
-        <Text style={[styles.errorText, { color: theme.colors.error }]}>{state.error}</Text>
+      <View style={[styles.fillContainer, styles.errorContainer, { backgroundColor: EDEN_COLORS.BACKGROUND }]}>
+        <Text style={[styles.errorText, { color: EDEN_COLORS.ERROR }]}>{state.error}</Text>
         <TouchableOpacity 
-          style={[styles.retryButton, { backgroundColor: theme.colors.primary }]} 
+          style={[styles.retryButton, { backgroundColor: EDEN_COLORS.PRIMARY }]} 
           onPress={() => fetchReviews(true)}
         >
-          <Text style={[styles.retryButtonText, { color: theme.colors.white }]}>Retry</Text>
+          <Text style={[styles.retryButtonText, { color: EDEN_COLORS.WHITE }]}>Retry</Text>
         </TouchableOpacity>
       </View>
     );
@@ -422,19 +423,19 @@ export const FriendsReviewsFeed = forwardRef<FriendsReviewsFeedRef, FriendsRevie
   
   if (state.reviews.length === 0 && !state.loading) {
     return (
-      <View style={[styles.fillContainer, styles.emptyContainer, { backgroundColor: theme.colors.background }]}>
-        <Users size={48} color={theme.colors.textSecondary} />
-        <Text style={[styles.emptyTitle, { color: theme.colors.text }]}>
+      <View style={[styles.fillContainer, styles.emptyContainer, { backgroundColor: EDEN_COLORS.BACKGROUND }]}>
+        <Users size={48} color={EDEN_COLORS.TEXT_SECONDARY} />
+        <Text style={[styles.emptyTitle, { color: EDEN_COLORS.TEXT }]}>
           No Friend Reviews Yet
         </Text>
-        <Text style={[styles.emptyMessage, { color: theme.colors.textSecondary }]}>
+        <Text style={[styles.emptyMessage, { color: EDEN_COLORS.TEXT_SECONDARY }]}>
           Follow friends to see their reviews here
         </Text>
         <TouchableOpacity 
-          style={[styles.findFriendsButton, { backgroundColor: theme.colors.primary }]}
+          style={[styles.findFriendsButton, { backgroundColor: EDEN_COLORS.PRIMARY }]}
           onPress={onFindFriendsPress}
         >
-          <Text style={[styles.findFriendsButtonText, { color: theme.colors.white }]}>
+          <Text style={[styles.findFriendsButtonText, { color: EDEN_COLORS.WHITE }]}>
             Find Friends
           </Text>
         </TouchableOpacity>
@@ -453,7 +454,7 @@ export const FriendsReviewsFeed = forwardRef<FriendsReviewsFeedRef, FriendsRevie
       )}
       keyExtractor={getUniqueKey}
       contentContainerStyle={styles.container}
-      style={styles.flatList}
+      style={[styles.flatList, { backgroundColor: EDEN_COLORS.BACKGROUND }]}
       onEndReached={handleLoadMore}
       onEndReachedThreshold={0.5}
       refreshing={state.refreshing}
@@ -467,7 +468,7 @@ export const FriendsReviewsFeed = forwardRef<FriendsReviewsFeedRef, FriendsRevie
       )}
       ListFooterComponent={
         state.isLoadingMore ? (
-          <ActivityIndicator size="small" color={theme.colors.primary} style={styles.loadMoreIndicator} />
+          <ActivityIndicator size="small" color={EDEN_COLORS.PRIMARY} style={styles.loadMoreIndicator} />
         ) : state.hasMore ? (
           <TouchableOpacity 
             style={styles.loadMoreButton} 

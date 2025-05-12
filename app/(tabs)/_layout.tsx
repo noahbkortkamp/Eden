@@ -45,14 +45,7 @@ export default function TabLayout() {
         options={{
           title: 'Feed',
           tabBarIcon: ({ color }) => <Home size={24} color={color} />,
-          headerStyle: {
-            backgroundColor: theme.colors.background,
-            elevation: 0,
-            shadowOpacity: 0,
-            borderBottomWidth: 1,
-            borderBottomColor: theme.colors.border,
-          },
-          headerTintColor: theme.colors.text,
+          headerShown: false,
         }}
       />
       <Tabs.Screen

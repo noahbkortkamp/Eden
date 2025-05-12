@@ -8,7 +8,8 @@ import { getNearbyCoursesWithinRadius } from '../utils/courses';
 import { Database } from '../utils/database.types';
 import { FriendsReviewsFeed, FriendsReviewsFeedRef } from '../components/FriendsReviewsFeed';
 import { UserSearch } from '../components/UserSearch';
-import { useTheme } from '../theme/ThemeProvider';
+import { useTheme, useEdenTheme } from '../theme/ThemeProvider';
+import EDEN_COLORS from '../theme/edenColors';
 
 type Course = Database['public']['Tables']['courses']['Row'];
 
@@ -32,7 +33,8 @@ export default function HomeScreen() {
   // Fix the ref type to match FriendsReviewsFeedRef
   const friendsFeedRef = useRef<FriendsReviewsFeedRef>(null);
 
-  const theme = useTheme();
+  // Get the Eden theme from context - this is crucial for system-wide consistency
+  const edenTheme = useEdenTheme();
 
   useEffect(() => {
     loadNearbyCourses();
@@ -100,8 +102,8 @@ export default function HomeScreen() {
       <View style={styles.header}>
         <Text style={styles.logo}>Eden</Text>
         <View style={styles.headerIcons}>
-          <Bell size={24} color="#000" style={styles.icon} />
-          <Menu size={24} color="#000" />
+          <Bell size={26} color={EDEN_COLORS.TEXT} />
+          <Menu size={30} color={EDEN_COLORS.TEXT} />
         </View>
       </View>
 
@@ -111,65 +113,71 @@ export default function HomeScreen() {
           style={styles.searchBar}
           onPress={() => router.push('/(tabs)/search')}
         >
-          <Search size={20} color="#64748b" />
+          <Search size={18} color={EDEN_COLORS.TEXT_SECONDARY} />
           <Text 
-            style={[styles.searchInput, { color: '#64748b' }]}
+            style={[styles.searchInput]}
           >
             Search courses...
           </Text>
         </Pressable>
       </View>
 
-      {/* Filter Pills */}
-      <ScrollView 
-        horizontal 
-        showsHorizontalScrollIndicator={false}
-        contentContainerStyle={styles.filterContainer}
-        style={styles.filterScrollView}>
-        <Pressable 
-          style={[
-            styles.filterTab, 
-            activeTab === 'friends' && styles.activeTab
-          ]}
-          onPress={() => handleTabChange('friends')}
+      {/* Tab Navigation */}
+      <View style={styles.tabNavContainer}>
+        <ScrollView 
+          horizontal 
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.tabNavContent}
         >
-          <Text 
-            style={activeTab === 'friends' ? styles.activeTabText : styles.tabText}
+          <Pressable 
+            style={[
+              styles.tab, 
+              activeTab === 'friends' && styles.activeTab
+            ]}
+            onPress={() => handleTabChange('friends')}
           >
-            Friends
-          </Text>
-        </Pressable>
+            <Text 
+              style={[
+                styles.tabText, 
+                activeTab === 'friends' && styles.activeTabText
+              ]}
+            >
+              Friends
+            </Text>
+          </Pressable>
 
-        <Pressable 
-          style={[
-            styles.filterTab, 
-            activeTab === 'trending' && styles.activeTab
-          ]}
-          onPress={() => handleTabChange('trending')}
-        >
-          <Text 
-            style={activeTab === 'trending' ? styles.activeTabText : styles.tabText}
+          <Pressable 
+            style={[
+              styles.tab, 
+              activeTab === 'trending' && styles.activeTab
+            ]}
+            onPress={() => handleTabChange('trending')}
           >
-            Trending
-          </Text>
-        </Pressable>
-      </ScrollView>
+            <Text 
+              style={[
+                styles.tabText, 
+                activeTab === 'trending' && styles.activeTabText
+              ]}
+            >
+              Trending
+            </Text>
+          </Pressable>
+        </ScrollView>
+      </View>
 
-      {/* Main Content */}
+      {/* Feed Content */}
       {activeTab === 'friends' ? (
-        // Friends Reviews Feed
-        <View style={styles.friendsFeedContainer}>
+        <View style={styles.feedContainer}>
           <FriendsReviewsFeed 
             ref={friendsFeedRef}
             onFindFriendsPress={handleFindFriendsPress} 
           />
         </View>
       ) : (
-        // Trending feed - Coming Soon placeholder
-        <View style={styles.comingSoonContainer}>
-          <TrendingUp size={60} color="#CBD5E1" />
-          <Text style={styles.comingSoonTitle}>Trending Coming Soon</Text>
-          <Text style={styles.comingSoonText}>
+        <View style={styles.emptyStateContainer}>
+          <TrendingUp size={60} color={EDEN_COLORS.TEXT_SECONDARY} />
+          <Text style={styles.emptyStateTitle}>Trending Coming Soon</Text>
+          <Text style={styles.emptyStateText}>
             We're working on bringing you the most popular courses in your area.
             Check back later!
           </Text>
@@ -189,19 +197,12 @@ export default function HomeScreen() {
         />
       </Modal>
 
+      {/* Debug Button - We'll keep this but style it to match the new design system */}
       <TouchableOpacity
-        style={{
-          position: 'absolute',
-          bottom: 20,
-          right: 20,
-          backgroundColor: theme.colors.primary,
-          padding: 8,
-          borderRadius: 8,
-          opacity: 0.8,
-        }}
+        style={styles.debugButton}
         onPress={navigateToDebug}
       >
-        <Text style={{ color: 'white', fontWeight: 'bold' }}>Debug DB</Text>
+        <Text style={styles.debugButtonText}>Debug DB</Text>
       </TouchableOpacity>
     </View>
   );
@@ -210,218 +211,123 @@ export default function HomeScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#fff',
+    backgroundColor: EDEN_COLORS.BACKGROUND, // Creamy background for main app
   },
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingTop: 20,
-    paddingBottom: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: '#f1f5f9',
-    backgroundColor: '#fff',
+    paddingHorizontal: 20,
+    paddingTop: 55,
+    paddingBottom: 16,
+    backgroundColor: EDEN_COLORS.BACKGROUND, // Use creamy background for header too
   },
   logo: {
-    fontSize: 24,
+    fontSize: 36,
     fontFamily: 'Inter-Bold',
-    color: '#000',
+    color: EDEN_COLORS.PRIMARY,
   },
   headerIcons: {
     flexDirection: 'row',
     alignItems: 'center',
+    gap: 24,
   },
   icon: {
-    marginRight: 16,
+    marginRight: 0,
   },
   searchContainer: {
-    padding: 8,
-    paddingBottom: 6,
-    backgroundColor: '#fff',
+    paddingHorizontal: 20,
+    paddingBottom: 12,
+    backgroundColor: EDEN_COLORS.BACKGROUND,
   },
   searchBar: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#f1f5f9',
-    borderRadius: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
+    backgroundColor: EDEN_COLORS.SECONDARY_BACKGROUND,
+    borderRadius: 16,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
   },
   searchInput: {
     flex: 1,
-    marginLeft: 8,
+    marginLeft: 10,
     fontSize: 16,
     fontFamily: 'Inter-Regular',
-    color: '#000',
+    color: EDEN_COLORS.TEXT_SECONDARY,
   },
-  filterScrollView: {
-    backgroundColor: '#fff',
-    paddingVertical: 0,
+  tabNavContainer: {
+    backgroundColor: EDEN_COLORS.BACKGROUND, // Use creamy background for tabs container
     borderBottomWidth: 1,
-    borderBottomColor: '#f1f5f9',
-    zIndex: 5,
-    maxHeight: 30,
+    borderBottomColor: EDEN_COLORS.BORDER,
   },
-  filterContainer: {
-    paddingHorizontal: 16,
-    paddingBottom: 0,
-    gap: 12,
-    height: 28,
+  tabNavContent: {
+    paddingHorizontal: 20,
+    flexDirection: 'row',
+    gap: 30,
   },
-  filterTab: {
-    paddingVertical: 3,
-    marginHorizontal: 4,
-    height: 28,
-    alignItems: 'center',
-    justifyContent: 'center',
+  tab: {
+    paddingVertical: 12,
+    paddingHorizontal: 0,
+    position: 'relative',
+    marginRight: 8,
   },
   activeTab: {
-    borderBottomWidth: 2,
-    borderBottomColor: '#0066ff',
+    borderBottomWidth: 3,
+    borderBottomColor: EDEN_COLORS.PRIMARY,
   },
   tabText: {
-    fontSize: 14,
+    fontSize: 18,
     fontFamily: 'Inter-Regular',
-    color: '#94a3b8',
+    color: EDEN_COLORS.TEXT_SECONDARY,
   },
   activeTabText: {
-    fontSize: 14,
     fontFamily: 'Inter-SemiBold',
-    color: '#0066ff',
-  },
-  content: {
-    flex: 1,
-    backgroundColor: '#f8fafc',
-  },
-  section: {
-    marginBottom: 24,
-    backgroundColor: '#fff',
-    paddingVertical: 16,
-  },
-  sectionHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingHorizontal: 16,
-    marginBottom: 12,
-  },
-  sectionTitle: {
+    color: EDEN_COLORS.PRIMARY,
     fontSize: 18,
-    fontFamily: 'Inter-SemiBold',
-    color: '#000',
   },
-  seeAll: {
-    fontSize: 14,
-    fontFamily: 'Inter-SemiBold',
-    color: '#2563eb',
-  },
-  featuredContainer: {
-    paddingLeft: 16,
-    gap: 12,
-  },
-  featuredCard: {
-    width: 280,
-    height: 160,
-    borderRadius: 12,
-    overflow: 'hidden',
-    marginRight: 12,
-  },
-  featuredImage: {
-    width: '100%',
-    height: '100%',
-  },
-  gradient: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    bottom: 0,
-    padding: 16,
-    height: '50%',
-    justifyContent: 'flex-end',
-  },
-  featuredTitle: {
-    fontSize: 16,
-    fontFamily: 'Inter-Bold',
-    color: '#fff',
-    marginBottom: 4,
-  },
-  featuredSubtitle: {
-    fontSize: 12,
-    fontFamily: 'Inter-Regular',
-    color: '#e2e8f0',
-  },
-  courseList: {
-    paddingHorizontal: 16,
-  },
-  courseItem: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: '#f1f5f9',
-  },
-  courseInfo: {
+  feedContainer: {
     flex: 1,
+    backgroundColor: EDEN_COLORS.BACKGROUND,
   },
-  courseName: {
-    fontSize: 16,
-    fontFamily: 'Inter-SemiBold',
-    color: '#000',
-    marginBottom: 4,
-  },
-  courseLocation: {
-    fontSize: 14,
-    fontFamily: 'Inter-Regular',
-    color: '#64748b',
-  },
-  ratingBadge: {
-    backgroundColor: '#eff6ff',
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 16,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  ratingText: {
-    fontSize: 14,
-    fontFamily: 'Inter-SemiBold',
-    color: '#2563eb',
-  },
-  loader: {
-    marginTop: 24,
-  },
-  errorText: {
-    textAlign: 'center',
-    marginTop: 24,
-    color: '#ef4444',
-    paddingHorizontal: 16,
-  },
-  friendsFeedContainer: {
+  emptyStateContainer: {
     flex: 1,
-    backgroundColor: '#fff',
-    zIndex: 1,
-  },
-  comingSoonContainer: {
-    flex: 1,
-    backgroundColor: '#f8fafc',
+    backgroundColor: EDEN_COLORS.SECONDARY_BACKGROUND,
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: 32,
   },
-  comingSoonTitle: {
+  emptyStateTitle: {
     fontSize: 22,
     fontFamily: 'Inter-Bold',
-    color: '#334155',
-    marginTop: 16,
-    marginBottom: 8,
+    color: EDEN_COLORS.PRIMARY,
+    marginTop: 24,
+    marginBottom: 12,
   },
-  comingSoonText: {
+  emptyStateText: {
     fontSize: 16,
     fontFamily: 'Inter-Regular',
-    color: '#64748B',
+    color: EDEN_COLORS.TEXT_SECONDARY,
     textAlign: 'center',
     lineHeight: 24,
+  },
+  debugButton: {
+    position: 'absolute',
+    bottom: 20,
+    right: 20,
+    backgroundColor: EDEN_COLORS.PRIMARY,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 8,
+    opacity: 0.9,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  debugButtonText: {
+    color: EDEN_COLORS.BACKGROUND,
+    fontFamily: 'Inter-SemiBold',
+    fontSize: 12,
   },
 });
