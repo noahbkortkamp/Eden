@@ -25,7 +25,7 @@ import {
   Bookmark,
   BookmarkCheck,
 } from 'lucide-react-native';
-import { useRouter, useLocalSearchParams } from 'expo-router';
+import { useRouter, useLocalSearchParams, useFocusEffect } from 'expo-router';
 import { useEdenTheme } from '../theme/ThemeProvider';
 import { searchCourses, getAllCourses } from '../utils/courses';
 import { useDebouncedCallback } from 'use-debounce';
@@ -311,9 +311,22 @@ export default function SearchScreen() {
   }, [searchQuery, activeTab, debouncedSearch]);
 
   const handleCoursePress = (courseId: string) => {
+    // Navigate to course details
     router.push({
       pathname: '/(modals)/course-details',
       params: { courseId }
+    });
+  };
+
+  // Handle user card press to navigate to profile
+  const handleUserPress = (userId: string, userName?: string) => {
+    // Navigate to user profile
+    router.push({
+      pathname: '/(modals)/user-profile',
+      params: { 
+        userId, 
+        userName: userName || '' 
+      }
     });
   };
 
@@ -411,6 +424,36 @@ export default function SearchScreen() {
       setBookmarkLoading(prev => ({ ...prev, [courseId]: false }));
     }
   };
+
+  // Check and refresh the following status for all displayed users when screen comes into focus
+  useFocusEffect(
+    useCallback(() => {
+      const refreshFollowingStatus = async () => {
+        if (!user || users.length === 0) return;
+        
+        try {
+          const statusPromises = users.map(async (userResult) => {
+            const status = await isFollowing(user.id, userResult.id);
+            return { userId: userResult.id, isFollowing: status };
+          });
+          
+          const statuses = await Promise.all(statusPromises);
+          const statusMap = statuses.reduce((acc, curr) => {
+            acc[curr.userId] = curr.isFollowing;
+            return acc;
+          }, {} as {[key: string]: boolean});
+          
+          setFollowingStatus(statusMap);
+        } catch (error) {
+          console.error('Error refreshing following status:', error);
+        }
+      };
+      
+      if (activeTab === 'members') {
+        refreshFollowingStatus();
+      }
+    }, [user, users, activeTab])
+  );
 
   // Modify the render portion of the component with optimized rendering and indicators
   return (
@@ -634,6 +677,8 @@ export default function SearchScreen() {
           renderItem={({ item }) => (
             <Card
               variant="listItem"
+              pressable
+              onPress={() => handleUserPress(item.id, item.full_name || '')}
               style={styles.userCard}
             >
               <View style={styles.userInfo}>
