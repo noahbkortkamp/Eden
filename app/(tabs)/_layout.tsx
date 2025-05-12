@@ -44,7 +44,7 @@ export default function TabLayout() {
         name="index"
         options={{
           title: 'Feed',
-          tabBarIcon: ({ color }) => <Home size={24} color={color} />,
+          tabBarIcon: ({ color, focused }) => <Home size={24} color={color} strokeWidth={focused ? 2.5 : 1.5} />,
           headerShown: false,
         }}
       />
@@ -52,7 +52,7 @@ export default function TabLayout() {
         name="lists"
         options={{
           title: 'Your Courses',
-          tabBarIcon: ({ color }) => <List size={24} color={color} />,
+          tabBarIcon: ({ color, focused }) => <List size={24} color={color} strokeWidth={focused ? 2.5 : 1.5} />,
           headerStyle: {
             backgroundColor: theme.colors.background,
             elevation: 0,
@@ -68,7 +68,7 @@ export default function TabLayout() {
         name="search"
         options={{
           title: 'Search',
-          tabBarIcon: ({ color }) => <Search size={24} color={color} />,
+          tabBarIcon: ({ color, focused }) => <Search size={24} color={color} strokeWidth={focused ? 2.5 : 1.5} />,
           headerStyle: {
             backgroundColor: theme.colors.background,
             elevation: 0,
@@ -83,7 +83,7 @@ export default function TabLayout() {
         name="leaderboard"
         options={{
           title: 'Leaderboard',
-          tabBarIcon: ({ color }) => <Trophy size={24} color={color} />,
+          tabBarIcon: ({ color, focused }) => <Trophy size={24} color={color} strokeWidth={focused ? 2.5 : 1.5} />,
           headerStyle: {
             backgroundColor: theme.colors.background,
             elevation: 0,
@@ -98,7 +98,7 @@ export default function TabLayout() {
         name="profile"
         options={{
           title: 'Profile',
-          tabBarIcon: ({ color }) => <User size={24} color={color} />,
+          tabBarIcon: ({ color, focused }) => <User size={24} color={color} strokeWidth={focused ? 2.5 : 1.5} />,
           headerStyle: {
             backgroundColor: theme.colors.background,
             elevation: 0,
