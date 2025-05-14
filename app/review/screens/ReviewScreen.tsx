@@ -228,21 +228,24 @@ export const ReviewScreen: React.FC<ReviewScreenProps> = ({
     },
     sentimentContainer: {
       flexDirection: 'row',
-      justifyContent: 'space-around',
+      justifyContent: 'center',
       marginTop: 10,
-      marginBottom: 6,
+      marginBottom: 10,
+      gap: 8,
     },
     sentimentButton: {
       alignItems: 'center',
       justifyContent: 'center',
-      width: 70,
-      height: 70,
-      borderRadius: 4,
-      paddingVertical: 6,
+      width: 100,
+      height: 80,
+      borderRadius: 8,
+      paddingVertical: 8,
+      paddingHorizontal: 12,
+      marginHorizontal: 4,
     },
     selectedSentiment: {
       backgroundColor: 'rgba(0, 122, 255, 0.08)',
-      borderWidth: 1.5,
+      borderWidth: 2,
       borderColor: '#007AFF',
       borderRadius: 8,
     },
@@ -423,7 +426,10 @@ export const ReviewScreen: React.FC<ReviewScreenProps> = ({
                 disabled={isSubmitting}
               >
                 {renderSentimentIcon(key as SentimentRating)}
-                <Text style={styles.sentimentText}>
+                <Text style={[
+                  styles.sentimentText,
+                  key === 'didnt_like' && { paddingHorizontal: 10 }
+                ]}>
                   {sentimentLabels[key as SentimentRating]}
                 </Text>
               </TouchableOpacity>

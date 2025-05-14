@@ -8,9 +8,11 @@ import {
   ScrollView,
   SafeAreaView,
   ActivityIndicator,
+  Platform,
 } from 'react-native';
 import { Image } from 'expo-image';
-import { useTheme } from '../../theme/ThemeProvider';
+import { useEdenTheme } from '../../theme/ThemeProvider';
+import { colors, spacing, borderRadius } from '../../theme/tokens';
 import { X, UserPlus, Check } from 'lucide-react-native';
 import { User } from '../../types/index';
 import { useAuth } from '../../context/AuthContext';
@@ -29,7 +31,7 @@ export const PlayingPartnersModal: React.FC<PlayingPartnersModalProps> = ({
   onSave,
   selectedUsers,
 }) => {
-  const theme = useTheme();
+  const edenTheme = useEdenTheme();
   const { user } = useAuth();
   const [followingUsers, setFollowingUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
@@ -86,140 +88,32 @@ export const PlayingPartnersModal: React.FC<PlayingPartnersModalProps> = ({
     // This will be implemented in the future
   };
 
-  const styles = StyleSheet.create({
-    modalContainer: {
-      flex: 1,
-      backgroundColor: theme.colors.background,
-    },
-    header: {
-      flexDirection: 'row',
-      justifyContent: 'space-between',
-      alignItems: 'center',
-      padding: theme.spacing.md,
-      borderBottomWidth: 1,
-      borderBottomColor: theme.colors.border,
-      backgroundColor: theme.colors.surface,
-    },
-    headerTitle: {
-      ...theme.typography.h3,
-      color: theme.colors.text,
-    },
-    closeButton: {
-      padding: theme.spacing.sm,
-    },
-    content: {
-      flex: 1,
-      padding: theme.spacing.md,
-    },
-    userItem: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      justifyContent: 'space-between',
-      padding: theme.spacing.md,
-      marginBottom: theme.spacing.sm,
-      backgroundColor: theme.colors.surface,
-      borderRadius: theme.borderRadius.md,
-      borderWidth: 1,
-      borderColor: theme.colors.border,
-    },
-    userInfo: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      flex: 1,
-    },
-    avatar: {
-      width: 40,
-      height: 40,
-      borderRadius: 20,
-      marginRight: theme.spacing.md,
-    },
-    avatarPlaceholder: {
-      width: 40,
-      height: 40,
-      borderRadius: 20,
-      marginRight: theme.spacing.md,
-      justifyContent: 'center',
-      alignItems: 'center',
-    },
-    avatarText: {
-      color: theme.colors.onSecondary,
-      fontSize: 16,
-      fontWeight: '600',
-    },
-    userName: {
-      ...theme.typography.body,
-      color: theme.colors.text,
-    },
-    checkbox: {
-      width: 24,
-      height: 24,
-      borderRadius: 12,
-      borderWidth: 2,
-      borderColor: theme.colors.primary,
-      justifyContent: 'center',
-      alignItems: 'center',
-    },
-    checkboxSelected: {
-      backgroundColor: theme.colors.primary,
-    },
-    inviteButton: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      padding: theme.spacing.md,
-      backgroundColor: theme.colors.surface,
-      borderRadius: theme.borderRadius.md,
-      borderWidth: 1,
-      borderColor: theme.colors.border,
-      marginTop: theme.spacing.md,
-    },
-    inviteButtonText: {
-      ...theme.typography.body,
-      color: theme.colors.primary,
-      marginLeft: theme.spacing.sm,
-    },
-    saveButton: {
-      margin: theme.spacing.md,
-      padding: theme.spacing.md,
-      backgroundColor: theme.colors.primary,
-      borderRadius: theme.borderRadius.md,
-      alignItems: 'center',
-    },
-    saveButtonText: {
-      ...theme.typography.body,
-      color: theme.colors.onPrimary,
-      fontWeight: '600',
-    },
-    loadingContainer: {
-      flex: 1,
-      justifyContent: 'center',
-      alignItems: 'center',
-    },
-    loadingText: {
-      ...theme.typography.body,
-      color: theme.colors.textSecondary,
-      marginTop: theme.spacing.md,
-    },
-  });
-
   return (
     <Modal
       visible={visible}
       animationType="slide"
       presentationStyle="pageSheet"
     >
-      <SafeAreaView style={styles.modalContainer}>
-        <View style={styles.header}>
-          <Text style={styles.headerTitle}>Who did you play with?</Text>
+      <SafeAreaView style={[styles.modalContainer, { backgroundColor: colors.background.base }]}>
+        <View style={[styles.header, {
+          borderBottomColor: colors.border.default,
+          backgroundColor: colors.background.paper
+        }]}>
+          <Text style={[styles.headerTitle, edenTheme.typography.h3]}>
+            Who did you play with?
+          </Text>
           <TouchableOpacity style={styles.closeButton} onPress={onClose}>
-            <X size={24} color={theme.colors.text} />
+            <X size={24} color={colors.text.primary} />
           </TouchableOpacity>
         </View>
         
         <ScrollView style={styles.content}>
           {loading ? (
             <View style={styles.loadingContainer}>
-              <ActivityIndicator size="large" color={theme.colors.primary} />
-              <Text style={styles.loadingText}>Loading friends...</Text>
+              <ActivityIndicator size="large" color={colors.accent.primary} />
+              <Text style={[styles.loadingText, edenTheme.typography.bodySmall]}>
+                Loading friends...
+              </Text>
             </View>
           ) : (
             <>
@@ -228,7 +122,7 @@ export const PlayingPartnersModal: React.FC<PlayingPartnersModalProps> = ({
                 return (
                   <TouchableOpacity
                     key={user.id}
-                    style={styles.userItem}
+                    style={[styles.userItem, edenTheme.components.card.listItem]}
                     onPress={() => toggleUser(user)}
                   >
                     <View style={styles.userInfo}>
@@ -239,20 +133,21 @@ export const PlayingPartnersModal: React.FC<PlayingPartnersModalProps> = ({
                           contentFit="cover"
                         />
                       ) : (
-                        <View style={styles.avatarPlaceholder}>
-                          <Text style={styles.avatarText}>
+                        <View style={[styles.avatarPlaceholder, { backgroundColor: colors.border.default }]}>
+                          <Text style={[styles.avatarText, { color: colors.text.primary }]}>
                             {user.name.charAt(0).toUpperCase()}
                           </Text>
                         </View>
                       )}
-                      <Text style={styles.userName}>{user.name}</Text>
+                      <Text style={[styles.userName, edenTheme.typography.body]}>{user.name}</Text>
                     </View>
                     <View style={[
                       styles.checkbox,
-                      isSelected && styles.checkboxSelected
+                      { borderColor: colors.accent.primary },
+                      isSelected && { backgroundColor: colors.accent.primary }
                     ]}>
                       {isSelected && (
-                        <Check size={16} color={theme.colors.onPrimary} />
+                        <Check size={16} color="#FFFFFF" />
                       )}
                     </View>
                   </TouchableOpacity>
@@ -260,11 +155,11 @@ export const PlayingPartnersModal: React.FC<PlayingPartnersModalProps> = ({
               })}
 
               <TouchableOpacity
-                style={styles.inviteButton}
+                style={[styles.inviteButton, edenTheme.components.button.secondary]}
                 onPress={handleInviteNonAppUser}
               >
-                <UserPlus size={20} color={theme.colors.primary} />
-                <Text style={styles.inviteButtonText}>
+                <UserPlus size={20} color={colors.accent.primary} />
+                <Text style={[styles.inviteButtonText, edenTheme.typography.buttonSecondary]}>
                   Invite non-app user
                 </Text>
               </TouchableOpacity>
@@ -272,12 +167,107 @@ export const PlayingPartnersModal: React.FC<PlayingPartnersModalProps> = ({
           )}
         </ScrollView>
 
-        <TouchableOpacity style={styles.saveButton} onPress={handleSave}>
-          <Text style={styles.saveButtonText}>
+        <TouchableOpacity 
+          style={{
+            backgroundColor: colors.accent.primary,
+            borderRadius: borderRadius.md,
+            padding: spacing.md,
+            marginHorizontal: spacing.md,
+            marginBottom: Platform.OS === 'ios' ? spacing.xl : spacing.lg,
+            marginTop: spacing.md,
+          }}
+          onPress={handleSave}
+        >
+          <Text style={{
+            color: '#FFFFFF',
+            textAlign: 'center',
+            fontSize: 16,
+            fontWeight: '600',
+          }}>
             Done ({localSelectedUsers.length}/3)
           </Text>
         </TouchableOpacity>
       </SafeAreaView>
     </Modal>
   );
-}; 
+};
+
+const styles = StyleSheet.create({
+  modalContainer: {
+    flex: 1,
+  },
+  header: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: spacing.md,
+    borderBottomWidth: 1,
+  },
+  headerTitle: {
+    flex: 1,
+  },
+  closeButton: {
+    padding: spacing.sm,
+  },
+  content: {
+    flex: 1,
+    padding: spacing.md,
+  },
+  userItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: spacing.sm,
+  },
+  userInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+  },
+  avatar: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    marginRight: spacing.md,
+  },
+  avatarPlaceholder: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    marginRight: spacing.md,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  avatarText: {
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  userName: {
+    flex: 1,
+  },
+  checkbox: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    borderWidth: 2,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  inviteButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: spacing.md,
+  },
+  inviteButtonText: {
+    marginLeft: spacing.sm,
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginTop: spacing.xl * 2,
+  },
+  loadingText: {
+    marginTop: spacing.md,
+  },
+}); 
