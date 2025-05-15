@@ -1,7 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { 
   View, 
-  Text, 
   StyleSheet, 
   ActivityIndicator, 
   ScrollView, 
@@ -11,7 +10,7 @@ import {
 } from 'react-native';
 import { Image } from 'expo-image';
 import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
-import { useTheme } from '../theme/ThemeProvider';
+import { useEdenTheme } from '../theme/ThemeProvider';
 import { reviewService } from '../services/reviewService';
 import { format } from 'date-fns';
 import { 
@@ -29,11 +28,33 @@ import {
   User
 } from 'lucide-react-native';
 
-// Define sentiment ranges with their colors and icons
-const SENTIMENT_CONFIGS = {
-  liked: { color: '#22c55e', icon: ThumbsUp, label: 'I liked it' },
-  fine: { color: '#f59e0b', icon: Minus, label: 'It was fine' },
-  didnt_like: { color: '#ef4444', icon: ThumbsDown, label: 'I didn\'t like it' }
+// Eden components
+import { Heading2, Heading3, BodyText, SmallText, Caption } from '../components/eden/Typography';
+import { Card } from '../components/eden/Card';
+import { Button } from '../components/eden/Button';
+import { Icon } from '../components/eden/Icon';
+import { FeedbackBadge } from '../components/eden/FeedbackBadge';
+import { FilterChip } from '../components/eden/FilterChip';
+
+// Define sentiment mappings for the FeedbackBadge component
+const SENTIMENT_TO_STATUS = {
+  liked: 'positive',
+  fine: 'neutral',
+  didnt_like: 'negative'
+};
+
+// Define sentiment label mapping
+const SENTIMENT_LABELS = {
+  liked: 'I liked it',
+  fine: 'It was fine',
+  didnt_like: 'I didn\'t like it'
+};
+
+// Map sentiment to icons
+const SENTIMENT_ICONS = {
+  liked: <ThumbsUp size={16} />,
+  fine: <Minus size={16} />,
+  didnt_like: <ThumbsDown size={16} />
 };
 
 // Placeholder images
@@ -44,7 +65,7 @@ export default function FriendReviewDetailScreen() {
   // Get params and hooks
   const { reviewId } = useLocalSearchParams<{ reviewId: string }>();
   const router = useRouter();
-  const theme = useTheme();
+  const theme = useEdenTheme();
   
   // State
   const [review, setReview] = useState<any | null>(null);
@@ -108,11 +129,9 @@ export default function FriendReviewDetailScreen() {
             headerShown: false
           }}
         />
-        <View style={styles.loadingContainer}>
+        <View style={styles.centerContent}>
           <ActivityIndicator size="large" color={theme.colors.primary} />
-          <Text style={[styles.loadingText, { color: theme.colors.textSecondary }]}>
-            Loading review...
-          </Text>
+          <SmallText style={styles.loadingText}>Loading review...</SmallText>
         </View>
       </SafeAreaView>
     );
@@ -131,35 +150,31 @@ export default function FriendReviewDetailScreen() {
           <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
             <ArrowLeft size={24} color={theme.colors.text} />
           </TouchableOpacity>
-          <Text style={[styles.headerTitle, { color: theme.colors.text }]}>
-            Review Not Found
-          </Text>
+          <Heading3>Review Not Found</Heading3>
         </View>
         
-        <View style={styles.errorContainer}>
-          <Text style={[styles.errorText, { color: theme.colors.textSecondary }]}>
+        <View style={styles.centerContent}>
+          <BodyText color={theme.colors.textSecondary} center style={styles.errorText}>
             {error === 'Review not found' 
               ? "This review isn't available." 
               : "There was a problem loading this review."}
-          </Text>
+          </BodyText>
           
-          <TouchableOpacity 
-            style={[styles.actionButton, { backgroundColor: theme.colors.primary }]}
+          <Button 
+            label="Go Back"
             onPress={() => router.back()}
-          >
-            <Text style={[styles.actionButtonText, { color: theme.colors.onPrimary }]}>
-              Go Back
-            </Text>
-          </TouchableOpacity>
+            style={styles.actionButton}
+          />
         </View>
       </SafeAreaView>
     );
   }
 
-  // Get sentiment display information
+  // Get sentiment status for FeedbackBadge
   const sentiment = review.rating || 'fine';
-  const sentimentConfig = SENTIMENT_CONFIGS[sentiment as keyof typeof SENTIMENT_CONFIGS];
-  const SentimentIcon = sentimentConfig.icon;
+  const sentimentStatus = SENTIMENT_TO_STATUS[sentiment as keyof typeof SENTIMENT_TO_STATUS] as any;
+  const sentimentLabel = SENTIMENT_LABELS[sentiment as keyof typeof SENTIMENT_LABELS];
+  const sentimentIcon = SENTIMENT_ICONS[sentiment as keyof typeof SENTIMENT_ICONS];
   
   // Format the date
   const formattedDate = review.date_played 
@@ -191,14 +206,12 @@ export default function FriendReviewDetailScreen() {
         <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
           <ArrowLeft size={24} color={theme.colors.text} />
         </TouchableOpacity>
-        <Text style={[styles.headerTitle, { color: theme.colors.text }]}>
-          Review Details
-        </Text>
+        <Heading3>Review Details</Heading3>
       </View>
 
       <ScrollView style={styles.scrollContainer} contentContainerStyle={styles.contentContainer}>
         {/* User Info */}
-        <View style={[styles.userInfoContainer, { backgroundColor: theme.colors.surface }]}>
+        <Card style={styles.userInfoContainer}>
           <TouchableOpacity 
             style={styles.userInfo}
             onPress={() => {
@@ -217,175 +230,156 @@ export default function FriendReviewDetailScreen() {
                 placeholder={AVATAR_PLACEHOLDER}
                 style={styles.avatar}
                 contentFit="cover"
-                cachePolicy="memory-disk"
                 recyclingKey={`avatar-${review.user_id}`}
                 transition={200}
               />
             ) : (
-              <View style={[styles.avatarPlaceholder, { backgroundColor: theme.colors.secondary }]}>
-                <Text style={styles.avatarText}>
+              <View style={[styles.avatarPlaceholder, { backgroundColor: theme.colors.primary }]}>
+                <SmallText style={styles.avatarText} color="#FFFFFF">
                   {firstLetter}
-                </Text>
+                </SmallText>
               </View>
             )}
             <View>
-              <Text style={[styles.userName, { color: theme.colors.text }]}>
+              <BodyText bold style={styles.userName}>
                 {userName}
-              </Text>
-              <Text style={[styles.reviewDate, { color: theme.colors.textSecondary }]}>
+              </BodyText>
+              <SmallText color={theme.colors.textSecondary}>
                 {format(new Date(review.created_at), 'MMM d, yyyy')}
-              </Text>
+              </SmallText>
             </View>
           </TouchableOpacity>
-        </View>
+        </Card>
 
         {/* Course Info */}
-        <TouchableOpacity 
-          style={[styles.courseInfoContainer, { backgroundColor: theme.colors.surface }]}
-          onPress={handleViewCourse}
-          activeOpacity={0.7}
-        >
-          <Text style={[styles.courseName, { color: theme.colors.text }]}>
-            {review.course?.name || 'Unknown Course'}
-          </Text>
+        <Card style={styles.courseInfoContainer} pressable onPress={handleViewCourse}>
+          <Heading2>{review.course?.name || 'Unknown Course'}</Heading2>
           <View style={styles.courseMetaContainer}>
             <MapPin size={16} color={theme.colors.textSecondary} />
-            <Text style={[styles.courseLocation, { color: theme.colors.textSecondary }]}>
+            <SmallText color={theme.colors.textSecondary} style={styles.metaText}>
               {review.course?.location || 'Unknown location'}
-            </Text>
+            </SmallText>
           </View>
           <View style={styles.courseMetaContainer}>
             <Calendar size={16} color={theme.colors.textSecondary} />
-            <Text style={[styles.dateText, { color: theme.colors.textSecondary }]}>
+            <SmallText color={theme.colors.textSecondary} style={styles.metaText}>
               Played on {formattedDate}
-            </Text>
+            </SmallText>
           </View>
-        </TouchableOpacity>
+        </Card>
 
         {/* Sentiment */}
-        <View style={[styles.sectionContainer, { backgroundColor: theme.colors.surface }]}>
-          <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>
-            Overall Rating
-          </Text>
-          <View style={[styles.sentimentContainer, { backgroundColor: sentimentConfig.color + '15' }]}>
-            <SentimentIcon size={24} color={sentimentConfig.color} />
-            <Text style={[styles.sentimentText, { color: sentimentConfig.color }]}>
-              {sentimentConfig.label}
-            </Text>
-          </View>
-        </View>
+        <Card style={styles.sectionContainer}>
+          <BodyText bold style={styles.sectionTitle}>Overall Rating</BodyText>
+          <FeedbackBadge 
+            status={sentimentStatus} 
+            label={sentimentLabel}
+            icon={sentimentIcon}
+            style={styles.sentimentBadge}
+          />
+        </Card>
 
         {/* Tags */}
         {hasTags && (
-          <View style={[styles.sectionContainer, { backgroundColor: theme.colors.surface }]}>
+          <Card style={styles.sectionContainer}>
             <View style={styles.sectionHeaderRow}>
-              <Tag size={18} color={theme.colors.textSecondary} />
-              <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>
-                Tags
-              </Text>
+              <Tag size={18} color={theme.colors.textSecondary} style={styles.sectionIcon} />
+              <BodyText bold>Tags</BodyText>
             </View>
             <View style={styles.tagsContainer}>
-              {review.tags.map((tag: any) => (
-                <View 
-                  key={tag.id} 
-                  style={[styles.tagBadge, { backgroundColor: theme.colors.border }]}
-                >
-                  <Text style={[styles.tagText, { color: theme.colors.text }]}>
-                    {tag.name}
-                  </Text>
-                </View>
-              ))}
+              {review.tags && review.tags.length > 0 ? (
+                review.tags.map((tag: any) => (
+                  <FilterChip
+                    key={tag.id || `tag-${tag.name}`}
+                    label={tag.name}
+                    selected={false}
+                    onToggle={() => {}} // read-only in details view
+                    style={styles.tagChip}
+                  />
+                ))
+              ) : (
+                <SmallText color={theme.colors.textSecondary}>No tags added</SmallText>
+              )}
             </View>
-          </View>
+          </Card>
         )}
 
         {/* Notes */}
         {hasNotes && (
-          <View style={[styles.sectionContainer, { backgroundColor: theme.colors.surface }]}>
+          <Card style={styles.sectionContainer}>
             <View style={styles.sectionHeaderRow}>
-              <Edit3 size={18} color={theme.colors.textSecondary} />
-              <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>
-                Notes
-              </Text>
+              <Edit3 size={18} color={theme.colors.textSecondary} style={styles.sectionIcon} />
+              <BodyText bold>Notes</BodyText>
             </View>
-            <Text style={[styles.notesText, { color: theme.colors.text }]}>
+            <BodyText style={styles.notesText}>
               {review.notes}
-            </Text>
-          </View>
+            </BodyText>
+          </Card>
         )}
 
         {/* Favorite Holes */}
         {hasFavoriteHoles && (
-          <View style={[styles.sectionContainer, { backgroundColor: theme.colors.surface }]}>
+          <Card style={styles.sectionContainer}>
             <View style={styles.sectionHeaderRow}>
-              <Flag size={18} color={theme.colors.textSecondary} />
-              <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>
-                Favorite Holes
-              </Text>
+              <Flag size={18} color={theme.colors.textSecondary} style={styles.sectionIcon} />
+              <BodyText bold>Favorite Holes</BodyText>
             </View>
-            <Text style={[styles.holesText, { color: theme.colors.text }]}>
-              {Array.isArray(review.favorite_holes) 
-                ? review.favorite_holes.sort((a: number, b: number) => a - b).join(', ')
-                : 'None selected'}
-            </Text>
-          </View>
+            <View style={styles.holesContainer}>
+              {review.favorite_holes.map((hole: any) => (
+                <View key={`hole-${hole}`} style={styles.holeChip}>
+                  <SmallText>{hole}</SmallText>
+                </View>
+              ))}
+            </View>
+          </Card>
         )}
 
         {/* Playing Partners */}
         {hasPlayingPartners && (
-          <View style={[styles.sectionContainer, { backgroundColor: theme.colors.surface }]}>
+          <Card style={styles.sectionContainer}>
             <View style={styles.sectionHeaderRow}>
-              <Users size={18} color={theme.colors.textSecondary} />
-              <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>
-                Played With
-              </Text>
+              <Users size={18} color={theme.colors.textSecondary} style={styles.sectionIcon} />
+              <BodyText bold>Playing Partners</BodyText>
             </View>
-            <Text style={[styles.partnersText, { color: theme.colors.text }]}>
-              {Array.isArray(review.playing_partners)
-                ? review.playing_partners.map((partner: any) => partner.full_name || partner).join(', ')
-                : 'None'}
-            </Text>
-          </View>
+            <View style={styles.partnersContainer}>
+              {review.playing_partners.map((partner: any) => (
+                <View key={partner.id} style={styles.partnerItem}>
+                  <Image 
+                    source={partner.avatar_url ? { uri: partner.avatar_url } : PLACEHOLDER_IMAGE}
+                    style={styles.partnerAvatar}
+                  />
+                  <SmallText style={styles.partnerName}>{partner.name}</SmallText>
+                </View>
+              ))}
+            </View>
+          </Card>
         )}
 
         {/* Photos */}
         {hasPhotos && (
-          <View style={[styles.sectionContainer, { backgroundColor: theme.colors.surface }]}>
+          <Card style={styles.sectionContainer}>
             <View style={styles.sectionHeaderRow}>
-              <Camera size={18} color={theme.colors.textSecondary} />
-              <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>
-                Photos
-              </Text>
+              <Camera size={18} color={theme.colors.textSecondary} style={styles.sectionIcon} />
+              <BodyText bold>Photos</BodyText>
             </View>
-            <ScrollView 
-              horizontal 
-              showsHorizontalScrollIndicator={false}
-              contentContainerStyle={styles.photosScrollContainer}
-            >
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.photosScrollView}>
               {review.photos.map((photo: string, index: number) => (
-                <Image 
+                <Image
                   key={`photo-${index}`}
                   source={{ uri: photo }}
-                  style={styles.photo}
-                  contentFit="cover"
-                  cachePolicy="memory-disk"
-                  placeholder={PLACEHOLDER_IMAGE}
-                  transition={300}
+                  style={styles.photoItem}
                 />
               ))}
             </ScrollView>
-          </View>
+          </Card>
         )}
-        
-        {/* Action Button */}
-        <TouchableOpacity
-          style={[styles.viewCourseButton, { backgroundColor: theme.colors.primary }]}
+
+        {/* View Course Button */}
+        <Button
+          label="View Course Details"
           onPress={handleViewCourse}
-        >
-          <Text style={[styles.viewCourseButtonText, { color: theme.colors.onPrimary }]}>
-            View Course Details
-          </Text>
-        </TouchableOpacity>
+          style={styles.viewCourseButton}
+        />
       </ScrollView>
     </SafeAreaView>
   );
@@ -395,59 +389,34 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
   },
+  centerContent: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 16,
-    paddingHorizontal: 16,
-    paddingTop: Platform.OS === 'ios' ? 0 : 16,
+    padding: 16,
+    paddingTop: Platform.OS === 'ios' ? 8 : 16,
   },
   backButton: {
     marginRight: 16,
-  },
-  headerTitle: {
-    fontSize: 20,
-    fontWeight: '600',
-  },
-  loadingContainer: {
-    flex: 1,
-    justifyContent: 'center',
+    height: 40,
+    width: 40,
+    borderRadius: 20,
     alignItems: 'center',
-  },
-  loadingText: {
-    marginTop: 16,
-    fontSize: 16,
-  },
-  errorContainer: {
-    flex: 1,
-    padding: 24,
     justifyContent: 'center',
-    alignItems: 'center',
-  },
-  errorText: {
-    fontSize: 16,
-    textAlign: 'center',
-    marginBottom: 24,
-  },
-  actionButton: {
-    paddingVertical: 12,
-    paddingHorizontal: 24,
-    borderRadius: 8,
-  },
-  actionButtonText: {
-    fontSize: 16,
-    fontWeight: '600',
   },
   scrollContainer: {
     flex: 1,
   },
   contentContainer: {
     padding: 16,
-    paddingBottom: 40,
+    paddingBottom: 32,
   },
   userInfoContainer: {
-    padding: 16,
-    borderRadius: 12,
     marginBottom: 16,
   },
   userInfo: {
@@ -455,58 +424,38 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   avatar: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+    width: 48,
+    height: 48,
+    borderRadius: 24,
     marginRight: 12,
   },
   avatarPlaceholder: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    justifyContent: 'center',
+    width: 48,
+    height: 48,
+    borderRadius: 24,
     alignItems: 'center',
+    justifyContent: 'center',
     marginRight: 12,
   },
   avatarText: {
-    fontSize: 16,
+    fontSize: 18,
     fontWeight: 'bold',
-    color: 'white',
   },
   userName: {
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  reviewDate: {
-    fontSize: 14,
-    marginTop: 2,
+    marginBottom: 2,
   },
   courseInfoContainer: {
-    padding: 16,
-    borderRadius: 12,
     marginBottom: 16,
-  },
-  courseName: {
-    fontSize: 22,
-    fontWeight: '700',
-    marginBottom: 8,
   },
   courseMetaContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginTop: 4,
+    marginTop: 8,
   },
-  courseLocation: {
-    fontSize: 14,
-    marginLeft: 8,
-  },
-  dateText: {
-    fontSize: 14,
+  metaText: {
     marginLeft: 8,
   },
   sectionContainer: {
-    padding: 16,
-    borderRadius: 12,
     marginBottom: 16,
   },
   sectionHeaderRow: {
@@ -514,65 +463,77 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 12,
   },
+  sectionIcon: {
+    marginRight: 8,
+  },
   sectionTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    marginLeft: 8,
+    marginBottom: 12,
   },
-  sentimentContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: 16,
-    borderRadius: 8,
-  },
-  sentimentText: {
-    fontSize: 18,
-    fontWeight: '600',
-    marginLeft: 12,
+  sentimentBadge: {
+    alignSelf: 'flex-start',
   },
   tagsContainer: {
     flexDirection: 'row',
     flexWrap: 'wrap',
   },
-  tagBadge: {
-    paddingVertical: 6,
-    paddingHorizontal: 12,
-    borderRadius: 16,
+  tagChip: {
     marginRight: 8,
     marginBottom: 8,
   },
-  tagText: {
-    fontSize: 14,
+  notesText: {
+    lineHeight: 22,
+  },
+  holesContainer: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+  },
+  holeChip: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 16,
+    backgroundColor: '#F0F0F0',
+    marginRight: 8,
+    marginBottom: 8,
+  },
+  partnersContainer: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+  },
+  partnerItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginRight: 16,
+    marginBottom: 8,
+  },
+  partnerAvatar: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    marginRight: 8,
+  },
+  partnerName: {
     fontWeight: '500',
   },
-  notesText: {
-    fontSize: 16,
-    lineHeight: 24,
+  photosScrollView: {
+    marginHorizontal: -16,
+    paddingHorizontal: 16,
   },
-  holesText: {
-    fontSize: 16,
-  },
-  partnersText: {
-    fontSize: 16,
-  },
-  photosScrollContainer: {
-    paddingVertical: 8,
-  },
-  photo: {
-    width: 120,
-    height: 120,
+  photoItem: {
+    width: 150,
+    height: 100,
     borderRadius: 8,
-    marginRight: 12,
+    marginRight: 8,
   },
   viewCourseButton: {
-    paddingVertical: 14,
-    paddingHorizontal: 24,
-    borderRadius: 8,
-    alignItems: 'center',
     marginTop: 8,
   },
-  viewCourseButtonText: {
-    fontSize: 16,
-    fontWeight: '600',
-  }
+  loadingText: {
+    marginTop: 12,
+  },
+  errorText: {
+    marginBottom: 20,
+  },
+  actionButton: {
+    marginTop: 16,
+  },
 }); 
