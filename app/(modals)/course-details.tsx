@@ -1,8 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import {
   View,
-  Text,
-  Image,
   TouchableOpacity,
   StyleSheet,
   useWindowDimensions,
@@ -10,14 +8,19 @@ import {
   SafeAreaView,
   Platform,
 } from 'react-native';
+import { Image } from 'expo-image';
 import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
-import { useTheme } from '../theme/ThemeProvider';
+import { useEdenTheme } from '../theme/ThemeProvider';
 import { MapPin, Star, Users, Bookmark, BookmarkCheck } from 'lucide-react-native';
 import { getCourse } from '../utils/courses';
 import type { Database } from '../utils/database.types';
 import { useAuth } from '../context/AuthContext';
 import { bookmarkService } from '../services/bookmarkService';
 import { usePlayedCourses } from '../context/PlayedCoursesContext';
+import { Card } from '../components/eden/Card';
+import { Heading1, Heading2, Heading3, BodyText, SmallText, Caption } from '../components/eden/Typography';
+import { Button } from '../components/eden/Button';
+import { Icon } from '../components/eden/Icon';
 
 type Course = Database['public']['Tables']['courses']['Row'];
 
@@ -41,7 +44,7 @@ export default function CourseDetailsScreen() {
 function CourseDetailsContent() {
   const { courseId } = useLocalSearchParams();
   const router = useRouter();
-  const theme = useTheme();
+  const theme = useEdenTheme();
   const { width } = useWindowDimensions();
   const { user } = useAuth();
   const { setNeedsRefresh } = usePlayedCourses();
@@ -125,14 +128,22 @@ function CourseDetailsContent() {
     }
   };
 
+  const handleReviewPress = () => {
+    // Add a small delay to prevent touch event issues
+    setTimeout(() => {
+      router.push({
+        pathname: '/(modals)/review',
+        params: { courseId: course?.id }
+      });
+    }, 50);
+  };
+
   if (loading) {
     return (
       <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
-        <View style={styles.loadingContainer}>
+        <View style={styles.centerContent}>
           <ActivityIndicator size="large" color={theme.colors.primary} />
-          <View>
-            <Text style={styles.loadingText}>Loading course details...</Text>
-          </View>
+          <SmallText style={styles.loadingText}>Loading course details...</SmallText>
         </View>
       </View>
     );
@@ -141,38 +152,30 @@ function CourseDetailsContent() {
   if (error || !course) {
     return (
       <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
-        <View style={styles.errorContainer}>
-          <Text style={[styles.errorText, { color: theme.colors.error }]}>
+        <View style={styles.centerContent}>
+          <SmallText color={theme.colors.error}>
             {error || 'Course not found'}
-          </Text>
+          </SmallText>
         </View>
       </View>
     );
   }
 
-  const handleReviewPress = () => {
-    // Add a small delay to prevent touch event issues
-    setTimeout(() => {
-      router.push({
-        pathname: '/(modals)/review',
-        params: { courseId: course.id }
-      });
-    }, 50);
-  };
-
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: theme.colors.background }]}>
-      <View style={{ flex: 1 }}>
+      <View style={styles.container}>
         {/* Header with Image */}
         <View style={styles.imageContainer}>
           {course.photos && course.photos.length > 0 ? (
             <Image
               source={{ uri: course.photos[0] }}
               style={[styles.headerImage, { width }]}
-              resizeMode="cover"
+              contentFit="cover"
             />
           ) : (
-            <View style={[styles.headerImage, { width, backgroundColor: theme.colors.surface }]} />
+            <View style={[styles.headerImage, { width, backgroundColor: theme.colors.surface }]}>
+              <Icon name="Golf" size="hero" color={theme.colors.textSecondary} />
+            </View>
           )}
           <TouchableOpacity
             style={[styles.bookmarkButton, { backgroundColor: theme.colors.surface }]}
@@ -193,112 +196,81 @@ function CourseDetailsContent() {
         <View style={styles.contentContainer}>
           {/* Course Header */}
           <View style={styles.courseHeader}>
-            <View>
-              <Text style={[styles.courseName, { color: theme.colors.text }]}>
-                {course.name}
-              </Text>
-              <View style={styles.locationContainer}>
-                <MapPin size={14} color={theme.colors.textSecondary} />
-                <View>
-                  <Text style={[styles.location, { color: theme.colors.textSecondary }]}>
-                    {course.location}
-                  </Text>
-                </View>
-              </View>
+            <Heading2>{course.name}</Heading2>
+            <View style={styles.locationContainer}>
+              <MapPin size={14} color={theme.colors.textSecondary} />
+              <SmallText color={theme.colors.textSecondary} style={styles.locationText}>
+                {course.location}
+              </SmallText>
             </View>
           </View>
 
           {/* Stats Section */}
-          <View style={[styles.statsContainer, { backgroundColor: theme.colors.surface }]}>
+          <Card style={styles.statsContainer}>
             <View style={styles.statItem}>
               <Star size={18} color={theme.colors.primary} />
-              <View>
-                <Text style={[styles.statValue, { color: theme.colors.text }]}>
-                  {(course.rating ?? 0).toFixed(1)}
-                </Text>
-              </View>
-              <View>
-                <Text style={[styles.statLabel, { color: theme.colors.textSecondary }]}>
-                  Rating
-                </Text>
-              </View>
+              <Heading3 style={styles.statValue}>
+                {(course.rating ?? 0).toFixed(1)}
+              </Heading3>
+              <SmallText color={theme.colors.textSecondary}>
+                Rating
+              </SmallText>
             </View>
 
             <View style={[styles.divider, { backgroundColor: theme.colors.border }]} />
 
             <View style={styles.statItem}>
               <Users size={18} color={theme.colors.primary} />
-              <View>
-                <Text style={[styles.statValue, { color: theme.colors.text }]}>
-                  {course.total_ratings ?? 0}
-                </Text>
-              </View>
-              <View>
-                <Text style={[styles.statLabel, { color: theme.colors.textSecondary }]}>
-                  Reviews
-                </Text>
-              </View>
+              <Heading3 style={styles.statValue}>
+                {course.total_ratings ?? 0}
+              </Heading3>
+              <SmallText color={theme.colors.textSecondary}>
+                Reviews
+              </SmallText>
             </View>
-          </View>
+          </Card>
 
           {/* Course Details */}
-          <View>
-            <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>Details</Text>
+          <View style={styles.sectionHeader}>
+            <BodyText bold>Details</BodyText>
           </View>
-          <View style={[styles.detailsGrid, { backgroundColor: theme.colors.surface }]}>
-            <View style={styles.detailItem}>
-              <View>
-                <Text style={[styles.detailLabel, { color: theme.colors.textSecondary }]}>Type</Text>
+          
+          <Card style={styles.detailsGrid}>
+            <View style={styles.detailsRow}>
+              <View style={styles.detailItem}>
+                <SmallText color={theme.colors.textSecondary}>Type</SmallText>
+                <BodyText>{course.type ?? 'N/A'}</BodyText>
               </View>
-              <View>
-                <Text style={[styles.detailValue, { color: theme.colors.text }]}>{course.type ?? 'N/A'}</Text>
-              </View>
-            </View>
-            
-            <View style={styles.detailItem}>
-              <View>
-                <Text style={[styles.detailLabel, { color: theme.colors.textSecondary }]}>Par</Text>
-              </View>
-              <View>
-                <Text style={[styles.detailValue, { color: theme.colors.text }]}>{course.par ?? 'N/A'}</Text>
+              
+              <View style={styles.detailItem}>
+                <SmallText color={theme.colors.textSecondary}>Par</SmallText>
+                <BodyText>{course.par ?? 'N/A'}</BodyText>
               </View>
             </View>
             
-            <View style={styles.detailItem}>
-              <View>
-                <Text style={[styles.detailLabel, { color: theme.colors.textSecondary }]}>Yardage</Text>
+            <View style={styles.detailsRow}>
+              <View style={styles.detailItem}>
+                <SmallText color={theme.colors.textSecondary}>Yardage</SmallText>
+                <BodyText>{course.yardage ? `${course.yardage} yards` : 'N/A'}</BodyText>
               </View>
-              <View>
-                <Text style={[styles.detailValue, { color: theme.colors.text }]}>{course.yardage ? `${course.yardage} yards` : 'N/A'}</Text>
-              </View>
-            </View>
-            
-            <View style={styles.detailItem}>
-              <View>
-                <Text style={[styles.detailLabel, { color: theme.colors.textSecondary }]}>Price</Text>
-              </View>
-              <View>
-                <Text style={[styles.detailValue, { color: theme.colors.text }]}>
+              
+              <View style={styles.detailItem}>
+                <SmallText color={theme.colors.textSecondary}>Price</SmallText>
+                <BodyText>
                   {course.price_level ? '$'.repeat(course.price_level) : 'N/A'}
-                </Text>
+                </BodyText>
               </View>
             </View>
-          </View>
+          </Card>
 
           {/* Action Button */}
-          <TouchableOpacity
-            style={[styles.reviewButton, { backgroundColor: theme.colors.primary }]}
-            onPress={handleReviewPress}
-            activeOpacity={0.7}
-            delayPressIn={0}
-            hitSlop={{ top: 10, right: 10, bottom: 10, left: 10 }}
-          >
-            <View>
-              <Text style={[styles.reviewButtonText, { color: theme.colors.onPrimary }]}>
-                Review This Course
-              </Text>
-            </View>
-          </TouchableOpacity>
+          <View style={styles.buttonContainer}>
+            <Button
+              label="Review This Course"
+              onPress={handleReviewPress}
+              fullWidth
+            />
+          </View>
         </View>
       </View>
     </SafeAreaView>
@@ -309,11 +281,21 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
   },
+  centerContent: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
   imageContainer: {
     position: 'relative',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   headerImage: {
     height: 180,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   bookmarkButton: {
     position: 'absolute',
@@ -324,107 +306,69 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     alignItems: 'center',
     justifyContent: 'center',
+    ...Platform.select({
+      ios: {
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.1,
+        shadowRadius: 4,
+      },
+      android: {
+        elevation: 2,
+      },
+    }),
   },
   contentContainer: {
     flex: 1,
-    padding: 12,
-    paddingBottom: Platform.OS === 'ios' ? 20 : 12,
+    padding: 16,
+    paddingBottom: Platform.OS === 'ios' ? 24 : 16,
   },
   courseHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-    marginBottom: 12,
-  },
-  courseName: {
-    fontSize: 22,
-    fontWeight: 'bold',
-    marginBottom: 4,
+    marginBottom: 16,
   },
   locationContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 12,
+    marginTop: 4,
   },
-  location: {
+  locationText: {
     marginLeft: 4,
-    fontSize: 14,
   },
   statsContainer: {
     flexDirection: 'row',
-    borderRadius: 12,
-    padding: 12,
     marginBottom: 16,
   },
   statItem: {
     flex: 1,
     alignItems: 'center',
+    padding: 12,
   },
   divider: {
     width: 1,
-    height: '100%',
+    alignSelf: 'stretch',
   },
   statValue: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    marginVertical: 2,
+    marginVertical: 4,
   },
-  statLabel: {
-    fontSize: 12,
-  },
-  sectionTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    marginBottom: 6,
+  sectionHeader: {
+    marginBottom: 8,
   },
   detailsGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    borderRadius: 12,
-    padding: 8,
     marginBottom: 16,
   },
+  detailsRow: {
+    flexDirection: 'row',
+    paddingVertical: 8,
+  },
   detailItem: {
-    width: '50%',
+    flex: 1,
     padding: 8,
   },
-  detailLabel: {
-    fontSize: 14,
-    marginBottom: 2,
-  },
-  detailValue: {
-    fontSize: 15,
-    fontWeight: '500',
-  },
-  reviewButton: {
-    height: 46,
-    borderRadius: 23,
-    alignItems: 'center',
-    justifyContent: 'center',
+  buttonContainer: {
     marginTop: 'auto',
-  },
-  reviewButtonText: {
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  errorText: {
-    fontSize: 16,
-    textAlign: 'center',
-    marginTop: 24,
-  },
-  loadingContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
+    paddingTop: 16,
   },
   loadingText: {
-    fontSize: 16,
-    fontWeight: '600',
     marginTop: 12,
-  },
-  errorContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
   },
 }); 
