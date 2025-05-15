@@ -14,6 +14,12 @@ export type { CardProps, CardVariant } from './Card';
 export { Input } from './Input';
 export type { InputProps } from './Input';
 
+export { Divider } from './Divider';
+export type { DividerProps } from './Divider';
+
+export { Avatar } from './Avatar';
+export type { AvatarProps, AvatarSize } from './Avatar';
+
 // Typography components
 export {
   Typography,

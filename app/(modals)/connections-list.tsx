@@ -1,13 +1,17 @@
 import React, { useEffect, useState } from 'react';
 import { View, StyleSheet, FlatList, ActivityIndicator, TouchableOpacity, SafeAreaView, StatusBar, Platform } from 'react-native';
-import { Text, Avatar, Divider, SegmentedButtons, Searchbar } from 'react-native-paper';
 import { useLocalSearchParams, Stack, useRouter } from 'expo-router';
 import { supabase } from '../utils/supabase';
-import { ArrowLeft, UserPlus } from 'lucide-react-native';
-import { useTheme } from '../theme/ThemeProvider';
+import { ArrowLeft, UserPlus, Search } from 'lucide-react-native';
 import { User } from '../types';
 import Constants from 'expo-constants';
 import { fullScreenOptions } from '../config/navigationConfig';
+import { useEdenTheme } from '../theme';
+import { Avatar } from '../components/eden/Avatar';
+import { Heading2, Heading3, BodyText, SmallText } from '../components/eden/Typography';
+import { Button } from '../components/eden/Button';
+import { Input } from '../components/eden/Input';
+import { Divider } from '../components/eden/Divider';
 
 export default function ConnectionsListScreen() {
   const { userId, userName, initialTab = 'followers' } = useLocalSearchParams<{ 
@@ -16,7 +20,7 @@ export default function ConnectionsListScreen() {
     initialTab?: 'followers' | 'following'
   }>();
   const router = useRouter();
-  const theme = useTheme();
+  const theme = useEdenTheme();
   const [connections, setConnections] = useState<User[]>([]);
   const [filteredConnections, setFilteredConnections] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
@@ -170,25 +174,15 @@ export default function ConnectionsListScreen() {
       style={styles.userItem}
       onPress={() => handleUserPress(item)}
     >
-      {item.avatar_url ? (
-        <Avatar.Image
-          size={50}
-          source={{ uri: item.avatar_url }}
-        />
-      ) : (
-        <Avatar.Text
-          size={50}
-          label={getFirstLetter(item.full_name || item.username)}
-          color="white"
-          style={{ backgroundColor: theme.colors.primary }}
-        />
-      )}
+      <Avatar 
+        size="medium"
+        source={item.avatar_url ? { uri: item.avatar_url } : undefined}
+        fallbackText={getFirstLetter(item.full_name || item.username)}
+      />
       <View style={styles.userInfo}>
-        <Text style={styles.userName}>
-          {item.full_name || item.username || 'User'}
-        </Text>
+        <BodyText bold>{item.full_name || item.username || 'User'}</BodyText>
         {item.username && item.full_name && (
-          <Text style={styles.userHandle}>@{item.username}</Text>
+          <SmallText color={theme.colors.textSecondary}>@{item.username}</SmallText>
         )}
       </View>
     </TouchableOpacity>
@@ -198,57 +192,65 @@ export default function ConnectionsListScreen() {
     <>
       <StatusBar barStyle="dark-content" />
       <Stack.Screen options={fullScreenOptions} />
-      <SafeAreaView style={styles.safeArea}>
-        <View style={[styles.header, { backgroundColor: theme.colors.background }]}>
+      <SafeAreaView style={[styles.safeArea, { backgroundColor: theme.colors.background }]}>
+        <View style={styles.header}>
           <View style={styles.headerRow}>
             <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
               <ArrowLeft size={24} color={theme.colors.text} />
             </TouchableOpacity>
-            <Text style={[styles.headerTitle, { color: theme.colors.text }]}>
-              {userName || 'User'}
-            </Text>
+            <Heading2>{userName || 'User'}</Heading2>
           </View>
           
-          <SegmentedButtons
-            value={activeTab}
-            onValueChange={(value) => setActiveTab(value as 'followers' | 'following')}
-            buttons={[
-              {
-                value: 'followers',
-                label: `${followersCount} Followers`
-              },
-              {
-                value: 'following',
-                label: `${followingCount} Following`
-              }
-            ]}
-            style={styles.toggle}
-          />
+          <View style={[styles.tabContainer, { borderColor: theme.colors.border }]}>
+            <TouchableOpacity
+              style={[
+                styles.tabButton,
+                styles.leftTabButton,
+                { backgroundColor: theme.colors.background },
+                activeTab === 'followers' && { backgroundColor: theme.colors.primaryFocused + '30' }
+              ]}
+              onPress={() => setActiveTab('followers')}
+            >
+              <BodyText style={styles.tabText}>
+                {followersCount} Followers
+              </BodyText>
+            </TouchableOpacity>
+            
+            <TouchableOpacity
+              style={[
+                styles.tabButton,
+                styles.rightTabButton,
+                { backgroundColor: theme.colors.background },
+                activeTab === 'following' && { backgroundColor: theme.colors.primaryFocused + '30' }
+              ]}
+              onPress={() => setActiveTab('following')}
+            >
+              <BodyText style={styles.tabText}>
+                {followingCount} Following
+              </BodyText>
+            </TouchableOpacity>
+          </View>
         </View>
 
         <View style={styles.searchContainer}>
-          <Searchbar
+          <Input
             placeholder={`Search ${activeTab}`}
             onChangeText={setSearchQuery}
             value={searchQuery}
-            style={styles.searchBar}
-            iconColor={theme.colors.primary}
+            startIcon={<Search size={20} color={theme.colors.textSecondary} />}
+            style={styles.searchInput}
           />
         </View>
 
         <TouchableOpacity 
-          style={styles.findFriendsContainer}
+          style={[styles.findFriendsContainer, { borderColor: theme.colors.border }]}
           onPress={handleFindFriends}
         >
-          <View style={styles.findFriendsIcon}>
-            <UserPlus size={24} color={theme.colors.primary} />
-          </View>
+          <UserPlus size={24} color={theme.colors.primary} style={styles.findFriendsIcon} />
           <View style={styles.findFriendsTextContainer}>
-            <Text style={styles.findFriendsText}>Find friends</Text>
+            <BodyText bold>Find friends</BodyText>
           </View>
-          <View style={styles.findFriendsArrow}>
-            <Text style={{ color: theme.colors.outline }}>›</Text>
-          </View>
+          <SmallText color={theme.colors.textSecondary} style={styles.findFriendsArrow}>›</SmallText>
         </TouchableOpacity>
 
         {loading ? (
@@ -258,13 +260,11 @@ export default function ConnectionsListScreen() {
         ) : filteredConnections.length === 0 ? (
           <View style={styles.centered}>
             {searchQuery.trim() !== '' ? (
-              <Text style={{ color: theme.colors.text }}>
-                No results found for "{searchQuery}"
-              </Text>
+              <BodyText>No results found for "{searchQuery}"</BodyText>
             ) : (
-              <Text style={{ color: theme.colors.text }}>
+              <BodyText>
                 {activeTab === 'followers' ? 'No followers yet' : 'Not following anyone yet'}
-              </Text>
+              </BodyText>
             )}
           </View>
         ) : (
@@ -284,48 +284,35 @@ export default function ConnectionsListScreen() {
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: '#ffffff',
   },
   header: {
     padding: 16,
-    paddingBottom: 8,
-    borderBottomWidth: 1,
-    borderBottomColor: '#e0e0e0',
+    paddingBottom: 0,
   },
   headerRow: {
     flexDirection: 'row',
     alignItems: 'center',
     marginBottom: 16,
   },
-  headerTitle: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    marginLeft: 16,
-  },
   backButton: {
     padding: 4,
-  },
-  toggle: {
-    backgroundColor: 'transparent',
+    marginRight: 12,
   },
   searchContainer: {
     paddingHorizontal: 16,
-    paddingTop: 12,
+    paddingTop: 16,
     paddingBottom: 8,
   },
-  searchBar: {
-    borderRadius: 25,
-    elevation: 0,
-    backgroundColor: '#f2f2f2',
+  searchInput: {
+    width: '100%',
   },
   findFriendsContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 12,
+    paddingVertical: 16,
     paddingHorizontal: 16,
     borderTopWidth: 1,
     borderBottomWidth: 1,
-    borderColor: '#e0e0e0',
     marginBottom: 8,
   },
   findFriendsIcon: {
@@ -333,10 +320,6 @@ const styles = StyleSheet.create({
   },
   findFriendsTextContainer: {
     flex: 1,
-  },
-  findFriendsText: {
-    fontSize: 16,
-    fontWeight: '500',
   },
   findFriendsArrow: {
     fontSize: 24,
@@ -354,17 +337,34 @@ const styles = StyleSheet.create({
     marginLeft: 16,
     flex: 1,
   },
-  userName: {
-    fontSize: 16,
-    fontWeight: '500',
-  },
-  userHandle: {
-    fontSize: 14,
-    color: '#666',
-  },
   centered: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
+  },
+  tabContainer: {
+    flexDirection: 'row',
+    marginTop: 8,
+    marginBottom: 16,
+    borderRadius: 25,
+    overflow: 'hidden',
+    borderWidth: 1,
+  },
+  tabButton: {
+    flex: 1,
+    paddingVertical: 12,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  leftTabButton: {
+    borderTopLeftRadius: 25,
+    borderBottomLeftRadius: 25,
+  },
+  rightTabButton: {
+    borderTopRightRadius: 25,
+    borderBottomRightRadius: 25,
+  },
+  tabText: {
+    textAlign: 'center',
   },
 }); 
