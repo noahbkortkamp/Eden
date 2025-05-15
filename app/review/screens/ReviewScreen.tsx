@@ -410,7 +410,7 @@ export const ReviewScreen: React.FC<ReviewScreenProps> = ({
 
         {/* Sentiment Rating */}
         <View style={[styles.section, { paddingBottom: 8 }]}>
-          <Text style={styles.sectionTitle}>How was your experience?</Text>
+          <Text style={styles.sectionTitle}>What did you think of the course?</Text>
           <View style={styles.sentimentContainer}>
             {Object.keys(SENTIMENT_ICONS).map((key) => (
               <TouchableOpacity
@@ -437,122 +437,127 @@ export const ReviewScreen: React.FC<ReviewScreenProps> = ({
           </View>
         </View>
 
-        <View style={styles.sectionDivider} />
+        {/* Only show the following sections if a sentiment rating has been selected */}
+        {rating && (
+          <>
+            <View style={styles.sectionDivider} />
 
-        {/* Tags Section */}
-        <TouchableOpacity
-          style={styles.rowContainer}
-          onPress={() => setShowTagsModal(true)}
-          disabled={isSubmitting}
-        >
-          <Text style={styles.labelText}>Tags</Text>
-          <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-            <Text style={styles.valueText}>
-              {tags.length > 0 ? getSelectedTagNames() : 'Select tags'}
-            </Text>
-            <ChevronRight size={16} color={theme.colors.textSecondary} style={{ marginLeft: 4 }} />
-          </View>
-        </TouchableOpacity>
+            {/* Tags Section */}
+            <TouchableOpacity
+              style={styles.rowContainer}
+              onPress={() => setShowTagsModal(true)}
+              disabled={isSubmitting}
+            >
+              <Text style={styles.labelText}>Tags</Text>
+              <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                <Text style={styles.valueText}>
+                  {tags.length > 0 ? getSelectedTagNames() : 'Select tags'}
+                </Text>
+                <ChevronRight size={16} color={theme.colors.textSecondary} style={{ marginLeft: 4 }} />
+              </View>
+            </TouchableOpacity>
 
-        <View style={styles.sectionDivider} />
+            <View style={styles.sectionDivider} />
 
-        {/* Favorite Holes Section */}
-        <TouchableOpacity
-          style={styles.rowContainer}
-          onPress={() => setShowFavoriteHolesModal(true)}
-          disabled={isSubmitting}
-        >
-          <Text style={styles.labelText}>Favorite Holes</Text>
-          <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-            <Text style={styles.valueText}>
-              {favoriteHoles.length > 0 ? getFavoriteHolesPreview() : 'Add holes'}
-            </Text>
-            <ChevronRight size={16} color={theme.colors.textSecondary} style={{ marginLeft: 4 }} />
-          </View>
-        </TouchableOpacity>
+            {/* Favorite Holes Section */}
+            <TouchableOpacity
+              style={styles.rowContainer}
+              onPress={() => setShowFavoriteHolesModal(true)}
+              disabled={isSubmitting}
+            >
+              <Text style={styles.labelText}>Favorite Holes</Text>
+              <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                <Text style={styles.valueText}>
+                  {favoriteHoles.length > 0 ? getFavoriteHolesPreview() : 'Add holes'}
+                </Text>
+                <ChevronRight size={16} color={theme.colors.textSecondary} style={{ marginLeft: 4 }} />
+              </View>
+            </TouchableOpacity>
 
-        <View style={styles.sectionDivider} />
+            <View style={styles.sectionDivider} />
 
-        {/* Playing Partners Section */}
-        <TouchableOpacity
-          style={styles.rowContainer}
-          onPress={() => setShowPlayingPartnersModal(true)}
-          disabled={isSubmitting}
-        >
-          <Text style={styles.labelText}>Playing Partners</Text>
-          <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-            <Text style={styles.valueText}>
-              {playingPartners.length > 0 ? getPlayingPartnersPreview() : 'Select partners'}
-            </Text>
-            <ChevronRight size={16} color={theme.colors.textSecondary} style={{ marginLeft: 4 }} />
-          </View>
-        </TouchableOpacity>
+            {/* Playing Partners Section */}
+            <TouchableOpacity
+              style={styles.rowContainer}
+              onPress={() => setShowPlayingPartnersModal(true)}
+              disabled={isSubmitting}
+            >
+              <Text style={styles.labelText}>Playing Partners</Text>
+              <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                <Text style={styles.valueText}>
+                  {playingPartners.length > 0 ? getPlayingPartnersPreview() : 'Select partners'}
+                </Text>
+                <ChevronRight size={16} color={theme.colors.textSecondary} style={{ marginLeft: 4 }} />
+              </View>
+            </TouchableOpacity>
 
-        <View style={styles.sectionDivider} />
+            <View style={styles.sectionDivider} />
 
-        {/* Photos Section */}
-        <TouchableOpacity
-          style={styles.rowContainer}
-          onPress={handlePhotoUpload}
-          disabled={isSubmitting}
-        >
-          <Text style={styles.labelText}>Photos</Text>
-          <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-            <Text style={styles.valueText}>
-              {photos.length > 0 ? `${photos.length} photo${photos.length > 1 ? 's' : ''}` : 'Add Photos'}
-            </Text>
-            <ChevronRight size={16} color={theme.colors.textSecondary} style={{ marginLeft: 4 }} />
-          </View>
-        </TouchableOpacity>
+            {/* Photos Section */}
+            <TouchableOpacity
+              style={styles.rowContainer}
+              onPress={handlePhotoUpload}
+              disabled={isSubmitting}
+            >
+              <Text style={styles.labelText}>Photos</Text>
+              <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                <Text style={styles.valueText}>
+                  {photos.length > 0 ? `${photos.length} photo${photos.length > 1 ? 's' : ''}` : 'Add Photos'}
+                </Text>
+                <ChevronRight size={16} color={theme.colors.textSecondary} style={{ marginLeft: 4 }} />
+              </View>
+            </TouchableOpacity>
 
-        <View style={styles.sectionDivider} />
+            <View style={styles.sectionDivider} />
 
-        {/* Date Section */}
-        <View style={styles.rowContainer}>
-          <Text style={styles.labelText}>Date Played</Text>
-          <Pressable
-            onPress={openDatePicker}
-            disabled={isSubmitting}
-            style={({ pressed }) => [
-              { 
-                flexDirection: 'row', 
-                alignItems: 'center',
-                opacity: pressed ? 0.7 : 1,
-                paddingVertical: 6,
-                paddingHorizontal: 8,
-              }
-            ]}
-            android_ripple={{ color: 'rgba(0, 0, 0, 0.1)' }}
-            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-          >
-            <Text style={styles.valueText}>
-              {format(datePlayed, 'MMMM d, yyyy')}
-            </Text>
-            <ChevronRight size={16} color={theme.colors.textSecondary} style={{ marginLeft: 4 }} />
-          </Pressable>
-        </View>
+            {/* Date Section */}
+            <View style={styles.rowContainer}>
+              <Text style={styles.labelText}>Date Played</Text>
+              <Pressable
+                onPress={openDatePicker}
+                disabled={isSubmitting}
+                style={({ pressed }) => [
+                  { 
+                    flexDirection: 'row', 
+                    alignItems: 'center',
+                    opacity: pressed ? 0.7 : 1,
+                    paddingVertical: 6,
+                    paddingHorizontal: 8,
+                  }
+                ]}
+                android_ripple={{ color: 'rgba(0, 0, 0, 0.1)' }}
+                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+              >
+                <Text style={styles.valueText}>
+                  {format(datePlayed, 'MMMM d, yyyy')}
+                </Text>
+                <ChevronRight size={16} color={theme.colors.textSecondary} style={{ marginLeft: 4 }} />
+              </Pressable>
+            </View>
 
-        <View style={styles.sectionDivider} />
-        
-        {/* Notes Section - Minimized height */}
-        <View style={[styles.section, { paddingBottom: 8 }]}>
-          <Text style={styles.labelText}>Notes</Text>
-          <TextInput
-            ref={notesInputRef}
-            style={styles.notesInput}
-            placeholder="Write about your experience..."
-            placeholderTextColor={theme.colors.textSecondary}
-            value={notes}
-            onChangeText={setNotes}
-            multiline
-            numberOfLines={3}
-            textAlignVertical="top"
-            editable={!isSubmitting}
-            inputAccessoryViewID={inputAccessoryViewID}
-            onFocus={handleNotesFocus}
-            blurOnSubmit={false}
-          />
-        </View>
+            <View style={styles.sectionDivider} />
+            
+            {/* Notes Section - Minimized height */}
+            <View style={[styles.section, { paddingBottom: 8 }]}>
+              <Text style={styles.labelText}>Notes</Text>
+              <TextInput
+                ref={notesInputRef}
+                style={styles.notesInput}
+                placeholder="Write about your experience..."
+                placeholderTextColor={theme.colors.textSecondary}
+                value={notes}
+                onChangeText={setNotes}
+                multiline
+                numberOfLines={3}
+                textAlignVertical="top"
+                editable={!isSubmitting}
+                inputAccessoryViewID={inputAccessoryViewID}
+                onFocus={handleNotesFocus}
+                blurOnSubmit={false}
+              />
+            </View>
+          </>
+        )}
 
         {Platform.OS === 'ios' && (
           <InputAccessoryView nativeID={inputAccessoryViewID}>
@@ -623,51 +628,53 @@ export const ReviewScreen: React.FC<ReviewScreenProps> = ({
           />
         )}
 
-        <View style={styles.sectionDivider} />
-
         {/* Error Message */}
         {error && (
           <Text style={styles.errorText}>{error}</Text>
         )}
-
-        {/* Submit Button */}
-        <TouchableOpacity
-          style={[
-            styles.submitButton, 
-            (!rating || isSubmitting) && styles.submitButtonDisabled
-          ]}
-          onPress={handleSubmit}
-          disabled={!rating || isSubmitting}
-        >
-          <Text style={styles.submitButtonText}>Submit</Text>
-          {isSubmitting && <ActivityIndicator color={theme.colors.background} />}
-        </TouchableOpacity>
-
-        <TagSelectionModal
-          visible={showTagsModal}
-          onClose={() => setShowTagsModal(false)}
-          onSave={handleTagsSave}
-          selectedTags={tags.map(tagId => {
-            const allTags = Object.values(TAGS_BY_CATEGORY).flat();
-            return allTags.find(t => t.id === tagId);
-          }).filter(Boolean)}
-        />
-
-        <FavoriteHolesModal
-          visible={showFavoriteHolesModal}
-          onClose={() => setShowFavoriteHolesModal(false)}
-          onSave={setFavoriteHoles}
-          selectedHoles={favoriteHoles}
-          totalHoles={18}
-        />
-
-        <PlayingPartnersModal
-          visible={showPlayingPartnersModal}
-          onClose={() => setShowPlayingPartnersModal(false)}
-          onSave={setPlayingPartners}
-          selectedUsers={playingPartners}
-        />
       </ScrollView>
+
+      {/* Submit Button - Only show when a sentiment is selected */}
+      {rating && (
+        <View style={{ padding: 12, borderTopWidth: 1, borderTopColor: theme.colors.border }}>
+          <TouchableOpacity
+            style={[
+              styles.submitButton, 
+              isSubmitting && styles.submitButtonDisabled
+            ]}
+            onPress={handleSubmit}
+            disabled={isSubmitting}
+          >
+            <Text style={styles.submitButtonText}>Submit</Text>
+            {isSubmitting && <ActivityIndicator color={theme.colors.background} />}
+          </TouchableOpacity>
+        </View>
+      )}
+
+      <TagSelectionModal
+        visible={showTagsModal}
+        onClose={() => setShowTagsModal(false)}
+        onSave={handleTagsSave}
+        selectedTags={tags.map(tagId => {
+          const allTags = Object.values(TAGS_BY_CATEGORY).flat();
+          return allTags.find(t => t.id === tagId);
+        }).filter(Boolean)}
+      />
+
+      <FavoriteHolesModal
+        visible={showFavoriteHolesModal}
+        onClose={() => setShowFavoriteHolesModal(false)}
+        onSave={setFavoriteHoles}
+        selectedHoles={favoriteHoles}
+        totalHoles={18}
+      />
+
+      <PlayingPartnersModal
+        visible={showPlayingPartnersModal}
+        onClose={() => setShowPlayingPartnersModal(false)}
+        onSave={setPlayingPartners}
+        selectedUsers={playingPartners}
+      />
     </KeyboardAvoidingView>
   );
 }; 
