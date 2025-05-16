@@ -1,14 +1,27 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, Pressable, Platform, SafeAreaView, Dimensions, InteractionManager } from 'react-native';
+import { View, StyleSheet, Platform, SafeAreaView, Dimensions, InteractionManager, Animated } from 'react-native';
 import { Image } from 'expo-image';
-import { useTheme } from '../../theme/ThemeProvider';
+import { useEdenTheme } from '../../theme';
 import { useAuth } from '../../context/AuthContext';
 import { useRouter } from 'expo-router';
 import { DefaultAvatar } from '../../components/DefaultAvatar';
 import { format, isValid } from 'date-fns';
 import { useCourse } from '../../context/CourseContext';
-import { Award, ChevronRight, Locate, Star, ThumbsUp, X } from 'lucide-react-native';
+import { Locate, ChevronRight, Award, ThumbsUp } from 'lucide-react-native';
 import { router as globalRouter } from 'expo-router';
+
+// Eden design system components
+import {
+  Heading1,
+  Heading2,
+  Heading3,
+  BodyText,
+  SmallText,
+  Button,
+  Card,
+  Icon,
+  Divider,
+} from '../../components/eden';
 
 export interface FirstReviewSuccessScreenProps {
   datePlayed: Date;
@@ -21,16 +34,36 @@ export const FirstReviewSuccessScreen: React.FC<FirstReviewSuccessScreenProps> =
   courseName,
   courseLocation,
 }) => {
-  const theme = useTheme();
+  const theme = useEdenTheme();
   const { user } = useAuth();
   const router = useRouter();
   const { course } = useCourse();
   const [isExiting, setIsExiting] = useState(false);
   const [buttonsDisabled, setButtonsDisabled] = useState(false);
+  
+  // Card animation values
+  const cardScale = React.useRef(new Animated.Value(0.95)).current;
+  const cardOpacity = React.useRef(new Animated.Value(0)).current;
 
   // Get course info from props or context
   const displayCourseName = courseName || course?.name || 'your course';
   const displayCourseLocation = courseLocation || course?.location || '';
+
+  // Animate cards on mount
+  React.useEffect(() => {
+    Animated.parallel([
+      Animated.timing(cardScale, {
+        toValue: 1,
+        duration: 400,
+        useNativeDriver: true,
+      }),
+      Animated.timing(cardOpacity, {
+        toValue: 1,
+        duration: 450,
+        useNativeDriver: true,
+      }),
+    ]).start();
+  }, []);
 
   // Set up navigation after the exiting animation
   useEffect(() => {
@@ -105,115 +138,132 @@ export const FirstReviewSuccessScreen: React.FC<FirstReviewSuccessScreenProps> =
     }, 300);
   };
 
-  // Custom theme for this screen
-  const customColors = {
-    background: '#f7f9f7',
-    primaryText: '#234D2C',
-    secondaryText: '#4A5E50',
-    accentColor: '#e6f7ee',
-    accentBorder: '#9cd9b3',
+  // Animated style for both cards
+  const animatedCardStyle = {
+    transform: [{ scale: cardScale }],
+    opacity: cardOpacity,
   };
 
   return (
     <SafeAreaView 
       style={[
         styles.container, 
-        { backgroundColor: customColors.background },
+        { backgroundColor: theme.colors.background },
         isExiting && styles.exitingContainer
       ]}
     >
       {/* Close Button */}
-      <Pressable 
-        style={styles.closeButton}
+      <Button
+        variant="tertiary"
         onPress={handleClose}
-        hitSlop={{ top: 15, right: 15, bottom: 15, left: 15 }}
         disabled={buttonsDisabled}
-      >
-        <X size={24} color="#234D2C" />
-      </Pressable>
+        style={styles.closeButton}
+        startIcon={<Icon name="X" size="action" />}
+        iconOnly
+      />
       
       {/* Content View with animation */}
       <View style={[styles.contentContainer, isExiting && styles.exitingContent]}>
         {/* Header with celebration icon */}
         <View style={styles.header}>
-          <Award size={60} color="#234D2C" style={styles.celebrationIcon} />
-          <Text style={styles.headerTitle}>You did it!</Text>
-          <Text style={styles.headerSubtitle}>Your first course review is complete!</Text>
+          <Icon name="Award" size="hero" color={theme.colors.primary} style={styles.celebrationIcon} />
+          <Heading1 style={styles.headerTitle}>You did it!</Heading1>
+          <BodyText style={styles.headerSubtitle}>Your first course review is complete!</BodyText>
         </View>
 
-        {/* Course Review Card */}
-        <View style={styles.card}>
-          <Text style={styles.cardTitle}>You reviewed:</Text>
-          
-          <View style={styles.courseContainer}>
-            <Text style={styles.courseName} numberOfLines={1}>{displayCourseName}</Text>
-            
-            {displayCourseLocation && (
-              <View style={styles.locationContainer}>
-                <Locate size={14} color="#666" />
-                <Text style={styles.courseLocation} numberOfLines={1}>{displayCourseLocation}</Text>
+        {/* Center content container */}
+        <View style={styles.centerContentContainer}>
+          {/* Course Review Card */}
+          <Animated.View style={animatedCardStyle}>
+            <Card variant="default" style={styles.card}>
+              <SmallText style={styles.cardTitle}>You reviewed:</SmallText>
+              
+              <View style={styles.courseContainer}>
+                <Heading3 style={styles.courseName} numberOfLines={1}>{displayCourseName}</Heading3>
+                
+                {displayCourseLocation && (
+                  <View style={styles.locationContainer}>
+                    <Icon name="MapPin" size="inline" color={theme.colors.textSecondary} />
+                    <SmallText style={styles.courseLocation} numberOfLines={1}>{displayCourseLocation}</SmallText>
+                  </View>
+                )}
               </View>
-            )}
-          </View>
-          
-          <View style={styles.divider} />
-          
-          <Text style={styles.dateLabel}>
-            <Text style={styles.dateLabelText}>Played on </Text>
-            <Text style={styles.dateValue}>{formatDatePlayed()}</Text>
-          </Text>
-        </View>
+              
+              <Divider style={styles.divider} />
+              
+              <SmallText style={styles.dateLabel}>
+                Played on <SmallText style={styles.dateValue}>{formatDatePlayed()}</SmallText>
+              </SmallText>
+            </Card>
+          </Animated.View>
 
-        {/* Achievement Message */}
-        <View style={styles.achievementCard}>
-          <View style={styles.achievementHeader}>
-            <ThumbsUp size={22} color="#234D2C" />
-            <Text style={styles.achievementTitle}>First Review Complete!</Text>
-          </View>
-          
-          <Text style={styles.achievementText}>
-            You're helping other golfers discover great courses. Continue reviewing to unlock personalized ratings and recommendations!
-          </Text>
-          
-          <View style={styles.progressContainer}>
-            <View style={styles.progressBar}>
-              <View style={styles.progressFilled} />
-            </View>
-            <Text style={styles.progressText}>1 of 10 reviews to unlock ratings</Text>
-          </View>
+          {/* Achievement Message */}
+          <Animated.View style={[animatedCardStyle, { marginTop: 8 }]}>
+            <Card 
+              variant="custom" 
+              style={[
+                styles.achievementCard, 
+                { 
+                  backgroundColor: theme.colors.success + '20', // 20% opacity
+                  borderColor: theme.colors.success + '70', // 70% opacity
+                }
+              ]}
+            >
+              <View style={styles.achievementHeader}>
+                <Icon name="ThumbsUp" size="action" color={theme.colors.primary} />
+                <Heading3 style={styles.achievementTitle}>First Review Complete!</Heading3>
+              </View>
+              
+              <BodyText style={styles.achievementText}>
+                You're helping other golfers discover great courses. Continue reviewing to unlock personalized ratings and recommendations!
+              </BodyText>
+              
+              <View style={styles.progressContainer}>
+                <View style={[styles.progressBar, { backgroundColor: theme.colors.background }]}>
+                  <View 
+                    style={[
+                      styles.progressFilled, 
+                      { backgroundColor: theme.colors.primary }
+                    ]} 
+                  />
+                </View>
+                <SmallText style={styles.progressText}>1 of 10 reviews to unlock ratings</SmallText>
+              </View>
+            </Card>
+          </Animated.View>
         </View>
 
         {/* Next Steps Buttons */}
         <View style={styles.buttonsContainer}>
-          <Pressable 
-            style={styles.primaryButton}
+          <Button 
+            variant="primary"
+            label="Find Your Next Course"
+            endIcon={<Icon name="ChevronRight" size="inline" color="white" />}
             onPress={handleFindNextCourse}
             disabled={buttonsDisabled}
-          >
-            <Text style={styles.primaryButtonText}>Find Your Next Course</Text>
-            <ChevronRight size={20} color="#fff" />
-          </Pressable>
+            style={styles.primaryButton}
+          />
           
-          <Pressable 
-            style={styles.secondaryButton}
+          <Button 
+            variant="tertiary"
+            label="Go to Home"
             onPress={handleGoToHome}
             disabled={buttonsDisabled}
-          >
-            <Text style={styles.secondaryButtonText}>Go to Home</Text>
-          </Pressable>
+            style={styles.secondaryButton}
+          />
         </View>
       </View>
     </SafeAreaView>
   );
 };
 
-const { height } = Dimensions.get('window');
+const { height, width } = Dimensions.get('window');
 const compactLayout = height < 700; // Adjust layout for smaller screens
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    padding: 16,
+    padding: 20,
   },
   exitingContainer: {
     opacity: 0,
@@ -231,160 +281,137 @@ const styles = StyleSheet.create({
     top: Platform.OS === 'ios' ? 16 : 24,
     right: 16,
     zIndex: 10,
-    width: 36,
-    height: 36,
-    justifyContent: 'center',
-    alignItems: 'center',
-    borderRadius: 18,
-    backgroundColor: 'rgba(255, 255, 255, 0.7)',
+    width: 40,
+    height: 40,
+    padding: 0,
+    minWidth: 0,
   },
   header: {
     alignItems: 'center',
     marginTop: compactLayout ? 50 : (Platform.OS === 'ios' ? 50 : 36),
-    marginBottom: compactLayout ? 16 : 24,
+    marginBottom: compactLayout ? 24 : 32,
   },
   celebrationIcon: {
     marginBottom: compactLayout ? 8 : 12,
   },
   headerTitle: {
-    fontSize: compactLayout ? 24 : 28,
-    fontWeight: 'bold',
-    color: '#234D2C',
     marginBottom: 4,
     textAlign: 'center',
   },
   headerSubtitle: {
-    fontSize: compactLayout ? 16 : 18,
-    color: '#4A5E50',
     textAlign: 'center',
-    lineHeight: compactLayout ? 20 : 24,
+  },
+  centerContentContainer: {
+    alignItems: 'center',
+    width: '100%',
+    paddingHorizontal: compactLayout ? 8 : 10,
   },
   card: {
-    backgroundColor: 'white',
-    borderRadius: 16,
-    padding: compactLayout ? 16 : 20,
-    marginBottom: compactLayout ? 12 : 16,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
+    padding: compactLayout ? 20 : 24,
+    marginBottom: compactLayout ? 16 : 24,
+    width: '85%',
+    maxWidth: 400,
+    borderRadius: 20,
+    shadowColor: "#000",
+    shadowOffset: {
+      width: 0,
+      height: 3,
+    },
+    shadowOpacity: 0.12,
+    shadowRadius: 4.65,
+    elevation: 5,
   },
   cardTitle: {
-    fontSize: 16,
-    fontWeight: '600',
+    marginBottom: 10,
     color: '#666',
-    marginBottom: 8,
+    fontSize: 14,
   },
   courseContainer: {
-    marginBottom: 12,
+    marginBottom: 14,
   },
   courseName: {
-    fontSize: compactLayout ? 20 : 22,
-    fontWeight: 'bold',
-    color: '#234D2C',
-    marginBottom: 4,
+    marginBottom: 6,
   },
   locationContainer: {
     flexDirection: 'row',
     alignItems: 'center',
   },
   courseLocation: {
-    fontSize: 14,
-    color: '#666',
-    marginLeft: 4,
+    marginLeft: 6,
     flex: 1,
+    color: '#666',
   },
   divider: {
-    height: 1,
-    backgroundColor: '#f0f0f0',
-    marginVertical: 10,
+    marginVertical: 12,
   },
   dateLabel: {
-    fontSize: 14,
     color: '#666',
-  },
-  dateLabelText: {
-    fontWeight: 'normal',
   },
   dateValue: {
     fontWeight: '600',
   },
   achievementCard: {
-    backgroundColor: '#e6f7ee',
-    borderRadius: 16,
-    padding: compactLayout ? 16 : 20,
+    padding: compactLayout ? 20 : 24,
     marginBottom: compactLayout ? 16 : 24,
+    width: '85%',
+    maxWidth: 400,
+    borderRadius: 20,
     borderWidth: 1,
-    borderColor: '#9cd9b3',
+    shadowColor: "#000",
+    shadowOffset: {
+      width: 0,
+      height: 3,
+    },
+    shadowOpacity: 0.12,
+    shadowRadius: 4.65,
+    elevation: 5,
   },
   achievementHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 12,
+    marginBottom: 14,
   },
   achievementTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#234D2C',
-    marginLeft: 10,
+    marginLeft: 12,
   },
   achievementText: {
-    fontSize: 16,
-    color: '#234D2C',
-    marginBottom: 16,
-    lineHeight: 22,
+    marginBottom: 18,
+    lineHeight: 20,
   },
   progressContainer: {
-    marginTop: 8,
+    marginTop: 10,
   },
   progressBar: {
     height: 8,
-    backgroundColor: '#d1e9da',
-    borderRadius: 4,
-    marginBottom: 8,
+    borderRadius: 6,
+    marginBottom: 10,
     overflow: 'hidden',
   },
   progressFilled: {
     width: '10%', // 1 out of 10 reviews
     height: '100%',
-    backgroundColor: '#234D2C',
-    borderRadius: 4,
+    borderRadius: 6,
   },
   progressText: {
-    fontSize: 14,
-    color: '#234D2C',
     fontWeight: '500',
+    fontSize: 13,
+    marginLeft: 2,
   },
   buttonsContainer: {
+    width: '100%',
+    alignItems: 'center',
     marginTop: 'auto',
     marginBottom: Platform.OS === 'ios' ? 16 : 24,
+    paddingHorizontal: 16,
   },
   primaryButton: {
-    backgroundColor: '#234D2C',
-    borderRadius: 50,
-    paddingVertical: 16,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 12,
-  },
-  primaryButtonText: {
-    color: 'white',
-    fontSize: 16,
-    fontWeight: '600',
-    marginRight: 8,
+    marginBottom: 14,
+    width: '90%',
+    maxWidth: 400,
   },
   secondaryButton: {
     backgroundColor: 'transparent',
-    borderRadius: 50,
-    paddingVertical: 16,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  secondaryButtonText: {
-    color: '#234D2C',
-    fontSize: 16,
-    fontWeight: '600',
+    width: '90%',
+    maxWidth: 400,
   },
 }); 
