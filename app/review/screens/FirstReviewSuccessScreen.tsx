@@ -1,5 +1,5 @@
-import React from 'react';
-import { View, Text, StyleSheet, Pressable, Platform, SafeAreaView, Dimensions } from 'react-native';
+import React, { useEffect, useState } from 'react';
+import { View, Text, StyleSheet, Pressable, Platform, SafeAreaView, Dimensions, InteractionManager } from 'react-native';
 import { Image } from 'expo-image';
 import { useTheme } from '../../theme/ThemeProvider';
 import { useAuth } from '../../context/AuthContext';
@@ -8,6 +8,7 @@ import { DefaultAvatar } from '../../components/DefaultAvatar';
 import { format, isValid } from 'date-fns';
 import { useCourse } from '../../context/CourseContext';
 import { Award, ChevronRight, Locate, Star, ThumbsUp, X } from 'lucide-react-native';
+import { router as globalRouter } from 'expo-router';
 
 export interface FirstReviewSuccessScreenProps {
   datePlayed: Date;
@@ -24,10 +25,32 @@ export const FirstReviewSuccessScreen: React.FC<FirstReviewSuccessScreenProps> =
   const { user } = useAuth();
   const router = useRouter();
   const { course } = useCourse();
+  const [isExiting, setIsExiting] = useState(false);
+  const [buttonsDisabled, setButtonsDisabled] = useState(false);
 
   // Get course info from props or context
   const displayCourseName = courseName || course?.name || 'your course';
   const displayCourseLocation = courseLocation || course?.location || '';
+
+  // Set up navigation after the exiting animation
+  useEffect(() => {
+    if (isExiting) {
+      // Disable buttons to prevent multiple clicks
+      setButtonsDisabled(true);
+      
+      // Use InteractionManager to ensure animations complete before navigation
+      const timer = setTimeout(() => {
+        InteractionManager.runAfterInteractions(() => {
+          // Reset the navigation stack completely to avoid issues
+          globalRouter.replace('/(tabs)');
+        });
+      }, 300);
+      
+      return () => {
+        clearTimeout(timer);
+      };
+    }
+  }, [isExiting]);
 
   // Format the date safely
   const formatDatePlayed = () => {
@@ -38,25 +61,48 @@ export const FirstReviewSuccessScreen: React.FC<FirstReviewSuccessScreenProps> =
       }
       return format(datePlayed, 'MMMM d, yyyy');
     } catch (error) {
-      console.error('Error formatting date:', error);
       return 'Recently';
     }
   };
 
   const handleFindNextCourse = () => {
-    console.log('🔄 Navigating to search screen to find next course');
-    router.replace('/(tabs)/search');
+    if (buttonsDisabled) return;
+    
+    // Trigger smooth exit animation
+    setIsExiting(true);
+    
+    // Schedule navigation to search tab
+    setTimeout(() => {
+      // Use replace instead of navigate to reset the stack
+      globalRouter.replace('/(tabs)/search');
+    }, 300);
   };
 
   const handleGoToHome = () => {
-    console.log('🏠 Navigating to main app');
-    router.replace('/(tabs)');
+    if (buttonsDisabled) return;
+    
+    // Trigger smooth exit animation
+    setIsExiting(true);
+    
+    // Schedule navigation to main tab
+    setTimeout(() => {
+      // Use replace instead of navigate to reset the stack
+      globalRouter.replace('/(tabs)');
+    }, 300);
   };
   
   // Handle close button press
   const handleClose = () => {
-    console.log('❌ Close button pressed, navigating to main app');
-    router.replace('/(tabs)');
+    if (buttonsDisabled) return;
+    
+    // Trigger smooth exit animation
+    setIsExiting(true);
+    
+    // Schedule navigation to main tab
+    setTimeout(() => {
+      // Use replace instead of navigate to reset the stack
+      globalRouter.replace('/(tabs)');
+    }, 300);
   };
 
   // Custom theme for this screen
@@ -69,81 +115,93 @@ export const FirstReviewSuccessScreen: React.FC<FirstReviewSuccessScreenProps> =
   };
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: customColors.background }]}>
+    <SafeAreaView 
+      style={[
+        styles.container, 
+        { backgroundColor: customColors.background },
+        isExiting && styles.exitingContainer
+      ]}
+    >
       {/* Close Button */}
       <Pressable 
         style={styles.closeButton}
         onPress={handleClose}
         hitSlop={{ top: 15, right: 15, bottom: 15, left: 15 }}
+        disabled={buttonsDisabled}
       >
         <X size={24} color="#234D2C" />
       </Pressable>
       
-      {/* Header with celebration icon */}
-      <View style={styles.header}>
-        <Award size={60} color="#234D2C" style={styles.celebrationIcon} />
-        <Text style={styles.headerTitle}>You did it!</Text>
-        <Text style={styles.headerSubtitle}>Your first course review is complete!</Text>
-      </View>
+      {/* Content View with animation */}
+      <View style={[styles.contentContainer, isExiting && styles.exitingContent]}>
+        {/* Header with celebration icon */}
+        <View style={styles.header}>
+          <Award size={60} color="#234D2C" style={styles.celebrationIcon} />
+          <Text style={styles.headerTitle}>You did it!</Text>
+          <Text style={styles.headerSubtitle}>Your first course review is complete!</Text>
+        </View>
 
-      {/* Course Review Card */}
-      <View style={styles.card}>
-        <Text style={styles.cardTitle}>You reviewed:</Text>
-        
-        <View style={styles.courseContainer}>
-          <Text style={styles.courseName} numberOfLines={1}>{displayCourseName}</Text>
+        {/* Course Review Card */}
+        <View style={styles.card}>
+          <Text style={styles.cardTitle}>You reviewed:</Text>
           
-          {displayCourseLocation && (
-            <View style={styles.locationContainer}>
-              <Locate size={14} color="#666" />
-              <Text style={styles.courseLocation} numberOfLines={1}>{displayCourseLocation}</Text>
-            </View>
-          )}
-        </View>
-        
-        <View style={styles.divider} />
-        
-        <Text style={styles.dateLabel}>
-          <Text style={styles.dateLabelText}>Played on </Text>
-          <Text style={styles.dateValue}>{formatDatePlayed()}</Text>
-        </Text>
-      </View>
-
-      {/* Achievement Message */}
-      <View style={styles.achievementCard}>
-        <View style={styles.achievementHeader}>
-          <ThumbsUp size={22} color="#234D2C" />
-          <Text style={styles.achievementTitle}>First Review Complete!</Text>
-        </View>
-        
-        <Text style={styles.achievementText}>
-          You're helping other golfers discover great courses. Continue reviewing to unlock personalized ratings and recommendations!
-        </Text>
-        
-        <View style={styles.progressContainer}>
-          <View style={styles.progressBar}>
-            <View style={styles.progressFilled} />
+          <View style={styles.courseContainer}>
+            <Text style={styles.courseName} numberOfLines={1}>{displayCourseName}</Text>
+            
+            {displayCourseLocation && (
+              <View style={styles.locationContainer}>
+                <Locate size={14} color="#666" />
+                <Text style={styles.courseLocation} numberOfLines={1}>{displayCourseLocation}</Text>
+              </View>
+            )}
           </View>
-          <Text style={styles.progressText}>1 of 10 reviews to unlock ratings</Text>
+          
+          <View style={styles.divider} />
+          
+          <Text style={styles.dateLabel}>
+            <Text style={styles.dateLabelText}>Played on </Text>
+            <Text style={styles.dateValue}>{formatDatePlayed()}</Text>
+          </Text>
         </View>
-      </View>
 
-      {/* Next Steps Buttons */}
-      <View style={styles.buttonsContainer}>
-        <Pressable 
-          style={styles.primaryButton}
-          onPress={handleFindNextCourse}
-        >
-          <Text style={styles.primaryButtonText}>Find Your Next Course</Text>
-          <ChevronRight size={20} color="#fff" />
-        </Pressable>
-        
-        <Pressable 
-          style={styles.secondaryButton}
-          onPress={handleGoToHome}
-        >
-          <Text style={styles.secondaryButtonText}>Go to Home</Text>
-        </Pressable>
+        {/* Achievement Message */}
+        <View style={styles.achievementCard}>
+          <View style={styles.achievementHeader}>
+            <ThumbsUp size={22} color="#234D2C" />
+            <Text style={styles.achievementTitle}>First Review Complete!</Text>
+          </View>
+          
+          <Text style={styles.achievementText}>
+            You're helping other golfers discover great courses. Continue reviewing to unlock personalized ratings and recommendations!
+          </Text>
+          
+          <View style={styles.progressContainer}>
+            <View style={styles.progressBar}>
+              <View style={styles.progressFilled} />
+            </View>
+            <Text style={styles.progressText}>1 of 10 reviews to unlock ratings</Text>
+          </View>
+        </View>
+
+        {/* Next Steps Buttons */}
+        <View style={styles.buttonsContainer}>
+          <Pressable 
+            style={styles.primaryButton}
+            onPress={handleFindNextCourse}
+            disabled={buttonsDisabled}
+          >
+            <Text style={styles.primaryButtonText}>Find Your Next Course</Text>
+            <ChevronRight size={20} color="#fff" />
+          </Pressable>
+          
+          <Pressable 
+            style={styles.secondaryButton}
+            onPress={handleGoToHome}
+            disabled={buttonsDisabled}
+          >
+            <Text style={styles.secondaryButtonText}>Go to Home</Text>
+          </Pressable>
+        </View>
       </View>
     </SafeAreaView>
   );
@@ -156,6 +214,17 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     padding: 16,
+  },
+  exitingContainer: {
+    opacity: 0,
+    transform: [{ translateY: 50 }],
+  },
+  contentContainer: {
+    flex: 1,
+  },
+  exitingContent: {
+    opacity: 0,
+    transform: [{ scale: 0.95 }],
   },
   closeButton: {
     position: 'absolute',
@@ -252,26 +321,26 @@ const styles = StyleSheet.create({
   achievementHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 10,
+    marginBottom: 12,
   },
   achievementTitle: {
-    fontSize: compactLayout ? 16 : 18,
+    fontSize: 18,
     fontWeight: 'bold',
     color: '#234D2C',
-    marginLeft: 8,
+    marginLeft: 10,
   },
   achievementText: {
-    fontSize: compactLayout ? 14 : 16,
+    fontSize: 16,
     color: '#234D2C',
-    lineHeight: compactLayout ? 20 : 22,
     marginBottom: 16,
+    lineHeight: 22,
   },
   progressContainer: {
-    marginTop: 4,
+    marginTop: 8,
   },
   progressBar: {
     height: 8,
-    backgroundColor: '#d1e7d9',
+    backgroundColor: '#d1e9da',
     borderRadius: 4,
     marginBottom: 8,
     overflow: 'hidden',
@@ -284,32 +353,34 @@ const styles = StyleSheet.create({
   },
   progressText: {
     fontSize: 14,
-    color: '#4A5E50',
-    textAlign: 'center',
+    color: '#234D2C',
+    fontWeight: '500',
   },
   buttonsContainer: {
     marginTop: 'auto',
-    marginBottom: Platform.OS === 'ios' ? 20 : 16,
+    marginBottom: Platform.OS === 'ios' ? 16 : 24,
   },
   primaryButton: {
     backgroundColor: '#234D2C',
     borderRadius: 50,
-    paddingVertical: compactLayout ? 14 : 16,
+    paddingVertical: 16,
     flexDirection: 'row',
-    justifyContent: 'center',
     alignItems: 'center',
+    justifyContent: 'center',
     marginBottom: 12,
   },
   primaryButtonText: {
     color: 'white',
     fontSize: 16,
     fontWeight: '600',
-    marginRight: 4,
+    marginRight: 8,
   },
   secondaryButton: {
+    backgroundColor: 'transparent',
     borderRadius: 50,
-    paddingVertical: compactLayout ? 12 : 16,
+    paddingVertical: 16,
     alignItems: 'center',
+    justifyContent: 'center',
   },
   secondaryButtonText: {
     color: '#234D2C',

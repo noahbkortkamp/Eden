@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, Pressable, Platform } from 'react-native';
+import { View, Text, StyleSheet, Pressable, Platform, SafeAreaView, InteractionManager } from 'react-native';
 import { Image } from 'expo-image';
 import { useTheme } from '../../theme/ThemeProvider';
 import { useAuth } from '../../context/AuthContext';
@@ -9,6 +9,8 @@ import { format, isValid } from 'date-fns';
 import { useCourse } from '../../context/CourseContext';
 import { reviewService } from '../../services/reviewService';
 import { userService } from '../../services/userService';
+import { X } from 'lucide-react-native';
+import { router as globalRouter } from 'expo-router';
 
 export interface ReviewSuccessScreenProps {
   datePlayed: Date;
@@ -29,6 +31,9 @@ export const ReviewSuccessScreen: React.FC<ReviewSuccessScreenProps> = ({
   const { course } = useCourse();
   const [isFirstReview, setIsFirstReview] = useState(false);
   const [hasMarkedFirstReview, setHasMarkedFirstReview] = useState(false);
+  const [reviewCount, setReviewCount] = useState(0);
+  const [isExiting, setIsExiting] = useState(false);
+  const [buttonsDisabled, setButtonsDisabled] = useState(false);
 
   // Check if this was the user's first review
   useEffect(() => {
@@ -37,40 +42,42 @@ export const ReviewSuccessScreen: React.FC<ReviewSuccessScreenProps> = ({
       
       try {
         const count = await reviewService.getUserReviewCount(user.id);
+        setReviewCount(count);
         const isFirst = count === 1; // If count is exactly 1, this was their first review
         setIsFirstReview(isFirst);
-        
-        console.log(`🎯 User review count: ${count}, isFirstReview: ${isFirst}`);
         
         // Check if user already has the firstReviewCompleted flag
         const hasAlreadyCompleted = await userService.hasCompletedFirstReview(user.id);
         
         // If this is the first review and they haven't been marked as completed, update their metadata
         if (isFirst && !hasAlreadyCompleted && !hasMarkedFirstReview) {
-          console.log('🚀 Marking user as having completed their first review');
           await userService.updateFirstReviewCompleted(user.id);
           setHasMarkedFirstReview(true);
         }
       } catch (error) {
-        console.error('Error checking if first review:', error);
+        // Handle error silently
       }
     };
     
     checkReviewCount();
   }, [user, hasMarkedFirstReview]);
 
-  // Log component rendering for debugging
+  // Set up navigation after the exiting animation
   useEffect(() => {
-    console.log('🟢 ReviewSuccessScreen rendered with props:', {
-      datePlayed: datePlayed?.toISOString(),
-      rating,
-      showRating,
-      visitCount, // Log it but we won't display it
-      course: course?.name,
-      isFirstReview,
-      hasMarkedFirstReview
-    });
-  }, [datePlayed, rating, showRating, visitCount, course, isFirstReview, hasMarkedFirstReview]);
+    if (isExiting) {
+      // Disable buttons to prevent multiple clicks
+      setButtonsDisabled(true);
+      
+      // No auto-navigation here, each button handles its own destination
+      const timer = setTimeout(() => {
+        // Keep the timeout to allow the animation to complete
+      }, 300); // Short delay for animation
+      
+      return () => {
+        clearTimeout(timer);
+      };
+    }
+  }, [isExiting]);
 
   // Safety check for course data
   if (!course) {
@@ -92,22 +99,37 @@ export const ReviewSuccessScreen: React.FC<ReviewSuccessScreenProps> = ({
   }
 
   const handleReviewAnother = () => {
-    console.log('🔄 Navigating to search screen to review another course');
-    // First close the current modal, then navigate to search
-    router.replace('/(tabs)/search');
+    if (buttonsDisabled) return;
+    
+    // Trigger smooth exit animation
+    setIsExiting(true);
+    
+    // Use a direct navigation with setTimeout to ensure animation completes
+    setTimeout(() => {
+      // Use replace instead of navigate to reset the stack
+      InteractionManager.runAfterInteractions(() => {
+        globalRouter.replace('/(tabs)/search');
+      });
+    }, 300);
   };
 
   const handleClose = () => {
-    console.log('❌ Close button pressed, navigating to lists');
+    if (buttonsDisabled) return;
     
+    // Trigger smooth exit animation
+    setIsExiting(true);
+
     // For first-time users coming from the first-review screen, ensure they go to the main app
-    if (isFirstReview) {
-      console.log('🏠 First review complete - navigating to main app');
-      router.replace('/(tabs)');
-    } else {
-      // Normal flow for returning users
-      router.replace('/(tabs)/lists');
-    }
+    setTimeout(() => {
+      InteractionManager.runAfterInteractions(() => {
+        if (isFirstReview) {
+          globalRouter.replace('/(tabs)');
+        } else {
+          // Normal flow for returning users
+          globalRouter.replace('/(tabs)/lists');
+        }
+      });
+    }, 300);
   };
 
   // Format the date safely
@@ -115,16 +137,17 @@ export const ReviewSuccessScreen: React.FC<ReviewSuccessScreenProps> = ({
     try {
       // Validate that the date is actually valid
       if (!datePlayed || !isValid(datePlayed)) {
-        console.warn('⚠️ Invalid date provided to ReviewSuccessScreen:', datePlayed);
         return 'Recently';
       }
       return format(datePlayed, 'MMMM d, yyyy');
     } catch (error) {
-      console.error('🔴 Error formatting date:', error);
       return 'Recently';
     }
   };
 
+  // Calculate progress percentage for the progress bar (capped at 100%)
+  const progressPercentage = Math.min(reviewCount / 10 * 100, 100);
+  
   // Custom theme for this screen based on requirements
   const customColors = {
     background: '#F8F5EC',
@@ -133,16 +156,24 @@ export const ReviewSuccessScreen: React.FC<ReviewSuccessScreenProps> = ({
   };
 
   return (
-    <View style={[styles.container, { backgroundColor: customColors.background }]}>
+    <SafeAreaView 
+      style={[
+        styles.container, 
+        { backgroundColor: customColors.background },
+        isExiting && styles.exitingContainer
+      ]}
+    >
       {/* X button (Close) in top right corner */}
       <Pressable 
         style={styles.closeButton} 
         onPress={handleClose}
+        hitSlop={{ top: 15, right: 15, bottom: 15, left: 15 }}
+        disabled={buttonsDisabled}
       >
-        <Text style={[styles.closeButtonText, { color: customColors.primaryText }]}>✕</Text>
+        <X size={24} color={customColors.primaryText} />
       </Pressable>
 
-      <View style={styles.content}>
+      <View style={[styles.content, isExiting && styles.exitingContent]}>
         {/* User Info */}
         <View style={styles.userSection}>
           {user?.avatar_url ? (
@@ -197,9 +228,24 @@ export const ReviewSuccessScreen: React.FC<ReviewSuccessScreenProps> = ({
             <View style={styles.unlockMessage}>
               <Text style={[styles.unlockText, { color: customColors.secondaryText }]}>
                 {isFirstReview 
-                  ? 'Continue reviewing courses to unlock personalized ratings! Just 9 more to go!'
+                  ? 'Continue reviewing courses to unlock personalized ratings!'
                   : 'Personalized ratings will be unlocked after reviewing 10 courses!'}
               </Text>
+              
+              {/* Progress bar */}
+              <View style={styles.progressContainer}>
+                <View style={styles.progressBar}>
+                  <View 
+                    style={[
+                      styles.progressFilled, 
+                      { width: `${progressPercentage}%` }
+                    ]} 
+                  />
+                </View>
+                <Text style={styles.progressText}>
+                  {reviewCount} of 10 reviews to unlock ratings
+                </Text>
+              </View>
             </View>
           )}
 
@@ -207,31 +253,20 @@ export const ReviewSuccessScreen: React.FC<ReviewSuccessScreenProps> = ({
             <Text>Played on </Text>
             <Text>{formatDatePlayed()}</Text>
           </Text>
-
-          {/* DEBUG INFO - Only visible in development */}
-          {__DEV__ && (
-            <View style={styles.debugInfo}>
-              <Text style={styles.debugTitle}>Debug Info:</Text>
-              <Text style={styles.debugText}>First Review: {isFirstReview ? '✅ YES' : '❌ NO'}</Text>
-              <Text style={styles.debugText}>Review Count Threshold: {showRating ? '✅ 10+' : '❌ <10'}</Text>
-              <Text style={styles.debugText}>Rating: {rating ? rating.toFixed(1) : 'None'}</Text>
-              <Text style={styles.debugText}>Platform: {Platform.OS}</Text>
-              <Text style={styles.debugText}>Date: {datePlayed?.toISOString() || 'Invalid'}</Text>
-            </View>
-          )}
         </View>
 
         {/* Review Another Course Button */}
         <Pressable 
           style={[styles.reviewButton, { backgroundColor: customColors.primaryText }]}
           onPress={handleReviewAnother}
+          disabled={buttonsDisabled}
         >
           <Text style={styles.reviewButtonText}>
             {isFirstReview ? 'Review Your Next Course' : 'Review Another Course'}
           </Text>
         </Pressable>
       </View>
-    </View>
+    </SafeAreaView>
   );
 };
 
@@ -239,9 +274,13 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
   },
+  exitingContainer: {
+    opacity: 0,
+    transform: [{ translateY: 50 }],
+  },
   closeButton: {
     position: 'absolute',
-    top: 60,
+    top: Platform.OS === 'ios' ? 16 : 24,
     right: 20,
     zIndex: 10,
     width: 40,
@@ -251,15 +290,15 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     backgroundColor: 'rgba(255, 255, 255, 0.5)',
   },
-  closeButtonText: {
-    fontSize: 20,
-    fontWeight: '600',
-  },
   content: {
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
     padding: 20,
+  },
+  exitingContent: {
+    opacity: 0,
+    transform: [{ scale: 0.95 }],
   },
   userSection: {
     alignItems: 'center',
@@ -334,6 +373,28 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '500',
     textAlign: 'center',
+    marginBottom: 12,
+  },
+  progressContainer: {
+    marginTop: 8,
+  },
+  progressBar: {
+    height: 8,
+    backgroundColor: '#d1e9da',
+    borderRadius: 4,
+    marginBottom: 8,
+    overflow: 'hidden',
+  },
+  progressFilled: {
+    height: '100%',
+    backgroundColor: '#234D2C',
+    borderRadius: 4,
+  },
+  progressText: {
+    fontSize: 14,
+    color: '#234D2C',
+    fontWeight: '500',
+    textAlign: 'center',
   },
   datePlayed: {
     fontSize: 16,
@@ -352,26 +413,6 @@ const styles = StyleSheet.create({
     color: 'white',
     fontSize: 16,
     fontWeight: '600',
-  },
-  debugInfo: {
-    marginTop: 20,
-    padding: 10,
-    backgroundColor: '#f0f0f0',
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: '#ccc',
-    alignSelf: 'stretch',
-  },
-  debugTitle: {
-    fontWeight: 'bold',
-    marginBottom: 5,
-    fontSize: 14,
-    color: '#333',
-  },
-  debugText: {
-    fontSize: 12,
-    color: '#666',
-    marginBottom: 3,
   },
   firstReviewBanner: {
     backgroundColor: '#e6f7ee',
