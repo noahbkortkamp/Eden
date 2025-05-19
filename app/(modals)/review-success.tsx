@@ -7,6 +7,7 @@ import { useAuth } from '../context/AuthContext';
 import { reviewService } from '../services/reviewService';
 import { CourseProvider, useCourse } from '../context/CourseContext';
 import { rankingService } from '../services/rankingService';
+import { usePlayedCourses } from '../context/PlayedCoursesContext';
 
 // Inner component that uses the CourseContext
 function ReviewSuccessContent() {
@@ -21,12 +22,35 @@ function ReviewSuccessContent() {
   const router = useRouter();
   const { user } = useAuth();
   const { course, isLoading: courseLoading, error: courseError } = useCourse();
+  const { setNeedsRefresh } = usePlayedCourses();
   const [isLoading, setIsLoading] = useState(true);
   const [userReviewCount, setUserReviewCount] = useState(0);
   const [rating, setRating] = useState<number | undefined>(undefined);
   const [error, setError] = useState<string | null>(null);
   const [loadAttempts, setLoadAttempts] = useState(0);
   const [fadeAnim] = useState(new Animated.Value(0));
+
+  // Force refresh all rankings when the success screen is shown
+  // This ensures proper score distribution after comparisons
+  useEffect(() => {
+    if (user && !isLoading) {
+      const refreshRankings = async () => {
+        try {
+          console.log('🔄 Forcing refresh of all rankings to fix display issues');
+          await rankingService.refreshAllRankings(user.id);
+          
+          // Now force the Lists tab to refresh when we navigate back
+          setNeedsRefresh();
+          console.log('🔄 Rankings refreshed successfully, Lists tab will reload on next focus');
+        } catch (err) {
+          console.error('Error refreshing rankings:', err);
+          // Continue anyway, this is just a proactive fix
+        }
+      };
+      
+      refreshRankings();
+    }
+  }, [user, isLoading, setNeedsRefresh]);
 
   // Fade in animation when the component mounts
   useEffect(() => {

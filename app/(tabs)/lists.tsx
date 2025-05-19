@@ -17,6 +17,16 @@ import { MapPin, X, Bookmark as BookmarkIcon, Search, Star, Plus } from 'lucide-
 import { Heading1, BodyText, Heading2 } from '../components/eden/Typography';
 import { Icon } from '../components/eden/Icon';
 
+// Define the SentimentRating type directly
+type SentimentRating = 'liked' | 'fine' | 'didnt_like';
+
+// Extend the Course type to include the properties we're using
+interface EnhancedCourse extends Course {
+  rank_position?: number;
+  sentiment?: SentimentRating;
+  showScores?: boolean;
+}
+
 export default function ListsScreen() {
   const theme = useTheme();
   const { user } = useAuth();
@@ -306,178 +316,133 @@ export default function ListsScreen() {
   };
 
   const fetchPlayedCourses = async () => {
-    if (!user) return [];
+    if (!user) {
+      console.log('🔍 DEBUG: No user found, returning empty array');
+      setPlayedCourses([]);
+      return [];
+    }
 
-    console.log('🔍 DEBUG: Starting fetchPlayedCourses for user', user.id);
+    const userId = user.id; // Cache user.id to avoid null checks throughout
+    console.log('🔍 DEBUG: Starting fetchPlayedCourses for user', userId);
     console.log(`🔍 DEBUG: Current userReviewCount: ${userReviewCount}, showScores will be ${userReviewCount !== null && userReviewCount >= 10}`);
     
     try {
-      // More aggressive approach to fetch data using a simpler join
-      const { data, error } = await supabase
+      // First, get all the user's reviews to know which courses they've played
+      const { data: reviewsData, error: reviewsError } = await supabase
         .from('reviews')
-        .select(`
-          id,
-          course_id,
-          rating,
-          date_played,
-          courses (
-            id,
-            name,
-            location,
-            type,
-            price_level,
-            created_at,
-            updated_at
-          )
-        `)
-        .eq('user_id', user.id);
+        .select('course_id, rating')
+        .eq('user_id', userId);
 
-      if (error) throw error;
+      if (reviewsError) throw reviewsError;
 
-      if (!data) {
-        console.log('🔍 DEBUG: No data returned from query (undefined)');
+      if (!reviewsData || reviewsData.length === 0) {
+        console.log('🔍 DEBUG: No reviews found for user');
         setPlayedCourses([]);
-        return;
+        return [];
       }
 
-      if (data.length === 0) {
-        console.log('🔍 DEBUG: Empty array returned from query (length 0)');
-        setPlayedCourses([]);
-        return;
-      }
+      console.log(`🔍 DEBUG: Found ${reviewsData.length} reviews`);
 
-      // Check for courses with null course data
-      const nullCourseItems = data.filter(item => !item.courses);
-      if (nullCourseItems.length > 0) {
-        console.log('🔍 DEBUG: Found items with null course data:', nullCourseItems);
+      // Get unique sentiment categories from reviews
+      const sentiments = [...new Set(reviewsData.map(review => review.rating))] as SentimentRating[];
+      
+      // For each sentiment category, get the rankings from rankingService
+      const allRankings: { 
+        courses: EnhancedCourse[],
+        sentiment: SentimentRating
+      }[] = [];
+      
+      for (const sentiment of sentiments) {
+        // Get rankings for this sentiment
+        const rankings = await rankingService.getUserRankings(userId, sentiment);
+        
+        if (rankings.length > 0) {
+          console.log(`🔍 DEBUG: Found ${rankings.length} rankings for ${sentiment} sentiment`);
+          
+          // Get course details for each ranked course
+          const courseIds = rankings.map(ranking => ranking.course_id);
+          
+          const { data: coursesData, error: coursesError } = await supabase
+            .from('courses')
+            .select('id, name, location, type, price_level, created_at, updated_at')
+            .in('id', courseIds);
+            
+          if (coursesError) throw coursesError;
+          
+          if (coursesData && coursesData.length > 0) {
+            // Create formatted courses with ranking data
+            const formattedCourses = rankings.map(ranking => {
+              const courseData = coursesData.find(c => c.id === ranking.course_id);
+              
+              if (!courseData) {
+                console.log(`🔍 DEBUG: Missing course data for ${ranking.course_id}`);
+                return null;
+              }
+              
+              return {
+                id: courseData.id,
+                name: courseData.name,
+                location: courseData.location,
+                type: courseData.type,
+                price_level: courseData.price_level,
+                description: "", // Set an empty description since that field doesn't exist
+                created_at: courseData.created_at,
+                updated_at: courseData.updated_at,
+                rating: ranking.relative_score, // Use the score from rankingService
+                rank_position: ranking.rank_position, // Store position for sorting
+                sentiment: sentiment, // Store the sentiment category
+                showScores: userReviewCount !== null && userReviewCount >= 10
+              } as EnhancedCourse;
+            }).filter(Boolean) as EnhancedCourse[];
+            
+            allRankings.push({
+              courses: formattedCourses,
+              sentiment
+            });
+          }
+        }
       }
       
-      // Extract and format course data
-      const formattedCourses = data
-        .filter(item => item.courses) // Only include items with course data
-        .map(item => {
-          console.log('🔍 DEBUG: Processing review:', {
-            reviewId: item.id,
-            courseId: item.course_id,
-            rating: item.rating,
-            hasCoursesData: !!item.courses,
-            courseName: item.courses?.name,
-            date_played: item.date_played
-          });
-          return {
-            id: item.course_id,
-            name: item.courses.name,
-            location: item.courses.location,
-            type: item.courses.type,
-            price_level: item.courses.price_level,
-            description: "", // Set an empty description since that field doesn't exist
-            created_at: item.courses.created_at,
-            updated_at: item.courses.updated_at,
-            rating: 0, // Will be updated with ranking score
-            sentiment: item.rating, // Store the original sentiment
-            showScores: userReviewCount !== null && userReviewCount >= 10, // Add this flag to each course
-            date_played: item.date_played // Include date played
-          };
-        });
+      // Combine all ranked courses across sentiments
+      const allCourses = allRankings.flatMap(item => item.courses);
+      
+      // Handle case where rankings might be missing for some reviewed courses
+      if (allCourses.length < reviewsData.length) {
+        console.log('🔍 DEBUG: Some reviewed courses are missing rankings, this is unexpected');
         
-      console.log('🔍 DEBUG: Formatted courses:', {
-        count: formattedCourses.length,
-        courses: formattedCourses.map(c => ({ 
-          id: c.id, 
-          name: c.name,
-          sentiment: c.sentiment,
-          showScores: c.showScores
-        }))
-      });
+        // Get IDs of courses with rankings
+        const rankedCourseIds = new Set(allCourses.map(c => c.id));
         
-      if (formattedCourses.length === 0) {
-        console.log('🔍 ERROR: No valid course data found in reviews after filtering');
-        setPlayedCourses([]);
-        return;
-      }
-
-      // Group courses by sentiment
-      const likedCourses = formattedCourses.filter(c => c.sentiment === 'liked');
-      const fineCourses = formattedCourses.filter(c => c.sentiment === 'fine');
-      const didntLikeCourses = formattedCourses.filter(c => c.sentiment === 'didnt_like');
-
-      console.log('🔍 DEBUG: Grouped courses:', {
-        liked: likedCourses.length,
-        fine: fineCourses.length,
-        didntLike: didntLikeCourses.length
-      });
-
-      // Assign scores based on sentiment
-      const scoredCourses = formattedCourses.map(course => {
-        let score = 0;
-        let scoreDetails = { sentiment: course.sentiment, reason: '' };
+        // Find reviews without rankings
+        const missingReviews = reviewsData.filter(review => !rankedCourseIds.has(review.course_id));
         
-        if (course.sentiment === 'liked') {
-          const position = likedCourses.findIndex(c => c.id === course.id);
-          const total = likedCourses.length;
+        if (missingReviews.length > 0) {
+          console.log(`🔍 DEBUG: Found ${missingReviews.length} reviews without rankings`);
           
-          // Handle case with only one liked course
-          if (total === 1) {
-            score = 10.0;
-            scoreDetails.reason = 'only liked course - max score';
-          } else {
-            // Ensure we don't divide by zero
-            score = position === 0 ? 10.0 : 7.0 + ((10.0 - 7.0) * (total - position - 1) / Math.max(total - 1, 1));
-            scoreDetails.reason = position === 0 ? 'top liked course' : `position ${position + 1} of ${total}`;
-          }
-        } else if (course.sentiment === 'fine') {
-          const position = fineCourses.findIndex(c => c.id === course.id);
-          const total = fineCourses.length;
-          
-          // Handle case with only one fine course
-          if (total === 1) {
-            score = 6.9;
-            scoreDetails.reason = 'only fine course - max score';
-          } else {
-            // Ensure we don't divide by zero
-            score = position === 0 ? 6.9 : 3.0 + ((6.9 - 3.0) * (total - position - 1) / Math.max(total - 1, 1));
-            scoreDetails.reason = position === 0 ? 'top fine course' : `position ${position + 1} of ${total}`;
-          }
-        } else if (course.sentiment === 'didnt_like') {
-          const position = didntLikeCourses.findIndex(c => c.id === course.id);
-          const total = didntLikeCourses.length;
-          
-          // Handle case with only one didnt_like course
-          if (total === 1) {
-            score = 2.9;
-            scoreDetails.reason = 'only didnt_like course - max score';
-          } else {
-            // Ensure we don't divide by zero
-            score = position === 0 ? 2.9 : 0.0 + ((2.9 - 0.0) * (total - position - 1) / Math.max(total - 1, 1));
-            scoreDetails.reason = position === 0 ? 'top didnt_like course' : `position ${position + 1} of ${total}`;
-          }
-        } else {
-          scoreDetails.reason = 'unknown sentiment';
+          // This shouldn't happen in normal operation, but we can handle it for robustness
+          // You could add code here to create missing rankings if needed
         }
-        
-        console.log(`🔍 DEBUG: Scoring ${course.name} (${course.sentiment}): ${score.toFixed(1)} - ${scoreDetails.reason}`);
-        
-        return {
-          ...course,
-          rating: Number(score.toFixed(1)),
-          scoreDetails: scoreDetails, // Including scoring details for debugging
-          showScores: userReviewCount !== null && userReviewCount >= 10 // Add this flag to each course
-        };
-      });
-
+      }
+      
       // Sort by rating (highest to lowest)
-      const sortedCourses = scoredCourses.sort((a, b) => b.rating - a.rating);
+      const sortedCourses = allCourses.sort((a, b) => {
+        // Use default scores if ratings are undefined
+        const scoreA = a.rating !== undefined ? a.rating : 0;
+        const scoreB = b.rating !== undefined ? b.rating : 0;
+        return scoreB - scoreA;
+      });
       
       console.log('🔍 Final sorted courses with scores:', sortedCourses.map(c => ({ 
         name: c.name, 
         score: c.rating,
+        position: c.rank_position,
         sentiment: c.sentiment,
-        reason: c.scoreDetails?.reason,
         showScores: c.showScores
       })));
       
-      // Update the context state instead of local state
+      // Update the context state
       setPlayedCourses(sortedCourses);
+      return sortedCourses;
       
     } catch (error) {
       console.error('🔍 ERROR in fetchPlayedCourses:', error);
@@ -490,7 +455,7 @@ export default function ListsScreen() {
         const { data: basicReviews, error: basicReviewsError } = await supabase
           .from('reviews')
           .select('course_id, rating, date_played')
-          .eq('user_id', user?.id || '');
+          .eq('user_id', userId);
           
         if (basicReviewsError || !basicReviews || basicReviews.length === 0) {
           console.log('🔍 DEBUG: Last resort fallback failed - no reviews found');
@@ -508,33 +473,39 @@ export default function ListsScreen() {
           .in('id', uniqueCourseIds);
           
         if (basicCoursesError || !basicCourses || basicCourses.length === 0) {
-          console.log('🔍 DEBUG: Last resort fallback failed - no courses found');
-          throw new Error('No courses found');
+          console.log('🔍 DEBUG: Last resort fallback failed - no course data found');
+          throw new Error('No course data found');
         }
         
-        // Create maps of course sentiment ratings and dates
-        const courseSentiments = {};
-        const courseDates = {};
+        // Create lookup maps for course sentiments and dates
+        const courseSentiments: Record<string, SentimentRating> = {};
+        const courseDates: Record<string, string> = {};
+        
         basicReviews.forEach(review => {
-          courseSentiments[review.course_id] = review.rating;
-          courseDates[review.course_id] = review.date_played;
+          if (review.course_id) {
+            courseSentiments[review.course_id] = review.rating as SentimentRating;
+            courseDates[review.course_id] = review.date_played;
+          }
         });
         
         // Create minimal course objects
-        const minimalCourses = basicCourses.map(course => ({
-          id: course.id,
-          name: course.name,
-          location: course.location || 'Unknown location',
-          type: course.type || 'Course',
-          price_level: course.price_level || 3,
-          description: '',
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-          rating: 5.0, // Default rating
-          sentiment: courseSentiments[course.id] || 'fine',
-          showScores: userReviewCount !== null && userReviewCount >= 10, // Add this flag to each course
-          date_played: courseDates[course.id] || new Date().toISOString() // Add date played
-        }));
+        const minimalCourses = basicCourses.map(course => {
+          const courseId = course.id;
+          return {
+            id: courseId,
+            name: course.name || 'Unknown Course',
+            location: course.location || 'Unknown location',
+            type: course.type || 'Course',
+            price_level: course.price_level || 3,
+            description: '',
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+            rating: 5.0, // Default rating
+            sentiment: courseId && courseSentiments[courseId] || 'fine' as SentimentRating,
+            showScores: userReviewCount !== null && userReviewCount >= 10,
+            date_played: courseId && courseDates[courseId] || new Date().toISOString()
+          } as EnhancedCourse;
+        });
         
         console.log('🔍 DEBUG: Last resort fallback succeeded - displaying minimal courses:', 
           minimalCourses.map(c => ({ id: c.id, name: c.name }))
@@ -542,11 +513,12 @@ export default function ListsScreen() {
         
         setPlayedCourses(minimalCourses);
         setError('Some course data may be incomplete. Pull down to refresh.');
-        return;
+        return minimalCourses;
       } catch (fallbackError) {
         console.error('🔍 ERROR: Last resort fallback also failed:', fallbackError);
         setError(`Failed to load played courses: ${error}. Last resort fallback also failed.`);
         setPlayedCourses([]);
+        return [];
       }
     }
   };

@@ -38,6 +38,18 @@ const getMaxComparisons = (courseCount: number): number => {
   return maxComparisons;
 };
 
+/**
+ * Get the top-ranked course in a sentiment tier
+ */
+const getTopRankedCourseInTier = async (userId: string, sentiment: SentimentRating) => {
+  const rankings = await rankingService.getUserRankings(userId, sentiment);
+  if (!rankings || rankings.length === 0) return null;
+  
+  // Sort by position (lowest position is highest rank)
+  const sortedRankings = [...rankings].sort((a, b) => a.rank_position - b.rank_position);
+  return sortedRankings[0]; // Return the top-ranked course
+};
+
 const ReviewContext = createContext<ReviewContextType | undefined>(undefined);
 
 export const ReviewProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -189,13 +201,12 @@ export const ReviewProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
       if (!existingRanking) {
         // Add initial ranking for the new course only if it doesn't exist
-        const initialRankPosition = rankings.length + 1;
+        // Let the rankingService calculate the middle position automatically
         try {
           await rankingService.addCourseRanking(
             user.id,
             review.course_id,
-            review.rating,
-            initialRankPosition
+            review.rating
           );
         } catch (rankingError) {
           console.error('Error adding initial ranking, continuing anyway:', rankingError);
@@ -378,16 +389,14 @@ export const ReviewProvider: React.FC<{ children: React.ReactNode }> = ({ childr
           await rankingService.addCourseRanking(
             user.id,
             preferredCourseId,
-            originalReview.rating,
-            rankings.length + 1
+            originalReview.rating
           );
         }
         if (!otherCourseRanking) {
           await rankingService.addCourseRanking(
             user.id,
             otherCourseId,
-            originalReview.rating,
-            rankings.length + (preferredCourseRanking ? 1 : 2)
+            originalReview.rating
           );
         }
 
@@ -398,6 +407,72 @@ export const ReviewProvider: React.FC<{ children: React.ReactNode }> = ({ childr
           otherCourseId,
           originalReview.rating
         );
+
+        // Check if this is the first comparison (comparing with the median)
+        const isFirstComparison = comparisonResults.length === 0;
+        
+        if (isFirstComparison) {
+          // Sort rankings by position to find top and bottom courses
+          const sortedRankings = [...rankings].sort((a, b) => a.rank_position - b.rank_position);
+          const topCourse = sortedRankings.length > 0 ? sortedRankings[0] : null;
+          const bottomCourse = sortedRankings.length > 0 ? sortedRankings[sortedRankings.length - 1] : null;
+          
+          // Check if we've already compared with the top or bottom course
+          const isNewCoursePreferred = preferredCourseId === originalReviewedCourseId;
+          const isTopCourseComparison = comparisonResults.some(result => 
+            result.preferredId === originalReviewedCourseId && otherCourseId === topCourse?.course_id
+          );
+          const isBottomCourseComparison = comparisonResults.some(result => 
+            result.preferredId === originalReviewedCourseId && otherCourseId === bottomCourse?.course_id
+          );
+          
+          // Case 1: New course preferred over median - compare with top course next
+          if (isNewCoursePreferred && !isTopCourseComparison && topCourse) {
+            // Only if the top course isn't the one we just compared with
+            if (topCourse.course_id !== otherCourseId) {
+              console.log(`New course won against median. Next comparison will be against top course: ${topCourse.course_id}`);
+              
+              // Use the sentiment from the original review
+              const sentiment = originalReview.rating as SentimentRating;
+              
+              // Push to the comparison with the top-ranked course
+              router.push({
+                pathname: '/(modals)/comparison',
+                params: {
+                  courseAId: originalReviewedCourseId,
+                  courseBId: topCourse.course_id,
+                  remainingComparisons: comparisonsRemaining, // Don't decrement yet
+                  originalSentiment: sentiment,
+                  originalReviewedCourseId: originalReviewedCourseId
+                },
+              });
+              return;
+            }
+          }
+          // Case 2: Median preferred over new course - compare with bottom course next
+          else if (!isNewCoursePreferred && !isBottomCourseComparison && bottomCourse) {
+            // Only if the bottom course isn't the one we just compared with
+            if (bottomCourse.course_id !== preferredCourseId) {
+              console.log(`Median course won against new course. Next comparison will be against bottom course: ${bottomCourse.course_id}`);
+              
+              // Use the sentiment from the original review
+              const sentiment = originalReview.rating as SentimentRating;
+              
+              // Push to the comparison with the bottom-ranked course
+              router.push({
+                pathname: '/(modals)/comparison',
+                params: {
+                  courseAId: originalReviewedCourseId,
+                  courseBId: bottomCourse.course_id,
+                  remainingComparisons: comparisonsRemaining, // Don't decrement yet
+                  originalSentiment: sentiment,
+                  originalReviewedCourseId: originalReviewedCourseId
+                },
+              });
+              return;
+            }
+          }
+        }
 
         const newComparisonsRemaining = comparisonsRemaining - 1;
         setComparisonsRemaining(newComparisonsRemaining);
