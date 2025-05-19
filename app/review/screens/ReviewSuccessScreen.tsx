@@ -101,16 +101,24 @@ export const ReviewSuccessScreen: React.FC<ReviewSuccessScreenProps> = ({
   const handleReviewAnother = () => {
     if (buttonsDisabled) return;
     
+    // Disable buttons immediately to prevent multiple clicks
+    setButtonsDisabled(true);
+    
     // Trigger smooth exit animation
     setIsExiting(true);
     
-    // Use a direct navigation with setTimeout to ensure animation completes
+    // Use simplified navigation approach to minimize interaction blocking
+    // Directly navigate without waiting for InteractionManager
     setTimeout(() => {
-      // Use replace instead of navigate to reset the stack
-      InteractionManager.runAfterInteractions(() => {
-        globalRouter.replace('/(tabs)/search');
+      // Use replace with a specific param to signal this is coming from review success
+      globalRouter.replace({
+        pathname: '/(tabs)/search',
+        params: {
+          fromReviewSuccess: 'true',
+          timestamp: Date.now().toString() // Force params to be unique to prevent stale state
+        }
       });
-    }, 300);
+    }, 100); // Short timeout for animation to begin
   };
 
   const handleClose = () => {

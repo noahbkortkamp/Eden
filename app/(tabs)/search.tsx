@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useEffect, useMemo } from 'react';
+import React, { useState, useCallback, useEffect, useMemo, useRef } from 'react';
 import {
   View,
   Text,
@@ -10,6 +10,7 @@ import {
   Keyboard,
   TouchableWithoutFeedback,
   FlatList,
+  Platform,
 } from 'react-native';
 import {
   Search as SearchIcon,
@@ -59,6 +60,109 @@ type SearchTab = 'courses' | 'members';
 // Cache timeouts in milliseconds
 const CACHE_EXPIRY = 5 * 60 * 1000; // 5 minutes
 
+// Memoized course item component for better performance
+const CourseItem = React.memo(({ 
+  course, 
+  onPress, 
+  isReviewed, 
+  isBookmarked, 
+  isBookmarkLoading, 
+  onBookmarkToggle 
+}: { 
+  course: EnhancedCourse, 
+  onPress: (id: string) => void, 
+  isReviewed: boolean, 
+  isBookmarked: boolean, 
+  isBookmarkLoading: boolean, 
+  onBookmarkToggle: (id: string) => void 
+}) => {
+  const theme = useEdenTheme();
+  const [isPressed, setIsPressed] = useState(false);
+  
+  const handlePressIn = () => setIsPressed(true);
+  const handlePressOut = () => setIsPressed(false);
+  
+  return (
+    <TouchableOpacity
+      activeOpacity={0.7}
+      onPress={() => onPress(course.id)}
+      onPressIn={handlePressIn}
+      onPressOut={handlePressOut}
+      style={[
+        styles.courseCardWrapper,
+        isPressed && { transform: [{ scale: 0.98 }], opacity: 0.9 }
+      ]}
+    >
+      <Card
+        variant="listItem"
+        style={[
+          styles.courseCard,
+          isPressed && { borderColor: theme.colors.primary, borderWidth: 1 }
+        ]}
+      >
+        <View style={styles.courseItemContent}>
+          <View style={styles.courseHeader}>
+            <BodyText bold style={styles.courseName}>{course.name}</BodyText>
+            
+            <View style={styles.headerRightContent}>
+              {/* Indicate if user has reviewed this course */}
+              {isReviewed && (
+                <FeedbackBadge status="positive" label="Played" small />
+              )}
+              
+              {/* Bookmark button */}
+              <TouchableOpacity
+                style={styles.bookmarkButton}
+                onPress={() => onBookmarkToggle(course.id)}
+                disabled={isBookmarkLoading}
+              >
+                {isBookmarkLoading ? (
+                  <ActivityIndicator size="small" color={theme.colors.primary} />
+                ) : isBookmarked ? (
+                  <BookmarkCheck size={20} color={theme.colors.primary} />
+                ) : (
+                  <Bookmark size={20} color={theme.colors.textSecondary} />
+                )}
+              </TouchableOpacity>
+            </View>
+          </View>
+          
+          <View style={styles.courseLocation}>
+            <MapPin size={14} color={theme.colors.textSecondary} />
+            <SmallText color={theme.colors.textSecondary} style={styles.locationText}>
+              {course.location || 'Location not available'}
+            </SmallText>
+          </View>
+          
+          <View style={styles.courseDetails}>
+            {course.par && (
+              <View style={[styles.courseDetailChip, { backgroundColor: theme.colors.background }]}>
+                <SmallText color={theme.colors.textSecondary}>
+                  Par {course.par}
+                </SmallText>
+              </View>
+            )}
+            {course.yardage && (
+              <View style={[styles.courseDetailChip, { backgroundColor: theme.colors.background }]}>
+                <SmallText color={theme.colors.textSecondary}>
+                  {course.yardage} yards
+                </SmallText>
+              </View>
+            )}
+            {course.type && (
+              <View style={[styles.courseDetailChip, { backgroundColor: theme.colors.background }]}>
+                <SmallText color={theme.colors.textSecondary}>
+                  {course.type}
+                </SmallText>
+              </View>
+            )}
+          </View>
+        </View>
+      </Card>
+    </TouchableOpacity>
+  );
+});
+
 export default function SearchScreen() {
   const router = useRouter();
   const params = useLocalSearchParams();
@@ -81,6 +185,12 @@ export default function SearchScreen() {
   const [bookmarkedCourseIds, setBookmarkedCourseIds] = useState<Set<string>>(new Set());
   const [bookmarkLoading, setBookmarkLoading] = useState<{[key: string]: boolean}>({});
   const [initialLoadComplete, setInitialLoadComplete] = useState(false);
+  
+  // Track if we're coming from review success
+  const isFromReviewSuccess = params.fromReviewSuccess === 'true';
+  
+  // Refs to track ongoing requests that might need cancellation
+  const loadingOperationsRef = useRef<{cancel?: () => void}>({});
   
   // Add cache state
   const [coursesCache, setCoursesCache] = useState<{
@@ -151,11 +261,16 @@ export default function SearchScreen() {
     }
   }, [user, bookmarkedCoursesCache, isCacheValid]);
 
-  const loadCourses = useCallback(async () => {
+  const loadCourses = useCallback(async (options?: { defer?: boolean }) => {
     // Use cache if valid
     if (isCacheValid(coursesCache)) {
       setCourses(coursesCache!.data);
       return;
+    }
+    
+    // If defer is true, delay loading briefly to allow UI to render first
+    if (options?.defer) {
+      await new Promise(resolve => setTimeout(resolve, 200));
     }
     
     try {
@@ -178,24 +293,73 @@ export default function SearchScreen() {
     }
   }, [coursesCache, isCacheValid]);
 
-  // Load initial data in parallel when component mounts or tab changes
+  // Modify the main data loading effect to handle the fromReviewSuccess parameter
   useEffect(() => {
     if (activeTab === 'courses') {
       setInitialLoadComplete(false);
       
-      // Load all data in parallel
+      // Load all data in parallel, but defer if coming from review success
       const loadAllData = async () => {
-        await Promise.all([
-          loadCourses(),
-          loadReviewedCourses(),
-          loadBookmarkedCourses()
-        ]);
-        setInitialLoadComplete(true);
+        // Cancel any previous loading operations
+        if (loadingOperationsRef.current.cancel) {
+          loadingOperationsRef.current.cancel();
+        }
+        
+        const cancelTokens: {cancel?: () => void}[] = [];
+        loadingOperationsRef.current = { cancel: () => cancelTokens.forEach(t => t.cancel?.()) };
+        
+        if (isFromReviewSuccess) {
+          // If coming from review success, first show cached data if available
+          if (isCacheValid(coursesCache)) {
+            setCourses(coursesCache!.data);
+          }
+          
+          // Critical: Ensure UI is responsive even during data loading
+          // Mark as initially loaded to enable interaction
+          setInitialLoadComplete(true);
+          
+          // Then defer and load in sequence instead of parallel
+          setTimeout(async () => {
+            // Use requestAnimationFrame to optimize when we run heavy operations
+            requestAnimationFrame(async () => {
+              await loadCourses({ defer: true });
+              await loadReviewedCourses();
+              await loadBookmarkedCourses();
+            });
+          }, 300);
+        } else {
+          // Normal flow - load in parallel
+          await Promise.all([
+            loadCourses(),
+            loadReviewedCourses(),
+            loadBookmarkedCourses()
+          ]);
+          setInitialLoadComplete(true);
+        }
       };
       
       loadAllData();
+      
+      // Clean up function
+      return () => {
+        if (loadingOperationsRef.current.cancel) {
+          loadingOperationsRef.current.cancel();
+        }
+      };
     }
-  }, [activeTab, loadCourses, loadReviewedCourses, loadBookmarkedCourses]);
+  }, [activeTab, loadCourses, loadReviewedCourses, loadBookmarkedCourses, isFromReviewSuccess, isCacheValid, coursesCache]);
+  
+  // Add a useEffect to clean the fromReviewSuccess param
+  useEffect(() => {
+    if (isFromReviewSuccess) {
+      // Clear the param after handling it
+      const timer = setTimeout(() => {
+        router.setParams({});
+      }, 1000);
+      
+      return () => clearTimeout(timer);
+    }
+  }, [isFromReviewSuccess, router]);
 
   // Check for tab parameter changes
   useEffect(() => {
@@ -310,8 +474,27 @@ export default function SearchScreen() {
     debouncedSearch(searchQuery);
   }, [searchQuery, activeTab, debouncedSearch]);
 
+  // Add a ref to track the last pressed course to prevent double clicks
+  const lastCoursePress = useRef<{ id: string, time: number } | null>(null);
+  
   const handleCoursePress = (courseId: string) => {
-    // Navigate to course details
+    // Prevent rapid multiple presses (debounce)
+    const now = Date.now();
+    if (lastCoursePress.current && 
+        lastCoursePress.current.id === courseId && 
+        now - lastCoursePress.current.time < 500) { // Reduced from 1000ms to 500ms for better responsiveness
+      console.log('Preventing duplicate course press');
+      return;
+    }
+    
+    // Give immediate visual feedback that the press was registered
+    // Even if we're still loading data
+    Keyboard.dismiss();
+    
+    // Update last pressed course
+    lastCoursePress.current = { id: courseId, time: now };
+    
+    // Navigate immediately without delay
     router.push({
       pathname: '/(modals)/course-details',
       params: { courseId }
@@ -455,6 +638,28 @@ export default function SearchScreen() {
     }, [user, users, activeTab])
   );
 
+  // Add this memoized renderItem function before the return statement
+  const renderCourseItem = useCallback(({ item }: { item: EnhancedCourse }) => (
+    <CourseItem 
+      course={item} 
+      onPress={handleCoursePress}
+      isReviewed={reviewedCourseIds.has(item.id)}
+      isBookmarked={bookmarkedCourseIds.has(item.id)}
+      isBookmarkLoading={bookmarkLoading[item.id] || false}
+      onBookmarkToggle={handleBookmarkToggle}
+    />
+  ), [reviewedCourseIds, bookmarkedCourseIds, bookmarkLoading, handleCoursePress, handleBookmarkToggle]);
+
+  // Calculate item height based on data for more accurate layout
+  const getItemLayout = useCallback((data: any, index: number) => ({
+    length: 120, // Adjust to match your actual card height
+    offset: 120 * index, // Use the same height * index
+    index
+  }), []);
+
+  // Create a memoized extraction function for optimization
+  const keyExtractor = useCallback((item: EnhancedCourse) => item.id, []);
+
   // Modify the render portion of the component with optimized rendering and indicators
   return (
     <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
@@ -583,83 +788,31 @@ export default function SearchScreen() {
         {/* Courses Tab Content */}
         {activeTab === 'courses' && !loading && !error && courses.length > 0 && (
           <FlatList
-            keyboardShouldPersistTaps="handled"
+            keyboardShouldPersistTaps="always" // Changed from "handled" to "always" for better touch handling
             keyboardDismissMode="on-drag"
             data={courses}
-            keyExtractor={(item) => item.id}
+            keyExtractor={keyExtractor}
             initialNumToRender={8}
             maxToRenderPerBatch={5}
             windowSize={5}
-            removeClippedSubviews={true}
+            removeClippedSubviews={Platform.OS === 'android'} // Only use on Android for better iOS touch handling
+            
+            getItemLayout={getItemLayout}
+            updateCellsBatchingPeriod={50}
+            
+            maintainVisibleContentPosition={{
+              minIndexForVisible: 0,
+              autoscrollToTopThreshold: 10
+            }}
+            
+            renderItem={renderCourseItem}
+            
             contentContainerStyle={styles.listContent}
-            renderItem={({ item }) => (
-              <Card
-                variant="listItem"
-                pressable
-                onPress={() => handleCoursePress(item.id)}
-                style={styles.courseCard}
-              >
-                <View style={styles.courseItemContent}>
-                  <View style={styles.courseHeader}>
-                    <BodyText bold style={styles.courseName}>{item.name}</BodyText>
-                    
-                    <View style={styles.headerRightContent}>
-                      {/* Indicate if user has reviewed this course */}
-                      {reviewedCourseIds.has(item.id) && (
-                        <FeedbackBadge status="positive" label="Played" small />
-                      )}
-                      
-                      {/* Bookmark button */}
-                      <TouchableOpacity
-                        style={styles.bookmarkButton}
-                        onPress={() => handleBookmarkToggle(item.id)}
-                        disabled={bookmarkLoading[item.id]}
-                      >
-                        {bookmarkLoading[item.id] ? (
-                          <ActivityIndicator size="small" color={theme.colors.primary} />
-                        ) : bookmarkedCourseIds.has(item.id) ? (
-                          <BookmarkCheck size={20} color={theme.colors.primary} />
-                        ) : (
-                          <Bookmark size={20} color={theme.colors.textSecondary} />
-                        )}
-                      </TouchableOpacity>
-                    </View>
-                  </View>
-                  
-                  <View style={styles.courseLocation}>
-                    <MapPin size={14} color={theme.colors.textSecondary} />
-                    <SmallText color={theme.colors.textSecondary} style={styles.locationText}>
-                      {item.location || 'Location not available'}
-                    </SmallText>
-                  </View>
-                  
-                  <View style={styles.courseDetails}>
-                    {item.par && (
-                      <View style={[styles.courseDetailChip, { backgroundColor: theme.colors.background }]}>
-                        <SmallText color={theme.colors.textSecondary}>
-                          Par {item.par}
-                        </SmallText>
-                      </View>
-                    )}
-                    {item.yardage && (
-                      <View style={[styles.courseDetailChip, { backgroundColor: theme.colors.background }]}>
-                        <SmallText color={theme.colors.textSecondary}>
-                          {item.yardage} yards
-                        </SmallText>
-                      </View>
-                    )}
-                    {item.type && (
-                      <View style={[styles.courseDetailChip, { backgroundColor: theme.colors.background }]}>
-                        <SmallText color={theme.colors.textSecondary}>
-                          {item.type}
-                        </SmallText>
-                      </View>
-                    )}
-                  </View>
-                </View>
-              </Card>
-            )}
             ListFooterComponent={<View style={styles.listFooter} />}
+            
+            // Add props to improve responsiveness
+            pointerEvents="auto"
+            scrollEnabled={true}
           />
         )}
 
@@ -898,5 +1051,10 @@ const styles = StyleSheet.create({
   },
   listFooter: {
     height: 20,
+  },
+  courseCardWrapper: {
+    width: '100%',
+    marginBottom: 8,
+    paddingHorizontal: 2, // Small padding to accommodate pressed state effects
   },
 }); 
