@@ -457,278 +457,280 @@ export default function SearchScreen() {
 
   // Modify the render portion of the component with optimized rendering and indicators
   return (
-    <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
-      {/* Search Header */}
-      <View style={styles.searchContainer}>
-        <View style={[
-          styles.inputContainer, 
-          { backgroundColor: theme.colors.surface },
-          isSearchFocused && [styles.inputContainerActive, {
-            borderColor: theme.colors.primary,
-            borderWidth: 1
-          }]
-        ]}>
-          <SearchIcon size={20} color={theme.colors.textSecondary} style={styles.searchIcon} />
-          <TextInput
-            style={[styles.input, { color: theme.colors.text, fontFamily: 'SF Pro Text, -apple-system, sans-serif' }]}
-            placeholder="Search courses or members..."
-            placeholderTextColor={theme.colors.textSecondary}
-            value={searchQuery}
-            onChangeText={setSearchQuery}
-            onFocus={() => setIsSearchFocused(true)}
-            onSubmitEditing={() => debouncedSearch(searchQuery)}
-            autoCorrect={false}
-            spellCheck={false}
-          />
-          {searchQuery !== '' && (
-            <TouchableOpacity style={styles.clearButton} onPress={handleCancelPress}>
-              <XIcon size={18} color={theme.colors.textSecondary} />
-            </TouchableOpacity>
-          )}
+    <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
+      <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
+        {/* Search Header */}
+        <View style={styles.searchContainer}>
+          <View style={[
+            styles.inputContainer, 
+            { backgroundColor: theme.colors.surface },
+            isSearchFocused && [styles.inputContainerActive, {
+              borderColor: theme.colors.primary,
+              borderWidth: 1
+            }]
+          ]}>
+            <SearchIcon size={20} color={theme.colors.textSecondary} style={styles.searchIcon} />
+            <TextInput
+              style={[styles.input, { color: theme.colors.text, fontFamily: 'SF Pro Text, -apple-system, sans-serif' }]}
+              placeholder="Search courses or members..."
+              placeholderTextColor={theme.colors.textSecondary}
+              value={searchQuery}
+              onChangeText={setSearchQuery}
+              onFocus={() => setIsSearchFocused(true)}
+              onSubmitEditing={() => debouncedSearch(searchQuery)}
+              autoCorrect={false}
+              spellCheck={false}
+            />
+            {searchQuery !== '' && (
+              <TouchableOpacity style={styles.clearButton} onPress={handleCancelPress}>
+                <XIcon size={18} color={theme.colors.textSecondary} />
+              </TouchableOpacity>
+            )}
+          </View>
         </View>
-      </View>
 
-      {/* Tab Selector */}
-      <View style={[styles.tabContainer, { borderBottomColor: theme.colors.border }]}>
-        <TouchableOpacity
-          style={[
-            styles.tabButton,
-            activeTab === 'courses' && [
-              styles.activeTabButton,
-              { backgroundColor: `${theme.colors.primary}15` }
-            ]
-          ]}
-          onPress={() => handleTabChange('courses')}
-        >
-          <GolfIcon
-            size={20}
-            color={activeTab === 'courses' ? theme.colors.primary : theme.colors.textSecondary}
-          />
-          <SmallText 
-            color={activeTab === 'courses' ? theme.colors.primary : theme.colors.textSecondary}
-            style={styles.tabText}
-            bold
+        {/* Tab Selector */}
+        <View style={[styles.tabContainer, { borderBottomColor: theme.colors.border }]}>
+          <TouchableOpacity
+            style={[
+              styles.tabButton,
+              activeTab === 'courses' && [
+                styles.activeTabButton,
+                { backgroundColor: `${theme.colors.primary}15` }
+              ]
+            ]}
+            onPress={() => handleTabChange('courses')}
           >
-            Courses
-          </SmallText>
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={[
-            styles.tabButton,
-            activeTab === 'members' && [
-              styles.activeTabButton,
-              { backgroundColor: `${theme.colors.primary}15` }
-            ]
-          ]}
-          onPress={() => handleTabChange('members')}
-        >
-          <Users
-            size={20}
-            color={activeTab === 'members' ? theme.colors.primary : theme.colors.textSecondary}
-          />
-          <SmallText 
-            color={activeTab === 'members' ? theme.colors.primary : theme.colors.textSecondary}
-            style={styles.tabText}
-            bold
-          >
-            Members
-          </SmallText>
-        </TouchableOpacity>
-      </View>
-
-      {/* Loading State */}
-      {loading && (
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color={theme.colors.primary} />
-          <BodyText color={theme.colors.textSecondary} style={styles.loadingText}>
-            {activeTab === 'courses' ? 'Finding courses...' : 'Finding members...'}
-          </BodyText>
-        </View>
-      )}
-
-      {/* Error State */}
-      {!loading && error && (
-        <View style={styles.centerContainer}>
-          <BodyText color={theme.colors.error} style={styles.errorText}>{error}</BodyText>
-          <Button 
-            label="Retry" 
-            variant="primary"
-            onPress={() => activeTab === 'courses' ? loadCourses() : debouncedSearch(searchQuery)}
-          />
-        </View>
-      )}
-
-      {/* Empty Search Results - Only show when not loading and we have a query */}
-      {!loading && !error && searchQuery.trim() && 
-        ((activeTab === 'courses' && courses.length === 0) || 
-         (activeTab === 'members' && users.length === 0)) && (
-        <View style={styles.centerContainer}>
-          <BodyText color={theme.colors.textSecondary} style={styles.noResultsText}>
-            No {activeTab === 'courses' ? 'courses' : 'members'} found for "{searchQuery}"
-          </BodyText>
-        </View>
-      )}
-
-      {/* Empty Initial State - Only show when not loading and no query */}
-      {!loading && !error && !searchQuery.trim() && activeTab === 'members' && users.length === 0 && (
-        <View style={styles.centerContainer}>
-          <BodyText color={theme.colors.textSecondary} style={styles.noResultsText}>
-            Search for members by name or username
-          </BodyText>
-        </View>
-      )}
-
-      {/* Courses Tab Content */}
-      {activeTab === 'courses' && !loading && !error && courses.length > 0 && (
-        <FlatList
-          keyboardShouldPersistTaps="always"
-          keyboardDismissMode="none"
-          data={courses}
-          keyExtractor={(item) => item.id}
-          initialNumToRender={8}
-          maxToRenderPerBatch={5}
-          windowSize={5}
-          removeClippedSubviews={true}
-          contentContainerStyle={styles.listContent}
-          renderItem={({ item }) => (
-            <Card
-              variant="listItem"
-              pressable
-              onPress={() => handleCoursePress(item.id)}
-              style={styles.courseCard}
+            <GolfIcon
+              size={20}
+              color={activeTab === 'courses' ? theme.colors.primary : theme.colors.textSecondary}
+            />
+            <SmallText 
+              color={activeTab === 'courses' ? theme.colors.primary : theme.colors.textSecondary}
+              style={styles.tabText}
+              bold
             >
-              <View style={styles.courseItemContent}>
-                <View style={styles.courseHeader}>
-                  <BodyText bold style={styles.courseName}>{item.name}</BodyText>
-                  
-                  <View style={styles.headerRightContent}>
-                    {/* Indicate if user has reviewed this course */}
-                    {reviewedCourseIds.has(item.id) && (
-                      <FeedbackBadge status="positive" label="Played" small />
-                    )}
+              Courses
+            </SmallText>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[
+              styles.tabButton,
+              activeTab === 'members' && [
+                styles.activeTabButton,
+                { backgroundColor: `${theme.colors.primary}15` }
+              ]
+            ]}
+            onPress={() => handleTabChange('members')}
+          >
+            <Users
+              size={20}
+              color={activeTab === 'members' ? theme.colors.primary : theme.colors.textSecondary}
+            />
+            <SmallText 
+              color={activeTab === 'members' ? theme.colors.primary : theme.colors.textSecondary}
+              style={styles.tabText}
+              bold
+            >
+              Members
+            </SmallText>
+          </TouchableOpacity>
+        </View>
+
+        {/* Loading State */}
+        {loading && (
+          <View style={styles.loadingContainer}>
+            <ActivityIndicator size="large" color={theme.colors.primary} />
+            <BodyText color={theme.colors.textSecondary} style={styles.loadingText}>
+              {activeTab === 'courses' ? 'Finding courses...' : 'Finding members...'}
+            </BodyText>
+          </View>
+        )}
+
+        {/* Error State */}
+        {!loading && error && (
+          <View style={styles.centerContainer}>
+            <BodyText color={theme.colors.error} style={styles.errorText}>{error}</BodyText>
+            <Button 
+              label="Retry" 
+              variant="primary"
+              onPress={() => activeTab === 'courses' ? loadCourses() : debouncedSearch(searchQuery)}
+            />
+          </View>
+        )}
+
+        {/* Empty Search Results - Only show when not loading and we have a query */}
+        {!loading && !error && searchQuery.trim() && 
+          ((activeTab === 'courses' && courses.length === 0) || 
+           (activeTab === 'members' && users.length === 0)) && (
+          <View style={styles.centerContainer}>
+            <BodyText color={theme.colors.textSecondary} style={styles.noResultsText}>
+              No {activeTab === 'courses' ? 'courses' : 'members'} found for "{searchQuery}"
+            </BodyText>
+          </View>
+        )}
+
+        {/* Empty Initial State - Only show when not loading and no query */}
+        {!loading && !error && !searchQuery.trim() && activeTab === 'members' && users.length === 0 && (
+          <View style={styles.centerContainer}>
+            <BodyText color={theme.colors.textSecondary} style={styles.noResultsText}>
+              Search for members by name or username
+            </BodyText>
+          </View>
+        )}
+
+        {/* Courses Tab Content */}
+        {activeTab === 'courses' && !loading && !error && courses.length > 0 && (
+          <FlatList
+            keyboardShouldPersistTaps="handled"
+            keyboardDismissMode="on-drag"
+            data={courses}
+            keyExtractor={(item) => item.id}
+            initialNumToRender={8}
+            maxToRenderPerBatch={5}
+            windowSize={5}
+            removeClippedSubviews={true}
+            contentContainerStyle={styles.listContent}
+            renderItem={({ item }) => (
+              <Card
+                variant="listItem"
+                pressable
+                onPress={() => handleCoursePress(item.id)}
+                style={styles.courseCard}
+              >
+                <View style={styles.courseItemContent}>
+                  <View style={styles.courseHeader}>
+                    <BodyText bold style={styles.courseName}>{item.name}</BodyText>
                     
-                    {/* Bookmark button */}
-                    <TouchableOpacity
-                      style={styles.bookmarkButton}
-                      onPress={() => handleBookmarkToggle(item.id)}
-                      disabled={bookmarkLoading[item.id]}
-                    >
-                      {bookmarkLoading[item.id] ? (
-                        <ActivityIndicator size="small" color={theme.colors.primary} />
-                      ) : bookmarkedCourseIds.has(item.id) ? (
-                        <BookmarkCheck size={20} color={theme.colors.primary} />
-                      ) : (
-                        <Bookmark size={20} color={theme.colors.textSecondary} />
+                    <View style={styles.headerRightContent}>
+                      {/* Indicate if user has reviewed this course */}
+                      {reviewedCourseIds.has(item.id) && (
+                        <FeedbackBadge status="positive" label="Played" small />
                       )}
-                    </TouchableOpacity>
+                      
+                      {/* Bookmark button */}
+                      <TouchableOpacity
+                        style={styles.bookmarkButton}
+                        onPress={() => handleBookmarkToggle(item.id)}
+                        disabled={bookmarkLoading[item.id]}
+                      >
+                        {bookmarkLoading[item.id] ? (
+                          <ActivityIndicator size="small" color={theme.colors.primary} />
+                        ) : bookmarkedCourseIds.has(item.id) ? (
+                          <BookmarkCheck size={20} color={theme.colors.primary} />
+                        ) : (
+                          <Bookmark size={20} color={theme.colors.textSecondary} />
+                        )}
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+                  
+                  <View style={styles.courseLocation}>
+                    <MapPin size={14} color={theme.colors.textSecondary} />
+                    <SmallText color={theme.colors.textSecondary} style={styles.locationText}>
+                      {item.location || 'Location not available'}
+                    </SmallText>
+                  </View>
+                  
+                  <View style={styles.courseDetails}>
+                    {item.par && (
+                      <View style={[styles.courseDetailChip, { backgroundColor: theme.colors.background }]}>
+                        <SmallText color={theme.colors.textSecondary}>
+                          Par {item.par}
+                        </SmallText>
+                      </View>
+                    )}
+                    {item.yardage && (
+                      <View style={[styles.courseDetailChip, { backgroundColor: theme.colors.background }]}>
+                        <SmallText color={theme.colors.textSecondary}>
+                          {item.yardage} yards
+                        </SmallText>
+                      </View>
+                    )}
+                    {item.type && (
+                      <View style={[styles.courseDetailChip, { backgroundColor: theme.colors.background }]}>
+                        <SmallText color={theme.colors.textSecondary}>
+                          {item.type}
+                        </SmallText>
+                      </View>
+                    )}
+                  </View>
+                </View>
+              </Card>
+            )}
+            ListFooterComponent={<View style={styles.listFooter} />}
+          />
+        )}
+
+        {/* Members Tab Content */}
+        {activeTab === 'members' && !loading && !error && users.length > 0 && (
+          <FlatList
+            keyboardShouldPersistTaps="handled"
+            keyboardDismissMode="on-drag"
+            data={users}
+            keyExtractor={(item) => item.id}
+            initialNumToRender={8}
+            maxToRenderPerBatch={5}
+            windowSize={5}
+            removeClippedSubviews={true}
+            contentContainerStyle={styles.listContent}
+            renderItem={({ item }) => (
+              <Card
+                variant="listItem"
+                pressable
+                onPress={() => handleUserPress(item.id, item.full_name || '')}
+                style={styles.userCard}
+              >
+                <View style={styles.userInfo}>
+                  <View style={styles.avatarContainer}>
+                    {item.avatar_url ? (
+                      <Image
+                        source={{ uri: item.avatar_url }}
+                        style={styles.avatar}
+                        contentFit="cover"
+                        transition={200}
+                      />
+                    ) : (
+                      <View style={[styles.defaultAvatar, { backgroundColor: theme.colors.primary }]}>
+                        <BodyText color="#FFFFFF" style={styles.defaultAvatarText}>
+                          {(item.full_name?.charAt(0) || item.username?.charAt(0) || '?').toUpperCase()}
+                        </BodyText>
+                      </View>
+                    )}
+                  </View>
+                  <View style={styles.userDetails}>
+                    <BodyText bold style={styles.userName}>
+                      {item.full_name || 'Anonymous Golfer'}
+                    </BodyText>
+                    {item.username && (
+                      <SmallText color={theme.colors.textSecondary} style={styles.userUsername}>
+                        @{item.username}
+                      </SmallText>
+                    )}
                   </View>
                 </View>
                 
-                <View style={styles.courseLocation}>
-                  <MapPin size={14} color={theme.colors.textSecondary} />
-                  <SmallText color={theme.colors.textSecondary} style={styles.locationText}>
-                    {item.location || 'Location not available'}
-                  </SmallText>
-                </View>
-                
-                <View style={styles.courseDetails}>
-                  {item.par && (
-                    <View style={[styles.courseDetailChip, { backgroundColor: theme.colors.background }]}>
-                      <SmallText color={theme.colors.textSecondary}>
-                        Par {item.par}
-                      </SmallText>
-                    </View>
-                  )}
-                  {item.yardage && (
-                    <View style={[styles.courseDetailChip, { backgroundColor: theme.colors.background }]}>
-                      <SmallText color={theme.colors.textSecondary}>
-                        {item.yardage} yards
-                      </SmallText>
-                    </View>
-                  )}
-                  {item.type && (
-                    <View style={[styles.courseDetailChip, { backgroundColor: theme.colors.background }]}>
-                      <SmallText color={theme.colors.textSecondary}>
-                        {item.type}
-                      </SmallText>
-                    </View>
-                  )}
-                </View>
-              </View>
-            </Card>
-          )}
-          ListFooterComponent={<View style={styles.listFooter} />}
-        />
-      )}
-
-      {/* Members Tab Content */}
-      {activeTab === 'members' && !loading && !error && users.length > 0 && (
-        <FlatList
-          keyboardShouldPersistTaps="always"
-          keyboardDismissMode="none"
-          data={users}
-          keyExtractor={(item) => item.id}
-          initialNumToRender={8}
-          maxToRenderPerBatch={5}
-          windowSize={5}
-          removeClippedSubviews={true}
-          contentContainerStyle={styles.listContent}
-          renderItem={({ item }) => (
-            <Card
-              variant="listItem"
-              pressable
-              onPress={() => handleUserPress(item.id, item.full_name || '')}
-              style={styles.userCard}
-            >
-              <View style={styles.userInfo}>
-                <View style={styles.avatarContainer}>
-                  {item.avatar_url ? (
-                    <Image
-                      source={{ uri: item.avatar_url }}
-                      style={styles.avatar}
-                      contentFit="cover"
-                      transition={200}
-                    />
+                {/* Follow/Following Button */}
+                {user && user.id !== item.id && (
+                  followLoading[item.id] ? (
+                    <ActivityIndicator size="small" color={theme.colors.primary} />
                   ) : (
-                    <View style={[styles.defaultAvatar, { backgroundColor: theme.colors.primary }]}>
-                      <BodyText color="#FFFFFF" style={styles.defaultAvatarText}>
-                        {(item.full_name?.charAt(0) || item.username?.charAt(0) || '?').toUpperCase()}
-                      </BodyText>
-                    </View>
-                  )}
-                </View>
-                <View style={styles.userDetails}>
-                  <BodyText bold style={styles.userName}>
-                    {item.full_name || 'Anonymous Golfer'}
-                  </BodyText>
-                  {item.username && (
-                    <SmallText color={theme.colors.textSecondary} style={styles.userUsername}>
-                      @{item.username}
-                    </SmallText>
-                  )}
-                </View>
-              </View>
-              
-              {/* Follow/Following Button */}
-              {user && user.id !== item.id && (
-                followLoading[item.id] ? (
-                  <ActivityIndicator size="small" color={theme.colors.primary} />
-                ) : (
-                  <Button
-                    label={followingStatus[item.id] ? "Following" : "Follow"}
-                    variant={followingStatus[item.id] ? "secondary" : "primary"}
-                    onPress={() => handleFollow(item.id)}
-                    style={styles.followButtonStyle}
-                  />
-                )
-              )}
-            </Card>
-          )}
-          ListFooterComponent={<View style={styles.listFooter} />}
-        />
-      )}
-    </View>
+                    <Button
+                      label={followingStatus[item.id] ? "Following" : "Follow"}
+                      variant={followingStatus[item.id] ? "secondary" : "primary"}
+                      onPress={() => handleFollow(item.id)}
+                      style={styles.followButtonStyle}
+                    />
+                  )
+                )}
+              </Card>
+            )}
+            ListFooterComponent={<View style={styles.listFooter} />}
+          />
+        )}
+      </View>
+    </TouchableWithoutFeedback>
   );
 }
 
