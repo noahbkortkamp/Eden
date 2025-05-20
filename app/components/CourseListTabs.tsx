@@ -1,21 +1,22 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { View, Text, StyleSheet, Dimensions, TouchableOpacity, Platform, SafeAreaView } from 'react-native';
 import { TabView, SceneMap, TabBar } from 'react-native-tab-view';
-import { useTheme } from '../theme/ThemeProvider';
+import { useEdenTheme } from '../theme/ThemeProvider';
 import { PlayedCoursesList } from './PlayedCoursesList';
 import { WantToPlayCoursesList } from './WantToPlayCoursesList';
 import { Course } from '../types/review';
 import { usePlayedCourses } from '../context/PlayedCoursesContext';
+import { SmallText } from './eden/Typography';
 
 // Specialized components for each tab
 const RecommendedList = ({ courses, onCoursePress, reviewCount }: { courses: Course[], onCoursePress: (course: Course) => void, reviewCount?: number }) => {
-  const theme = useTheme();
+  const theme = useEdenTheme();
   // Return empty state since this functionality isn't built yet
   return (
     <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: theme.colors.background }}>
-      <Text style={{ fontSize: 16, color: theme.colors.textSecondary, textAlign: 'center' }}>
+      <SmallText color={theme.colors.textSecondary} style={{ textAlign: 'center' }}>
         Coming soon
-      </Text>
+      </SmallText>
     </View>
   );
 };
@@ -50,7 +51,7 @@ export const CourseListTabs: React.FC<CourseListTabsProps> = React.memo(({
   handleCoursePress,
   renderWantToPlayScene,
 }) => {
-  const theme = useTheme();
+  const theme = useEdenTheme();
   // Access global course state from context
   const { 
     playedCourses: globalPlayedCourses,
@@ -194,7 +195,7 @@ export const CourseListTabs: React.FC<CourseListTabsProps> = React.memo(({
         alignItems: 'center',
         backgroundColor: theme.colors.background 
       }}>
-        <Text style={{ color: theme.colors.textSecondary }}>Loading...</Text>
+        <SmallText color={theme.colors.textSecondary}>Loading...</SmallText>
       </View>
     );
   }, [theme]);
@@ -244,72 +245,49 @@ export const CourseListTabs: React.FC<CourseListTabsProps> = React.memo(({
           : globalRecommendedCourses,
     };
     
-    // Debug log for Want to Play data
-    if (route.key === 'wantToPlay') {
-      console.log('🔍 DIAGNOSTIC - Want to Play Data Flow:', {
-        routeKey: route.key,
-        fromProps: wantToPlayCourses?.length || 0,
-        fromInternalState: internalWantToPlayCourses?.length || 0,
-        fromGlobalContext: globalWantToPlayCourses?.length || 0,
-        finalCount: coursesToRender.wantToPlay?.length || 0,
-        hasCustomRenderer: !!renderWantToPlayScene
-      });
-      
-      // Check first course if available
-      if (coursesToRender.wantToPlay?.length > 0) {
-        const firstCourse = coursesToRender.wantToPlay[0];
-        console.log('🔍 First Want to Play course:', {
-          id: firstCourse.id,
-          name: firstCourse.name,
-          location: firstCourse.location
-        });
-      }
-    }
+    // Pass along the course press handler or use the one from props
+    const coursePressHandler = handleCoursePress || onCoursePress;
     
-    // Safely determine the course press handler
-    const coursePressHandler = (course: Course) => {
-      if (onCoursePress) {
-        onCoursePress(course);
-      } else if (handleCoursePress) {
-        handleCoursePress(course);
-      } else {
-        console.log('No course press handler provided for', course.name);
-      }
-    };
-    
+    // Return the appropriate component based on the route
     switch (route.key) {
       case 'played':
-        return <PlayedCoursesList 
-                 key={`played-${remountKey}`} 
-                 courses={coursesToRender.played || []} 
-                 onCoursePress={coursePressHandler} 
-                 reviewCount={reviewCount}
-               />;
+        return (
+          <PlayedCoursesList 
+            courses={coursesToRender.played || []} 
+            handleCoursePress={coursePressHandler}
+            showScores={showScores}
+          />
+        );
       case 'wantToPlay':
-        // Use renderWantToPlayScene prop if provided - DIRECT RETURN
+        // Use custom render function if provided
         if (renderWantToPlayScene) {
-          console.log('→ DIRECT RENDERING: Want to Play tab with custom component');
-          // Return with absolutely no wrapping to avoid any layout issues
           return renderWantToPlayScene();
         }
-        
-        // Fall back to direct rendering only if no external renderer is provided
-        console.log('🔄 Rendering fallback WantToPlayCoursesList with', coursesToRender.wantToPlay?.length || 0, 'courses');
-        return <WantToPlayCoursesList 
-                 key={`wantToPlay-${remountKey}`} 
-                 courses={coursesToRender.wantToPlay || []} 
-                 onCoursePress={coursePressHandler}
-                 reviewCount={reviewCount}
-               />;
+        return (
+          <WantToPlayCoursesList 
+            courses={coursesToRender.wantToPlay || []} 
+            handleCoursePress={(course: Course) => {
+              if (coursePressHandler) {
+                coursePressHandler(course);
+              }
+            }}
+            showScores={showScores}
+          />
+        );
       case 'recommended':
-        return <RecommendedList 
-                 key={`recommended-${remountKey}`} 
-                 courses={coursesToRender.recommended || []} 
-                 onCoursePress={coursePressHandler}
-                 reviewCount={reviewCount}
-               />;
+        return (
+          <RecommendedList 
+            courses={coursesToRender.recommended || []} 
+            onCoursePress={(course: Course) => {
+              if (coursePressHandler) {
+                coursePressHandler(course);
+              }
+            }}
+            reviewCount={reviewCount}
+          />
+        );
       default:
-          return null;
+        return null;
     }
   }, [
     playedCourses,
@@ -323,179 +301,92 @@ export const CourseListTabs: React.FC<CourseListTabsProps> = React.memo(({
     globalRecommendedCourses,
     onCoursePress,
     handleCoursePress,
-    remountKey,
+    showScores,
     reviewCount,
     renderWantToPlayScene
   ]);
 
-  const renderTabBar = (props: any) => (
-    <View style={styles.tabBarContainer}>
-      <TabBar
-        {...props}
-        indicatorStyle={{ 
-          backgroundColor: theme.colors.primary,
-          height: 3,
-        }}
-        style={[
-          styles.tabBar,
-          { 
-            backgroundColor: theme.colors.surface,
-            borderBottomWidth: 1,
-            borderBottomColor: theme.colors.border,
-          }
-        ]}
-        labelStyle={{ 
-          ...theme.typography.body,
-          textTransform: 'none',
-          fontWeight: '500',
-          margin: 0,
-          padding: 0,
-        }}
-        tabStyle={{
-          paddingVertical: 14, // Slightly taller tabs for better touch targets
-        }}
-        activeColor={theme.colors.primary}
-        inactiveColor={theme.colors.textSecondary}
-        pressColor={theme.colors.background} // Ripple color on Android
-        pressOpacity={0.7} // Press opacity on iOS
-      />
-    </View>
-  );
-
-  const styles = StyleSheet.create({
-    container: {
-      flex: 1,
-      overflow: 'hidden', // Prevent content from overflowing
-    },
-    tabView: {
-      flex: 1,
-    },
-    tabBarContainer: {
-      // Using shadow for iOS
-      shadowColor: '#000',
-      shadowOffset: { width: 0, height: 1 },
-      shadowOpacity: 0.1,
-      shadowRadius: 2,
-      // Using elevation for Android
-      elevation: 3,
-      zIndex: 2, // Ensure tab bar stays on top
-      backgroundColor: theme.colors.surface,
-    },
-    tabBar: {
-      elevation: 0, // Remove default elevation to apply our custom one
-      shadowOpacity: 0, // Remove default shadow
-    },
-    loadingContainer: {
-      flex: 1,
-      justifyContent: 'center',
-      alignItems: 'center',
-      backgroundColor: theme.colors.background,
-    },
-  });
-
-  // Handle layout changes
-  const onLayout = () => {
-    setLayout({
-      width: Dimensions.get('window').width,
-      height: Dimensions.get('window').height,
-    });
-    
-    // Ensure the component is ready after layout
-    if (!isReady && isMounted.current) {
-      setIsReady(true);
-    }
-  };
-
-  // Update internal state only when props change
-  useEffect(() => {
-    if (isMounted.current) {
-      setInternalPlayedCourses(playedCourses);
-      setInternalWantToPlayCourses(wantToPlayCourses);
-      setInternalRecommendedCourses(recommendedCourses);
-    }
-  }, [playedCourses, wantToPlayCourses, recommendedCourses]);
-
-  // Update index when courseType changes
-  useEffect(() => {
-    let newIndex;
-    switch (courseType) {
-      case 'played': newIndex = 0; break;
-      case 'want-to-play': newIndex = 1; break;
-      case 'recommended': newIndex = 2; break;
-      default: newIndex = 0;
-    }
+  // Handle index change and update courseType if provided
+  const handleIndexChange = useCallback((newIndex: number) => {
     setIndex(newIndex);
-    console.log('Tab index updated to:', newIndex, 'for courseType:', courseType);
-  }, [courseType]);
+    
+    // Update courseType if setCourseType is provided
+    if (setCourseType) {
+      switch (newIndex) {
+        case 0:
+          setCourseType('played');
+          break;
+        case 1:
+          setCourseType('want-to-play');
+          break;
+        case 2:
+          setCourseType('recommended');
+          break;
+      }
+    }
+  }, [setCourseType]);
 
-  // Cleanup on unmount
-  useEffect(() => {
-    return () => {
-      isMounted.current = false;
-    };
-  }, []);
-
-  return !isReady ? null : (
-    <View style={{ flex: 1 }} onLayout={onLayout}>
-      {/* SafeAreaView for proper iOS spacing - now without a duplicate header */}
-      <SafeAreaView style={{ 
-        backgroundColor: theme.colors.surface,
-        paddingBottom: 0 // Remove bottom padding as the tabs will be right below
-      }} />
-      
-      {/* Custom tab bar using simple buttons */}
-      <View style={{ 
-        flexDirection: 'row', 
-        backgroundColor: theme.colors.surface,
+  // Render TabBar with Eden design system styling
+  const renderTabBar = useCallback((props: any) => (
+    <TabBar
+      {...props}
+      style={{
+        backgroundColor: theme.colors.background,
+        shadowOffset: { height: 0, width: 0 },
+        shadowOpacity: 0,
+        elevation: 0,
         borderBottomWidth: 1,
         borderBottomColor: theme.colors.border,
-        elevation: 3,
-      }}>
-        {routes.map((route, i) => (
-          <TouchableOpacity
-            key={route.key}
-            style={{
-              flex: 1,
-              paddingVertical: 14,
-              backgroundColor: i === index ? 'rgba(0,0,0,0.05)' : 'transparent',
-              alignItems: 'center',
-              borderBottomWidth: i === index ? 3 : 0,
-              borderBottomColor: theme.colors.primary,
-            }}
-            onPress={() => {
-              setIndex(i);
-              // Update courseType when tab is pressed
-              switch (i) {
-                case 0: setCourseType?.('played'); break;
-                case 1: setCourseType?.('want-to-play'); break;
-                case 2: setCourseType?.('recommended'); break;
-              }
-            }}
-          >
-            <Text 
-              style={{
-                color: i === index ? theme.colors.primary : theme.colors.textSecondary,
-                fontWeight: '500',
-              }}
-            >
-              {route.title}
-            </Text>
-          </TouchableOpacity>
-        ))}
-      </View>
-      
-      {/* Simple direct content rendering based on index */}
-      <View style={{ flex: 1, backgroundColor: 'white' }}>
-        {index === 0 && renderScene({ route: { key: 'played' } })}
-        
-        {index === 1 && (
-          <View style={{ flex: 1 }}>
-            {renderScene({ route: { key: 'wantToPlay' } })}
-          </View>
-        )}
-        
-        {index === 2 && renderScene({ route: { key: 'recommended' } })}
-      </View>
-    </View>
+      }}
+      renderLabel={({ route, focused }: { route: { title: string }; focused: boolean }) => (
+        <Text
+          style={{
+            color: focused ? theme.colors.primary : theme.colors.textSecondary,
+            fontFamily: theme.typography.tabLabel.fontFamily,
+            fontSize: theme.typography.tabLabel.fontSize,
+            fontWeight: focused ? '600' : '400',
+            textTransform: 'uppercase',
+            letterSpacing: 0.5,
+            textAlign: 'center',
+            marginHorizontal: theme.spacing.xs,
+          }}
+        >
+          {route.title}
+        </Text>
+      )}
+      indicatorStyle={{
+        backgroundColor: theme.colors.primary,
+        height: 3,
+      }}
+      tabStyle={{
+        height: 48,
+        padding: 0,
+      }}
+      pressColor={theme.colors.primary + '20'} // Add transparency to ripple color
+    />
+  ), [theme]);
+
+  // Don't render the TabView before layout is measured
+  if (!isReady) {
+    return (
+      <View style={{ flex: 1, backgroundColor: theme.colors.background }} />
+    );
+  }
+
+  return (
+    <SafeAreaView style={{ flex: 1, backgroundColor: theme.colors.background }}>
+      <TabView
+        key={`${stableKey}-${refreshKey || remountKey}`}
+        navigationState={{ index, routes }}
+        renderScene={renderScene}
+        renderTabBar={renderTabBar}
+        onIndexChange={handleIndexChange}
+        initialLayout={{ width: layout.width }}
+        lazy
+        lazyPreloadDistance={1}
+        renderLazyPlaceholder={renderLazyPlaceholder}
+        swipeEnabled={Platform.OS !== 'web'} // Disable swiping on web
+      />
+    </SafeAreaView>
   );
 }); 

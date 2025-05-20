@@ -424,18 +424,45 @@ export default function ListsScreen() {
         }
       }
       
-      // Sort by rating (highest to lowest)
-      const sortedCourses = allCourses.sort((a, b) => {
-        // Use default scores if ratings are undefined
-        const scoreA = a.rating !== undefined ? a.rating : 0;
-        const scoreB = b.rating !== undefined ? b.rating : 0;
-        return scoreB - scoreA;
+      // First, group courses by sentiment tier
+      const coursesByTier: Record<SentimentRating, EnhancedCourse[]> = {
+        'liked': [],
+        'fine': [],
+        'didnt_like': []
+      };
+      
+      // Put each course in its sentiment tier bucket
+      allCourses.forEach(course => {
+        if (course.sentiment) {
+          coursesByTier[course.sentiment].push(course);
+        }
       });
       
-      console.log('🔍 Final sorted courses with scores:', sortedCourses.map(c => ({ 
+      // Sort each tier by rank_position (lowest to highest)
+      Object.keys(coursesByTier).forEach(tier => {
+        coursesByTier[tier as SentimentRating].sort((a, b) => {
+          // Use rank_position for sorting if available
+          if (a.rank_position !== undefined && b.rank_position !== undefined) {
+            return a.rank_position - b.rank_position;
+          }
+          // Fall back to rating if rank_position is not available
+          const scoreA = a.rating !== undefined ? a.rating : 0;
+          const scoreB = b.rating !== undefined ? b.rating : 0;
+          return scoreB - scoreA;
+        });
+      });
+      
+      // Combine courses in order: 'liked' tier first, then 'fine', then 'didnt_like'
+      const sortedCourses = [
+        ...coursesByTier['liked'],
+        ...coursesByTier['fine'],
+        ...coursesByTier['didnt_like']
+      ];
+      
+      console.log('🔍 Final sorted courses by tier and rank position:', sortedCourses.map(c => ({ 
         name: c.name, 
-        score: c.rating,
         position: c.rank_position,
+        score: c.rating,
         sentiment: c.sentiment,
         showScores: c.showScores
       })));

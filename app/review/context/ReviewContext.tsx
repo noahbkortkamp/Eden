@@ -50,6 +50,36 @@ const getTopRankedCourseInTier = async (userId: string, sentiment: SentimentRati
   return sortedRankings[0]; // Return the top-ranked course
 };
 
+/**
+ * Get the bottom-ranked course in a sentiment tier
+ */
+const getBottomRankedCourseInTier = async (userId: string, sentiment: SentimentRating) => {
+  const rankings = await rankingService.getUserRankings(userId, sentiment);
+  if (!rankings || rankings.length === 0) return null;
+  
+  // Sort by position (highest position is lowest rank)
+  const sortedRankings = [...rankings].sort((a, b) => a.rank_position - b.rank_position);
+  return sortedRankings[sortedRankings.length - 1]; // Return the bottom-ranked course
+};
+
+/**
+ * Get the median-ranked course in a sentiment tier
+ */
+const getMedianRankedCourseInTier = async (userId: string, sentiment: SentimentRating) => {
+  const rankings = await rankingService.getUserRankings(userId, sentiment);
+  if (!rankings || rankings.length === 0) return null;
+  
+  // Sort by position (lowest position is highest rank)
+  const sortedRankings = [...rankings].sort((a, b) => a.rank_position - b.rank_position);
+  
+  // Find the middle index
+  const middleIndex = Math.floor(sortedRankings.length / 2);
+  
+  // Return the median-ranked course
+  console.log(`[getMedianRankedCourseInTier] Found median course at position ${sortedRankings[middleIndex].rank_position} out of ${sortedRankings.length} courses`);
+  return sortedRankings[middleIndex];
+};
+
 const ReviewContext = createContext<ReviewContextType | undefined>(undefined);
 
 export const ReviewProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -220,21 +250,6 @@ export const ReviewProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       );
 
       if (otherCoursesWithSentiment.length > 0) {
-        // Replace the random course selection with a truly randomized selection
-        // First, shuffle the array to eliminate any default ordering
-        const shuffledCourses = [...otherCoursesWithSentiment].sort(() => Math.random() - 0.5);
-        
-        // Then select the first item from the shuffled array
-        const randomCourse = shuffledCourses[0];
-        
-        // Preload the courses data in the background
-        Promise.all([
-          getCourse(review.course_id),
-          getCourse(randomCourse.course_id)
-        ]).catch(err => {
-          console.warn('Failed to preload courses, will load on demand:', err);
-        });
-        
         // Store the original reviewed course ID and reset comparison results
         setOriginalReviewedCourseId(review.course_id);
         setComparisonResults([]);
@@ -251,18 +266,41 @@ export const ReviewProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         console.log(`Setting up comparison flow with ${totalComparisons} total comparisons out of ${otherCoursesWithSentiment.length} available courses`);
         console.log(`Will compare the just-reviewed course (${review.course_id}) with other courses in the same sentiment tier`);
 
+        // Find the median-ranked course for the first comparison
+        const medianCourse = await getMedianRankedCourseInTier(user.id, review.rating);
+        console.log(`Using median-ranked course for initial comparison: ${medianCourse?.course_id}`);
+        
+        // If median course is null or same as the reviewed course, fall back to a random course
+        let comparisonCourseId: string;
+        if (!medianCourse || medianCourse.course_id === review.course_id) {
+          // Fall back to random selection
+          const shuffledCourses = [...otherCoursesWithSentiment].sort(() => Math.random() - 0.5);
+          comparisonCourseId = shuffledCourses[0].course_id;
+          console.log(`No suitable median course found, using random course: ${comparisonCourseId}`);
+        } else {
+          comparisonCourseId = medianCourse.course_id;
+        }
+        
+        // Preload the courses data in the background
+        Promise.all([
+          getCourse(review.course_id),
+          getCourse(comparisonCourseId)
+        ]).catch(err => {
+          console.warn('Failed to preload courses, will load on demand:', err);
+        });
+
         // Now close the review modal before opening the comparison modal
         router.back();
         
         // Short delay to ensure the navigation is smooth
         await new Promise(resolve => setTimeout(resolve, 100));
 
-        // Then open the comparison modal with the just-reviewed course and a random match
+        // Then open the comparison modal with the just-reviewed course and the median course
         router.push({
           pathname: '/(modals)/comparison',
           params: {
             courseAId: review.course_id,
-            courseBId: randomCourse.course_id,
+            courseBId: comparisonCourseId,
             remainingComparisons: totalComparisons,
             originalSentiment: review.rating,
             originalReviewedCourseId: review.course_id
@@ -301,12 +339,44 @@ export const ReviewProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       const reviewedCoursesWithSentiment = userReviews.filter(r => r.rating === rating);
       
       if (reviewedCoursesWithSentiment.length >= 2) {
-        // Implement proper randomization with shuffle
-        // This ensures courses aren't sorted in any particular order (like alphabetical)
-        const shuffledCourses = [...reviewedCoursesWithSentiment].sort(() => Math.random() - 0.5);
+        // Get the latest rankings in this sentiment category
+        const rankings = await rankingService.getUserRankings(user.id, rating);
+        console.log(`Found ${rankings.length} ranked courses in the '${rating}' category`);
         
-        // Take the first two courses from the properly shuffled array
-        const randomCourses = [shuffledCourses[0], shuffledCourses[1]];
+        let courseA, courseB;
+        
+        // Always try to find the median-ranked course for the initial comparison
+        const medianCourse = await getMedianRankedCourseInTier(user.id, rating);
+        console.log(`Using median-ranked course for initial comparison: ${medianCourse?.course_id}`);
+        
+        if (medianCourse && rankings.length >= 2) {
+          // We have a valid median course and enough rankings
+          // Get all courses that aren't the median for comparison
+          const otherCourses = reviewedCoursesWithSentiment.filter(
+            course => course.course_id !== medianCourse.course_id
+          );
+          
+          // Shuffle the other courses for randomness
+          const shuffledOtherCourses = [...otherCourses].sort(() => Math.random() - 0.5);
+          
+          // Use the median course as course A and a random other course as course B
+          courseA = { course_id: medianCourse.course_id };
+          courseB = shuffledOtherCourses[0];
+          
+          console.log(`Initial comparison set up: Median course ${courseA.course_id} vs Random course ${courseB.course_id}`);
+        } else {
+          // If no median or not enough rankings, fall back to random selection
+          console.log(`No median course found in '${rating}' category. Falling back to random selection.`);
+          
+          // Implement proper randomization with shuffle
+          const shuffledCourses = [...reviewedCoursesWithSentiment].sort(() => Math.random() - 0.5);
+          
+          // Take the first two courses from the properly shuffled array
+          courseA = shuffledCourses[0];
+          courseB = shuffledCourses[1];
+          
+          console.log(`Random selection: ${courseA.course_id} vs ${courseB.course_id}`);
+        }
         
         // Calculate max comparisons dynamically based on the count
         const maxComparisons = getMaxComparisons(reviewedCoursesWithSentiment.length);
@@ -315,23 +385,23 @@ export const ReviewProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         // Update the state with the calculated max comparisons
         setComparisonsRemaining(maxComparisons);
 
-        // Store the first course as the "original" for this session
-        setOriginalReviewedCourseId(randomCourses[0].course_id);
+        // Store course A as the "original" for this session
+        setOriginalReviewedCourseId(courseA.course_id);
 
         // Then open the comparison modal
         router.push({
           pathname: '/(modals)/comparison',
           params: {
-            courseAId: randomCourses[0].course_id,
-            courseBId: randomCourses[1].course_id,
+            courseAId: courseA.course_id,
+            courseBId: courseB.course_id,
             remainingComparisons: maxComparisons,
             originalSentiment: rating,
-            originalReviewedCourseId: randomCourses[0].course_id
+            originalReviewedCourseId: courseA.course_id
           },
         });
 
-        console.log(`Starting comparison flow with ${randomCourses[0].course_id} as the constant course being compared`);
-        console.log(`First comparison will be between ${randomCourses[0].course_id} and ${randomCourses[1].course_id}`);
+        console.log(`Starting comparison flow with ${courseA.course_id} as the constant course being compared`);
+        console.log(`First comparison will be between ${courseA.course_id} and ${courseB.course_id}`);
         console.log(`Will perform a total of ${maxComparisons} comparisons`);
       } else {
         // Not enough reviewed courses, show success screen for the first course
@@ -368,6 +438,8 @@ export const ReviewProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     }
 
     try {
+      console.log(`Processing comparison result: ${preferredCourseId} was preferred over ${otherCourseId}`);
+      
       // Store the comparison result
       setComparisonResults(prev => [
         ...prev,
@@ -379,8 +451,10 @@ export const ReviewProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       const originalReview = userReviews.find(r => r.course_id === originalReviewedCourseId);
       
       if (originalReview) {
+        const sentiment = originalReview.rating as SentimentRating;
+        
         // Get current rankings and ensure both courses have rankings
-        const rankings = await rankingService.getUserRankings(user.id, originalReview.rating);
+        const rankings = await rankingService.getUserRankings(user.id, sentiment);
         const preferredCourseRanking = rankings.find(r => r.course_id === preferredCourseId);
         const otherCourseRanking = rankings.find(r => r.course_id === otherCourseId);
 
@@ -389,14 +463,14 @@ export const ReviewProvider: React.FC<{ children: React.ReactNode }> = ({ childr
           await rankingService.addCourseRanking(
             user.id,
             preferredCourseId,
-            originalReview.rating
+            sentiment
           );
         }
         if (!otherCourseRanking) {
           await rankingService.addCourseRanking(
             user.id,
             otherCourseId,
-            originalReview.rating
+            sentiment
           );
         }
 
@@ -405,37 +479,29 @@ export const ReviewProvider: React.FC<{ children: React.ReactNode }> = ({ childr
           user.id,
           preferredCourseId,
           otherCourseId,
-          originalReview.rating
+          sentiment
         );
 
         // Check if this is the first comparison (comparing with the median)
         const isFirstComparison = comparisonResults.length === 0;
         
         if (isFirstComparison) {
+          console.log('This was the first comparison (against the median course)');
+          
           // Sort rankings by position to find top and bottom courses
           const sortedRankings = [...rankings].sort((a, b) => a.rank_position - b.rank_position);
           const topCourse = sortedRankings.length > 0 ? sortedRankings[0] : null;
           const bottomCourse = sortedRankings.length > 0 ? sortedRankings[sortedRankings.length - 1] : null;
           
-          // Check if we've already compared with the top or bottom course
+          // Is the new course the one that was preferred?
           const isNewCoursePreferred = preferredCourseId === originalReviewedCourseId;
-          const isTopCourseComparison = comparisonResults.some(result => 
-            result.preferredId === originalReviewedCourseId && otherCourseId === topCourse?.course_id
-          );
-          const isBottomCourseComparison = comparisonResults.some(result => 
-            result.preferredId === originalReviewedCourseId && otherCourseId === bottomCourse?.course_id
-          );
           
-          // Case 1: New course preferred over median - compare with top course next
-          if (isNewCoursePreferred && !isTopCourseComparison && topCourse) {
-            // Only if the top course isn't the one we just compared with
-            if (topCourse.course_id !== otherCourseId) {
-              console.log(`New course won against median. Next comparison will be against top course: ${topCourse.course_id}`);
+          if (isNewCoursePreferred) {
+            console.log('New course was preferred over the median course');
+            // New course > Median: Next comparison should be against the top course
+            if (topCourse && topCourse.course_id !== otherCourseId) {
+              console.log(`Next comparison will be against top course: ${topCourse.course_id}`);
               
-              // Use the sentiment from the original review
-              const sentiment = originalReview.rating as SentimentRating;
-              
-              // Push to the comparison with the top-ranked course
               router.push({
                 pathname: '/(modals)/comparison',
                 params: {
@@ -448,17 +514,12 @@ export const ReviewProvider: React.FC<{ children: React.ReactNode }> = ({ childr
               });
               return;
             }
-          }
-          // Case 2: Median preferred over new course - compare with bottom course next
-          else if (!isNewCoursePreferred && !isBottomCourseComparison && bottomCourse) {
-            // Only if the bottom course isn't the one we just compared with
-            if (bottomCourse.course_id !== preferredCourseId) {
-              console.log(`Median course won against new course. Next comparison will be against bottom course: ${bottomCourse.course_id}`);
+          } else {
+            console.log('Median course was preferred over the new course');
+            // Median > New course: Next comparison should be against the bottom course
+            if (bottomCourse && bottomCourse.course_id !== preferredCourseId) {
+              console.log(`Next comparison will be against bottom course: ${bottomCourse.course_id}`);
               
-              // Use the sentiment from the original review
-              const sentiment = originalReview.rating as SentimentRating;
-              
-              // Push to the comparison with the bottom-ranked course
               router.push({
                 pathname: '/(modals)/comparison',
                 params: {
@@ -474,6 +535,7 @@ export const ReviewProvider: React.FC<{ children: React.ReactNode }> = ({ childr
           }
         }
 
+        // Decrement the comparisons counter for subsequent comparisons
         const newComparisonsRemaining = comparisonsRemaining - 1;
         setComparisonsRemaining(newComparisonsRemaining);
 
@@ -481,6 +543,7 @@ export const ReviewProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         console.log(`Original course being compared consistently: ${originalReviewedCourseId}`);
 
         if (newComparisonsRemaining > 0) {
+          // After first comparison, continue with rest of function as it was...
           // Get all previously compared courses
           const comparedCourseIds = new Set();
           // Always include the original course as it's part of every comparison

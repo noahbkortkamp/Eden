@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState, useMemo, useCallback } from 'react';
 import { View, ScrollView, SafeAreaView, Platform, Dimensions, StyleSheet, TouchableOpacity } from 'react-native';
-import { useTheme } from '../theme/ThemeProvider';
+import { useEdenTheme } from '../theme/ThemeProvider';
 import { MapPin, DollarSign, Calendar } from 'lucide-react-native';
 import { Course } from '../types/review';
 import { usePlayedCourses } from '../context/PlayedCoursesContext';
@@ -24,7 +24,7 @@ export const PlayedCoursesList = React.memo(({
   handleCoursePress,
   showScores = false,
 }: PlayedCoursesListProps) => {
-  const theme = useTheme();
+  const theme = useEdenTheme();
   const scrollViewRef = useRef<ScrollView>(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
   // Get the global course state
@@ -99,10 +99,10 @@ export const PlayedCoursesList = React.memo(({
   
   // Helper function to get score color
   const getScoreColor = useCallback((score: number) => {
-    if (score >= 7.0) return '#22c55e'; // Green for good scores (7.0-10.0)
-    if (score >= 3.0) return '#eab308'; // Yellow for average scores (3.0-6.9)
-    return '#ef4444'; // Red for poor scores (0.0-2.9)
-  }, []);
+    if (score >= 7.0) return theme.colors.success; // Green for good scores (7.0-10.0)
+    if (score >= 3.0) return theme.colors.warning; // Yellow for average scores (3.0-6.9)
+    return theme.colors.error; // Red for poor scores (0.0-2.9)
+  }, [theme]);
 
   // IMPORTANT: Memoize coursesToRender calculation but initialize with valid data
   const coursesToRender = useMemo(() => {
@@ -137,13 +137,17 @@ export const PlayedCoursesList = React.memo(({
   }
 
   return (
-    <SafeAreaView style={edenStyles.safeArea}>
+    <SafeAreaView style={{ flex: 1, backgroundColor: theme.colors.background }}>
       <ScrollView 
         ref={scrollViewRef}
-        contentContainerStyle={edenStyles.scrollContent}
+        contentContainerStyle={{
+          flexGrow: 1,
+          padding: theme.spacing.md,
+          paddingBottom: Platform.OS === 'ios' ? 100 : 90, // Extra padding for tab bar
+        }}
         showsVerticalScrollIndicator={true}
       >
-        {coursesToRender.map((course) => {
+        {coursesToRender.map((course, index) => {
           // Format date if available
           const datePlayed = course.date_played ? 
             format(new Date(course.date_played), 'MMM d, yyyy') : null;
@@ -154,53 +158,54 @@ export const PlayedCoursesList = React.memo(({
               variant="course"
               pressable
               onPress={() => onCourseSelect(course)}
-              style={edenStyles.courseCard}
+              style={{ marginBottom: theme.spacing.md }}
             >
-              <View>
-                <Heading3 numberOfLines={2} style={edenStyles.courseName}>
-                  {course.name}
-                </Heading3>
-                
-                {datePlayed && (
-                  <View style={edenStyles.datePlayedContainer}>
-                    <Calendar size={14} color={theme.colors.textSecondary} />
-                    <SmallText style={edenStyles.datePlayedText}>
-                      {datePlayed}
+              <View style={{ flexDirection: 'row' }}>
+                <View style={{ flex: 1 }}>
+                  <Heading3 numberOfLines={2} style={{ marginBottom: theme.spacing.sm, flexWrap: 'wrap', paddingRight: 50 }}>
+                    {index + 1}. {course.name}
+                  </Heading3>
+                  
+                  {datePlayed && (
+                    <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: theme.spacing.sm }}>
+                      <Calendar size={14} color={theme.colors.textSecondary} />
+                      <SmallText style={{ marginLeft: theme.spacing.sm, color: theme.colors.textSecondary }}>
+                        {datePlayed}
+                      </SmallText>
+                    </View>
+                  )}
+                  
+                  <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: theme.spacing.md, flexWrap: 'wrap' }}>
+                    <MapPin size={16} color={theme.colors.textSecondary} />
+                    <SmallText 
+                      style={{ marginLeft: theme.spacing.sm, color: theme.colors.textSecondary }} 
+                      numberOfLines={2}
+                    >
+                      {course.location || 'Unknown location'}
                     </SmallText>
                   </View>
-                )}
-                
-                <View style={edenStyles.locationContainer}>
-                  <MapPin size={16} color={theme.colors.textSecondary} />
-                  <SmallText style={edenStyles.locationText} numberOfLines={2}>
-                    {course.location || 'Unknown location'}
-                  </SmallText>
                 </View>
                 
-                <View style={edenStyles.detailsContainer}>
-                  <View style={edenStyles.leftSection}>
-                    <View style={edenStyles.courseType}>
-                      <SmallText style={edenStyles.courseTypeText} numberOfLines={1}>
-                        {course.type || 'Golf Course'}
-                      </SmallText>
-                    </View>
-                  </View>
-                  
-                  <View style={edenStyles.centerSection}>
-                    <SmallText style={edenStyles.priceLevel}>
-                      {getPriceLevel(course.price_level || 0)}
+                <View style={{
+                  position: 'absolute',
+                  top: 0,
+                  right: 0,
+                }}>
+                  <View style={{
+                    backgroundColor: getScoreColor(course.rating || 0),
+                    borderRadius: theme.borderRadius.full,
+                    width: 36,
+                    height: 36,
+                    justifyContent: 'center',
+                    alignItems: 'center',
+                  }}>
+                    <SmallText style={{ 
+                      color: theme.colors.text,
+                      fontWeight: theme.typography.button.fontWeight,
+                      fontSize: 15,
+                    }}>
+                      {(showScores) ? (course.rating ? course.rating.toFixed(1) : '-') : '-'}
                     </SmallText>
-                  </View>
-                  
-                  <View style={edenStyles.rightSection}>
-                    <View style={[
-                      edenStyles.scoreContainer, 
-                      { backgroundColor: getScoreColor(course.rating || 0) }
-                    ]}>
-                      <SmallText style={edenStyles.scoreText}>
-                        {(showScores) ? (course.rating ? course.rating.toFixed(1) : '-') : '-'}
-                      </SmallText>
-                    </View>
                   </View>
                 </View>
               </View>

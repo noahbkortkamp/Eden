@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { View, FlatList, ActivityIndicator, StyleSheet, TouchableOpacity } from 'react-native';
 import { Course } from '../types/review';
-import { useTheme } from '../theme/ThemeProvider';
+import { useEdenTheme } from '../theme/ThemeProvider';
 import { MapPin, X } from 'lucide-react-native';
 import { usePlayedCourses } from '../context/PlayedCoursesContext';
 import { supabase } from '../utils/supabase';
@@ -23,7 +23,7 @@ export const WantToPlayCoursesList = React.memo(({
   handleCoursePress, 
   showScores = false
 }: WantToPlayCoursesListProps) => {
-  const theme = useTheme();
+  const theme = useEdenTheme();
   const { user } = useAuth();
   const { wantToPlayCourses: globalWantToPlayCourses, setNeedsRefresh } = usePlayedCourses();
   const [removingId, setRemovingId] = React.useState<string | null>(null);
@@ -124,10 +124,10 @@ export const WantToPlayCoursesList = React.memo(({
   
   console.log(`WantToPlayCoursesList rendering ${internalCourses.length} courses`);
   
-  // Render the courses list - using Eden design system with a simpler list format
+  // Render the courses list using Eden design system
   return (
-    <View style={edenStyles.container}>
-      <View style={edenStyles.header}>
+    <View style={{ flex: 1, backgroundColor: theme.colors.background }}>
+      <View style={{ paddingHorizontal: theme.spacing.lg, paddingVertical: theme.spacing.sm }}>
         <SmallText color={theme.colors.textSecondary}>
           {internalCourses.length} Bookmarked {internalCourses.length === 1 ? 'Course' : 'Courses'}
         </SmallText>
@@ -137,25 +137,43 @@ export const WantToPlayCoursesList = React.memo(({
         data={internalCourses}
         keyExtractor={(item) => item.id.toString()}
         renderItem={({ item }) => (
-          <View style={edenStyles.courseRow}>
+          <View style={{
+            flexDirection: 'row',
+            alignItems: 'center',
+            paddingVertical: theme.spacing.md,
+            borderBottomWidth: 1,
+            borderBottomColor: theme.colors.border,
+            width: '100%',
+          }}>
             <TouchableOpacity
-              style={edenStyles.courseContent}
+              style={{ flex: 1, paddingRight: theme.spacing.xs }}
               onPress={() => handleCoursePress(item)}
               activeOpacity={0.7}
             >
-              <BodyText style={edenStyles.courseName} numberOfLines={1}>
+              <BodyText 
+                style={{ 
+                  fontSize: 17, 
+                  fontWeight: '600', 
+                  marginBottom: 4, 
+                  color: theme.colors.text 
+                }} 
+                numberOfLines={1}
+              >
                 {item.name}
               </BodyText>
-              <View style={edenStyles.locationContainer}>
+              <View style={{ flexDirection: 'row', alignItems: 'center' }}>
                 <MapPin size={14} color={theme.colors.textSecondary} />
-                <SmallText style={edenStyles.locationText} numberOfLines={1}>
+                <SmallText 
+                  style={{ marginLeft: 4, color: theme.colors.textSecondary }} 
+                  numberOfLines={1}
+                >
                   {item.location || 'No location data'}
                 </SmallText>
               </View>
             </TouchableOpacity>
             
             <TouchableOpacity
-              style={edenStyles.removeButton}
+              style={{ padding: theme.spacing.sm, marginLeft: theme.spacing.xs }}
               onPress={() => removeBookmark(item.id)}
               disabled={removingId === item.id}
             >
@@ -167,56 +185,9 @@ export const WantToPlayCoursesList = React.memo(({
             </TouchableOpacity>
           </View>
         )}
-        contentContainerStyle={edenStyles.listContent}
+        contentContainerStyle={{ paddingHorizontal: theme.spacing.md, paddingBottom: 120 }}
         showsVerticalScrollIndicator={true}
       />
     </View>
   );
-});
-
-// Eden styled styles
-const edenStyles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#F8F5EC', // Eden background color
-  },
-  header: {
-    paddingHorizontal: 20,
-    paddingVertical: 12,
-  },
-  listContent: {
-    paddingHorizontal: 16,
-    paddingBottom: 120,
-  },
-  courseRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: '#E0E0DC', // Eden border color
-    width: '100%',
-  },
-  courseContent: {
-    flex: 1,
-    paddingRight: 8,
-  },
-  courseName: {
-    fontSize: 17,
-    fontWeight: '600',
-    marginBottom: 4,
-    color: '#234D2C', // Eden primary text color
-  },
-  locationContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  locationText: {
-    fontSize: 14,
-    marginLeft: 4,
-    color: '#4A5E50', // Eden secondary text color
-  },
-  removeButton: {
-    padding: 10,
-    marginLeft: 8,
-  }
 }); 
