@@ -1,10 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import { View, StyleSheet, SafeAreaView, TouchableWithoutFeedback, Keyboard, KeyboardAvoidingView, Platform, ScrollView, LayoutAnimation } from 'react-native';
+import { View, StyleSheet, SafeAreaView, TouchableWithoutFeedback, Keyboard, KeyboardAvoidingView, Platform, ScrollView, LayoutAnimation, TouchableOpacity } from 'react-native';
 import { Text, TextInput, Button } from 'react-native-paper';
-import { Link } from 'expo-router';
+import { Link, useRouter } from 'expo-router';
 import { useAuth } from '../context/AuthContext';
 import { errorHandler } from '../utils/errorHandling';
 import { edenTheme } from '../theme/edenTheme';
+import { Ionicons } from '@expo/vector-icons';
 
 export default function LoginScreen() {
   const [email, setEmail] = useState('');
@@ -14,6 +15,7 @@ export default function LoginScreen() {
   const [error, setError] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const { signIn, signInWithGoogle } = useAuth();
+  const router = useRouter();
 
   // Configure keyboard animations
   useEffect(() => {
@@ -87,8 +89,13 @@ export default function LoginScreen() {
         <KeyboardAvoidingView 
           behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
           style={styles.keyboardAvoidingView}
-          keyboardVerticalOffset={Platform.OS === 'ios' ? 10 : 0}
+          keyboardVerticalOffset={Platform.OS === 'ios' ? 40 : 0}
         >
+          <View style={styles.closeButtonContainer}>
+            <TouchableOpacity onPress={() => router.replace('/(auth)/welcome')} hitSlop={16}>
+              <Ionicons name="close" size={32} color={edenTheme.colors.text} />
+            </TouchableOpacity>
+          </View>
           <ScrollView 
             contentContainerStyle={styles.scrollViewContent}
             keyboardShouldPersistTaps="handled"
@@ -96,13 +103,15 @@ export default function LoginScreen() {
           >
             <View style={styles.container}>
               <Text 
-                variant="headlineLarge" 
-                style={[styles.title, { 
-                  fontFamily: edenTheme.typography.h1.fontFamily, 
-                  fontWeight: edenTheme.typography.h1.fontWeight as any
+                variant="headlineLarge"
+                style={[styles.title, {
+                  fontFamily: edenTheme.typography.h1.fontFamily,
+                  fontWeight: edenTheme.typography.h1.fontWeight as any,
+                  textAlign: 'left',
+                  marginBottom: edenTheme.spacing.xl,
                 }]}
               >
-                Welcome Back
+                Log in to Eden
               </Text>
               
               {error ? <Text style={styles.error}>{error}</Text> : null}
@@ -196,9 +205,28 @@ export default function LoginScreen() {
                 Continue with Google
               </Button>
 
+              <Button
+                mode="outlined"
+                disabled
+                style={[styles.googleButton, styles.disabledAppleButton]}
+                icon="apple"
+                textColor={edenTheme.colors.textSecondary}
+                labelStyle={{
+                  fontFamily: edenTheme.typography.buttonSecondary.fontFamily,
+                  fontWeight: edenTheme.typography.buttonSecondary.fontWeight as any,
+                }}
+                theme={{
+                  colors: {
+                    outline: edenTheme.components.button.secondary.borderColor,
+                  }
+                }}
+              >
+                Continue with Apple
+              </Button>
+
               <View style={styles.footer}>
                 <Text style={{ color: edenTheme.colors.text }}>Don't have an account? </Text>
-                <Link href="/auth/signup">
+                <Link href="/(auth)/onboarding-signup">
                   <Text style={[styles.link, { color: edenTheme.colors.primary }]}>Sign Up</Text>
                 </Link>
               </View>
@@ -230,7 +258,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   title: {
-    textAlign: 'center',
+    textAlign: 'left',
     marginBottom: edenTheme.spacing.xl,
     fontWeight: 'bold',
   },
@@ -273,5 +301,15 @@ const styles = StyleSheet.create({
   googleButton: {
     borderRadius: edenTheme.borderRadius.md,
     paddingVertical: edenTheme.spacing.xs,
+    marginBottom: edenTheme.spacing.md,
+  },
+  disabledAppleButton: {
+    opacity: 0.5,
+  },
+  closeButtonContainer: {
+    position: 'absolute',
+    top: 24,
+    right: 24,
+    zIndex: 10,
   },
 }); 
