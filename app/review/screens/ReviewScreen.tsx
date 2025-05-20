@@ -1,22 +1,24 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { View, Text, ScrollView, TouchableOpacity, StyleSheet, ActivityIndicator, TextInput, InputAccessoryView, Keyboard, Platform, KeyboardAvoidingView, Pressable, Modal, KeyboardEvent, Dimensions } from 'react-native';
+import { View, ScrollView, TouchableOpacity, StyleSheet, ActivityIndicator, TextInput, InputAccessoryView, Keyboard, Platform, KeyboardAvoidingView, Pressable, Modal, KeyboardEvent, Dimensions } from 'react-native';
 import { Image } from 'expo-image';
-import { useTheme } from '../../theme/ThemeProvider';
+import { useTheme, useEdenTheme } from '../../theme/ThemeProvider';
 import { ReviewScreenProps, SentimentRating } from '../../types/review';
 import { format } from 'date-fns';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import * as ImagePicker from 'expo-image-picker';
 import { TagSelectionModal } from '../components/TagSelectionModal';
 import { Tag, TAGS_BY_CATEGORY } from '../constants/tags';
-import { ChevronRight } from 'lucide-react-native';
+import { ChevronRight, Check, Minus, X } from 'lucide-react-native';
 import { FavoriteHolesModal, FavoriteHole } from '../components/FavoriteHolesModal';
 import { PlayingPartnersModal } from '../components/PlayingPartnersModal';
 import { User } from '../../types';
+import { Heading2, Heading3, BodyText, SmallText } from '../../components/eden/Typography';
 
+// Sentiment rating options with their corresponding icons
 const SENTIMENT_ICONS = {
-  liked: '✅',
-  fine: '🟡',
-  didnt_like: '❌',
+  liked: <Check size={24} color="#234D2C" />,
+  fine: <Minus size={24} color="#4A5E50" />,
+  didnt_like: <X size={24} color="#4A5E50" />,
 };
 
 export const ReviewScreen: React.FC<ReviewScreenProps> = ({ 
@@ -26,6 +28,7 @@ export const ReviewScreen: React.FC<ReviewScreenProps> = ({
   error 
 }) => {
   const theme = useTheme();
+  const edenTheme = useEdenTheme();
   const [rating, setRating] = useState<SentimentRating | null>(null);
   const [notes, setNotes] = useState('');
   const [tags, setTags] = useState<string[]>([]);
@@ -180,74 +183,52 @@ export const ReviewScreen: React.FC<ReviewScreenProps> = ({
   const styles = StyleSheet.create({
     container: {
       flex: 1,
-      backgroundColor: theme.colors.background,
+      backgroundColor: edenTheme.colors.background,
     },
     header: {
-      padding: 12,
-      paddingBottom: 14,
-      backgroundColor: theme.colors.background,
+      padding: edenTheme.spacing.md,
+      paddingBottom: edenTheme.spacing.lg,
+      backgroundColor: edenTheme.colors.background,
       borderBottomWidth: 1,
-      borderBottomColor: theme.colors.border,
-    },
-    courseName: {
-      fontSize: 26,
-      fontWeight: '700',
-      color: theme.colors.text,
+      borderBottomColor: edenTheme.colors.border,
     },
     sectionDivider: {
       height: 1,
-      backgroundColor: theme.colors.border,
+      backgroundColor: edenTheme.colors.border,
     },
     section: {
-      padding: 12,
+      padding: edenTheme.spacing.md,
       borderBottomWidth: 1,
-      borderBottomColor: theme.colors.border,
-    },
-    sectionTitle: {
-      fontSize: 20,
-      fontWeight: '600',
-      marginBottom: 12,
-      color: theme.colors.text,
-    },
-    labelText: {
-      fontSize: 16,
-      fontWeight: '600',
-      color: theme.colors.text,
-    },
-    valueText: {
-      fontSize: 15,
-      color: theme.colors.textSecondary,
-      marginLeft: 'auto',
+      borderBottomColor: edenTheme.colors.border,
     },
     rowContainer: {
       flexDirection: 'row',
       alignItems: 'center',
       justifyContent: 'space-between',
-      paddingVertical: 10,
-      paddingHorizontal: 12,
+      paddingVertical: edenTheme.spacing.sm,
+      paddingHorizontal: edenTheme.spacing.md,
     },
     sentimentContainer: {
       flexDirection: 'row',
       justifyContent: 'center',
-      marginTop: 10,
-      marginBottom: 10,
-      gap: 8,
+      marginTop: edenTheme.spacing.md,
+      marginBottom: edenTheme.spacing.md,
+      gap: edenTheme.spacing.sm,
     },
     sentimentButton: {
       alignItems: 'center',
       justifyContent: 'center',
-      width: 100,
+      width: 110,
       height: 80,
-      borderRadius: 8,
-      paddingVertical: 8,
-      paddingHorizontal: 12,
-      marginHorizontal: 4,
+      borderRadius: edenTheme.borderRadius.lg,
+      paddingVertical: edenTheme.spacing.sm,
+      paddingHorizontal: edenTheme.spacing.md,
+      borderWidth: 1,
+      borderColor: 'transparent',
     },
     selectedSentiment: {
-      backgroundColor: 'rgba(0, 122, 255, 0.08)',
       borderWidth: 2,
-      borderColor: '#007AFF',
-      borderRadius: 8,
+      borderColor: edenTheme.colors.primary,
     },
     sentimentIcon: {
       width: 40,
@@ -255,76 +236,67 @@ export const ReviewScreen: React.FC<ReviewScreenProps> = ({
       borderRadius: 20,
       justifyContent: 'center',
       alignItems: 'center',
-      marginBottom: 4,
+      marginBottom: edenTheme.spacing.xs,
     },
     sentimentIconLiked: {
-      backgroundColor: '#E8F5E9',
+      backgroundColor: edenTheme.colors.liked,
     },
     sentimentIconFine: {
-      backgroundColor: '#FFF8E1',
+      backgroundColor: edenTheme.colors.neutral,
     },
     sentimentIconDisliked: {
-      backgroundColor: '#FFEBEE',
-    },
-    iconText: {
-      fontSize: 20,
-      textAlign: 'center',
-    },
-    sentimentText: {
-      fontSize: 14,
-      fontWeight: '500',
-      color: theme.colors.text,
-      marginTop: 2,
+      backgroundColor: edenTheme.colors.disliked,
     },
     notesInput: {
       borderWidth: 1,
-      borderColor: theme.colors.border,
-      borderRadius: 8,
-      padding: 10,
+      borderColor: edenTheme.colors.border,
+      borderRadius: edenTheme.borderRadius.md,
+      padding: edenTheme.spacing.sm,
       minHeight: 60,
-      marginTop: 8,
-      color: theme.colors.text,
+      marginTop: edenTheme.spacing.sm,
+      color: edenTheme.colors.text,
+      backgroundColor: edenTheme.colors.surface,
     },
     keyboardAccessory: {
-      backgroundColor: theme.colors.surface,
-      padding: 8,
+      backgroundColor: edenTheme.colors.surface,
+      padding: edenTheme.spacing.sm,
       borderTopWidth: 1,
-      borderTopColor: theme.colors.border,
+      borderTopColor: edenTheme.colors.border,
       flexDirection: 'row',
       justifyContent: 'flex-end',
     },
     doneButton: {
-      padding: 8,
+      padding: edenTheme.spacing.sm,
     },
     doneButtonText: {
-      color: theme.colors.primary,
+      color: edenTheme.colors.primary,
       fontWeight: '600',
       fontSize: 16,
     },
     submitButton: {
-      marginHorizontal: 12,
-      marginTop: 12,
-      marginBottom: 12,
-      padding: 12,
-      backgroundColor: theme.colors.primary,
-      borderRadius: 8,
+      marginHorizontal: edenTheme.spacing.md,
+      marginTop: edenTheme.spacing.md,
+      marginBottom: edenTheme.spacing.md,
+      padding: edenTheme.spacing.md,
+      backgroundColor: edenTheme.colors.primary,
+      borderRadius: edenTheme.borderRadius.md,
       alignItems: 'center',
       flexDirection: 'row',
       justifyContent: 'center',
     },
     submitButtonDisabled: {
-      backgroundColor: theme.colors.textSecondary,
+      backgroundColor: edenTheme.colors.textSecondary,
     },
     submitButtonText: {
-      color: theme.colors.background,
+      color: 'white',
       fontWeight: '600',
       fontSize: 16,
       marginRight: isSubmitting ? 8 : 0,
     },
     errorText: {
-      color: theme.colors.error,
+      color: edenTheme.colors.error,
       textAlign: 'center',
-      marginTop: 6,
+      marginTop: edenTheme.spacing.xs,
     },
     modalOverlay: {
       flex: 1,
@@ -332,59 +304,46 @@ export const ReviewScreen: React.FC<ReviewScreenProps> = ({
       justifyContent: 'flex-end',
     },
     datePickerContainer: {
-      backgroundColor: 'white',
-      borderTopLeftRadius: 12,
-      borderTopRightRadius: 12,
+      backgroundColor: edenTheme.colors.surface,
+      borderTopLeftRadius: edenTheme.borderRadius.lg,
+      borderTopRightRadius: edenTheme.borderRadius.lg,
       paddingBottom: 20,
     },
     datePickerHeader: {
       flexDirection: 'row',
       justifyContent: 'space-between',
-      padding: 16,
+      padding: edenTheme.spacing.md,
       borderBottomWidth: 1,
-      borderBottomColor: '#eeeeee',
+      borderBottomColor: edenTheme.colors.border,
     },
     datePickerCancel: {
-      color: '#007AFF',
+      color: edenTheme.colors.primary,
       fontSize: 16,
     },
     datePickerDone: {
-      color: '#007AFF',
+      color: edenTheme.colors.primary,
       fontSize: 16,
       fontWeight: '600',
     },
     datePicker: {
       height: 250,
     },
+    fieldValue: {
+      color: edenTheme.colors.textSecondary,
+      marginLeft: 'auto',
+      fontSize: 15,
+    },
+    fieldLabelContainer: {
+      flexDirection: 'row',
+      alignItems: 'center',
+    },
   });
 
-  const renderSentimentIcon = (type: SentimentRating) => {
-    switch (type) {
-      case 'liked':
-        return (
-          <View style={[styles.sentimentIcon, styles.sentimentIconLiked]}>
-            <Text style={styles.iconText}>✓</Text>
-          </View>
-        );
-      case 'fine':
-        return (
-          <View style={[styles.sentimentIcon, styles.sentimentIconFine]}>
-            <Text style={styles.iconText}>—</Text>
-          </View>
-        );
-      case 'didnt_like':
-        return (
-          <View style={[styles.sentimentIcon, styles.sentimentIconDisliked]}>
-            <Text style={[styles.iconText, { fontWeight: '800' }]}>✕</Text>
-          </View>
-        );
-    }
-  };
-
+  // Sentiment labels
   const sentimentLabels = {
-    liked: 'Liked',
-    fine: 'Fine',
-    didnt_like: "Didn't Like"
+    liked: 'I like it',
+    fine: 'It was fine',
+    didnt_like: "Didn't like it"
   };
 
   return (
@@ -405,35 +364,50 @@ export const ReviewScreen: React.FC<ReviewScreenProps> = ({
       >
         {/* Course Header */}
         <View style={styles.header}>
-          <Text style={styles.courseName}>{course.name}</Text>
+          <Heading2>{course.name}</Heading2>
         </View>
 
         {/* Sentiment Rating */}
-        <View style={[styles.section, { paddingBottom: 8 }]}>
-          <Text style={styles.sectionTitle}>What did you think of the course?</Text>
+        <View style={[styles.section, { paddingBottom: edenTheme.spacing.sm }]}>
+          <Heading3 style={{ marginBottom: edenTheme.spacing.md }}>What did you think of the course?</Heading3>
           <View style={styles.sentimentContainer}>
-            {Object.keys(SENTIMENT_ICONS).map((key) => (
-              <TouchableOpacity
-                key={key}
-                style={[
-                  styles.sentimentButton,
-                  rating === key && [
-                    styles.selectedSentiment,
-                    key === 'didnt_like' && { backgroundColor: 'rgba(0, 122, 255, 0.04)' }
-                  ]
-                ]}
-                onPress={() => setRating(key as SentimentRating)}
-                disabled={isSubmitting}
-              >
-                {renderSentimentIcon(key as SentimentRating)}
-                <Text style={[
-                  styles.sentimentText,
-                  key === 'didnt_like' && { paddingHorizontal: 10 }
-                ]}>
-                  {sentimentLabels[key as SentimentRating]}
-                </Text>
-              </TouchableOpacity>
-            ))}
+            {Object.keys(SENTIMENT_ICONS).map((key) => {
+              const isSelected = rating === key;
+              let backgroundColor;
+              switch(key) {
+                case 'liked':
+                  backgroundColor = edenTheme.colors.liked;
+                  break;
+                case 'fine':
+                  backgroundColor = edenTheme.colors.neutral;
+                  break;
+                case 'didnt_like':
+                  backgroundColor = edenTheme.colors.disliked;
+                  break;
+                default:
+                  backgroundColor = edenTheme.colors.surface;
+              }
+              
+              return (
+                <TouchableOpacity
+                  key={key}
+                  style={[
+                    styles.sentimentButton,
+                    { backgroundColor },
+                    isSelected && styles.selectedSentiment,
+                  ]}
+                  onPress={() => setRating(key as SentimentRating)}
+                  disabled={isSubmitting}
+                >
+                  <View style={{ marginBottom: edenTheme.spacing.xs }}>
+                    {SENTIMENT_ICONS[key as SentimentRating]}
+                  </View>
+                  <BodyText bold={isSelected} style={{ fontSize: 13 }}>
+                    {sentimentLabels[key as SentimentRating]}
+                  </BodyText>
+                </TouchableOpacity>
+              );
+            })}
           </View>
         </View>
 
@@ -448,12 +422,12 @@ export const ReviewScreen: React.FC<ReviewScreenProps> = ({
               onPress={() => setShowTagsModal(true)}
               disabled={isSubmitting}
             >
-              <Text style={styles.labelText}>Tags</Text>
+              <BodyText bold>Tags</BodyText>
               <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                <Text style={styles.valueText}>
+                <SmallText style={styles.fieldValue}>
                   {tags.length > 0 ? getSelectedTagNames() : 'Select tags'}
-                </Text>
-                <ChevronRight size={16} color={theme.colors.textSecondary} style={{ marginLeft: 4 }} />
+                </SmallText>
+                <ChevronRight size={16} color={edenTheme.colors.textSecondary} style={{ marginLeft: 4 }} />
               </View>
             </TouchableOpacity>
 
@@ -465,12 +439,12 @@ export const ReviewScreen: React.FC<ReviewScreenProps> = ({
               onPress={() => setShowFavoriteHolesModal(true)}
               disabled={isSubmitting}
             >
-              <Text style={styles.labelText}>Favorite Holes</Text>
+              <BodyText bold>Favorite Holes</BodyText>
               <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                <Text style={styles.valueText}>
+                <SmallText style={styles.fieldValue}>
                   {favoriteHoles.length > 0 ? getFavoriteHolesPreview() : 'Add holes'}
-                </Text>
-                <ChevronRight size={16} color={theme.colors.textSecondary} style={{ marginLeft: 4 }} />
+                </SmallText>
+                <ChevronRight size={16} color={edenTheme.colors.textSecondary} style={{ marginLeft: 4 }} />
               </View>
             </TouchableOpacity>
 
@@ -482,12 +456,12 @@ export const ReviewScreen: React.FC<ReviewScreenProps> = ({
               onPress={() => setShowPlayingPartnersModal(true)}
               disabled={isSubmitting}
             >
-              <Text style={styles.labelText}>Playing Partners</Text>
+              <BodyText bold>Playing Partners</BodyText>
               <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                <Text style={styles.valueText}>
+                <SmallText style={styles.fieldValue}>
                   {playingPartners.length > 0 ? getPlayingPartnersPreview() : 'Select partners'}
-                </Text>
-                <ChevronRight size={16} color={theme.colors.textSecondary} style={{ marginLeft: 4 }} />
+                </SmallText>
+                <ChevronRight size={16} color={edenTheme.colors.textSecondary} style={{ marginLeft: 4 }} />
               </View>
             </TouchableOpacity>
 
@@ -499,158 +473,133 @@ export const ReviewScreen: React.FC<ReviewScreenProps> = ({
               onPress={handlePhotoUpload}
               disabled={isSubmitting}
             >
-              <Text style={styles.labelText}>Photos</Text>
+              <BodyText bold>Photos</BodyText>
               <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                <Text style={styles.valueText}>
+                <SmallText style={styles.fieldValue}>
                   {photos.length > 0 ? `${photos.length} photo${photos.length > 1 ? 's' : ''}` : 'Add Photos'}
-                </Text>
-                <ChevronRight size={16} color={theme.colors.textSecondary} style={{ marginLeft: 4 }} />
+                </SmallText>
+                <ChevronRight size={16} color={edenTheme.colors.textSecondary} style={{ marginLeft: 4 }} />
               </View>
             </TouchableOpacity>
 
             <View style={styles.sectionDivider} />
 
-            {/* Date Section */}
-            <View style={styles.rowContainer}>
-              <Text style={styles.labelText}>Date Played</Text>
-              <Pressable
-                onPress={openDatePicker}
-                disabled={isSubmitting}
-                style={({ pressed }) => [
-                  { 
-                    flexDirection: 'row', 
-                    alignItems: 'center',
-                    opacity: pressed ? 0.7 : 1,
-                    paddingVertical: 6,
-                    paddingHorizontal: 8,
-                  }
-                ]}
-                android_ripple={{ color: 'rgba(0, 0, 0, 0.1)' }}
-                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-              >
-                <Text style={styles.valueText}>
+            {/* Date Played Section */}
+            <TouchableOpacity
+              style={styles.rowContainer}
+              onPress={openDatePicker}
+              disabled={isSubmitting}
+            >
+              <BodyText bold>Date Played</BodyText>
+              <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                <SmallText style={styles.fieldValue}>
                   {format(datePlayed, 'MMMM d, yyyy')}
-                </Text>
-                <ChevronRight size={16} color={theme.colors.textSecondary} style={{ marginLeft: 4 }} />
-              </Pressable>
-            </View>
+                </SmallText>
+                <ChevronRight size={16} color={edenTheme.colors.textSecondary} style={{ marginLeft: 4 }} />
+              </View>
+            </TouchableOpacity>
 
             <View style={styles.sectionDivider} />
-            
-            {/* Notes Section - Minimized height */}
-            <View style={[styles.section, { paddingBottom: 8 }]}>
-              <Text style={styles.labelText}>Notes</Text>
+
+            {/* Notes Section */}
+            <View style={[styles.section, { paddingBottom: edenTheme.spacing.lg }]}>
+              <BodyText bold style={{ marginBottom: edenTheme.spacing.sm }}>Notes</BodyText>
               <TextInput
                 ref={notesInputRef}
                 style={styles.notesInput}
+                multiline
                 placeholder="Write about your experience..."
-                placeholderTextColor={theme.colors.textSecondary}
+                placeholderTextColor={edenTheme.colors.textSecondary}
                 value={notes}
                 onChangeText={setNotes}
-                multiline
-                numberOfLines={3}
-                textAlignVertical="top"
-                editable={!isSubmitting}
-                inputAccessoryViewID={inputAccessoryViewID}
                 onFocus={handleNotesFocus}
-                blurOnSubmit={false}
+                inputAccessoryViewID={inputAccessoryViewID}
+                maxLength={500}
+                returnKeyType="done"
+                blurOnSubmit={true}
+                disabled={isSubmitting}
               />
             </View>
-          </>
-        )}
 
-        {Platform.OS === 'ios' && (
-          <InputAccessoryView nativeID={inputAccessoryViewID}>
-            <View style={styles.keyboardAccessory}>
-              <TouchableOpacity
-                style={styles.doneButton}
-                onPress={() => Keyboard.dismiss()}
-              >
-                <Text style={styles.doneButtonText}>Done</Text>
-              </TouchableOpacity>
-            </View>
-          </InputAccessoryView>
-        )}
-
-        {/* iOS-specific date picker */}
-        {Platform.OS === 'ios' && showDatePicker && (
-          <Modal
-            transparent={true}
-            visible={showDatePicker}
-            animationType="fade"
-            onRequestClose={() => setShowDatePicker(false)}
-          >
-            <Pressable 
-              style={styles.modalOverlay} 
-              onPress={() => setShowDatePicker(false)}
+            {/* Submit Button */}
+            <TouchableOpacity
+              style={[
+                styles.submitButton,
+                (!rating || isSubmitting) && styles.submitButtonDisabled
+              ]}
+              onPress={handleSubmit}
+              disabled={!rating || isSubmitting}
             >
-              <View style={styles.datePickerContainer}>
-                <View style={styles.datePickerHeader}>
-                  <TouchableOpacity onPress={() => setShowDatePicker(false)}>
-                    <Text style={styles.datePickerCancel}>Cancel</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity 
-                    onPress={() => {
-                      setShowDatePicker(false);
-                    }}
-                  >
-                    <Text style={styles.datePickerDone}>Done</Text>
-                  </TouchableOpacity>
-                </View>
-                <DateTimePicker
-                  value={datePlayed}
-                  mode="date"
-                  display="spinner"
-                  onChange={(event, selectedDate) => {
-                    if (selectedDate) {
-                      setDatePlayed(selectedDate);
-                    }
-                  }}
-                  style={styles.datePicker}
-                />
-              </View>
-            </Pressable>
-          </Modal>
-        )}
+              <BodyText style={styles.submitButtonText}>Submit</BodyText>
+              {isSubmitting && <ActivityIndicator color="white" size="small" />}
+            </TouchableOpacity>
 
-        {/* Android date picker */}
-        {Platform.OS === 'android' && showDatePicker && (
-          <DateTimePicker
-            value={datePlayed}
-            mode="date"
-            display="calendar"
-            onChange={(event, selectedDate) => {
-              setShowDatePicker(false);
-              if (selectedDate) {
-                setDatePlayed(selectedDate);
-              }
-            }}
-          />
-        )}
-
-        {/* Error Message */}
-        {error && (
-          <Text style={styles.errorText}>{error}</Text>
+            {error && <SmallText style={styles.errorText}>{error}</SmallText>}
+          </>
         )}
       </ScrollView>
 
-      {/* Submit Button - Only show when a sentiment is selected */}
-      {rating && (
-        <View style={{ padding: 12, borderTopWidth: 1, borderTopColor: theme.colors.border }}>
-          <TouchableOpacity
-            style={[
-              styles.submitButton, 
-              isSubmitting && styles.submitButtonDisabled
-            ]}
-            onPress={handleSubmit}
-            disabled={isSubmitting}
-          >
-            <Text style={styles.submitButtonText}>Submit</Text>
-            {isSubmitting && <ActivityIndicator color={theme.colors.background} />}
-          </TouchableOpacity>
-        </View>
+      {/* Input Accessory View (iOS only) */}
+      {Platform.OS === 'ios' && (
+        <InputAccessoryView nativeID={inputAccessoryViewID}>
+          <View style={styles.keyboardAccessory}>
+            <TouchableOpacity style={styles.doneButton} onPress={() => Keyboard.dismiss()}>
+              <SmallText style={styles.doneButtonText}>Done</SmallText>
+            </TouchableOpacity>
+          </View>
+        </InputAccessoryView>
       )}
 
+      {/* Date Picker Modal (iOS) */}
+      {Platform.OS === 'ios' && (
+        <Modal
+          visible={showDatePicker}
+          transparent
+          animationType="slide"
+        >
+          <View style={styles.modalOverlay}>
+            <View style={styles.datePickerContainer}>
+              <View style={styles.datePickerHeader}>
+                <TouchableOpacity onPress={() => setShowDatePicker(false)}>
+                  <SmallText style={styles.datePickerCancel}>Cancel</SmallText>
+                </TouchableOpacity>
+                <TouchableOpacity onPress={() => setShowDatePicker(false)}>
+                  <SmallText style={styles.datePickerDone}>Done</SmallText>
+                </TouchableOpacity>
+              </View>
+              <DateTimePicker
+                value={datePlayed}
+                mode="date"
+                display="spinner"
+                onChange={(event, selectedDate) => {
+                  if (selectedDate) {
+                    setDatePlayed(selectedDate);
+                  }
+                }}
+                style={styles.datePicker}
+                maximumDate={new Date()}
+              />
+            </View>
+          </View>
+        </Modal>
+      )}
+      
+      {/* Android Date Picker */}
+      {Platform.OS === 'android' && showDatePicker && (
+        <DateTimePicker
+          value={datePlayed}
+          mode="date"
+          onChange={(event, selectedDate) => {
+            setShowDatePicker(false);
+            if (selectedDate) {
+              setDatePlayed(selectedDate);
+            }
+          }}
+          maximumDate={new Date()}
+        />
+      )}
+
+      {/* Tag Selection Modal */}
       <TagSelectionModal
         visible={showTagsModal}
         onClose={() => setShowTagsModal(false)}
@@ -658,21 +607,23 @@ export const ReviewScreen: React.FC<ReviewScreenProps> = ({
         selectedTags={tags.map(tagId => {
           const allTags = Object.values(TAGS_BY_CATEGORY).flat();
           return allTags.find(t => t.id === tagId);
-        }).filter(Boolean)}
+        }).filter(Boolean) as Tag[]}
       />
 
+      {/* Favorite Holes Modal */}
       <FavoriteHolesModal
         visible={showFavoriteHolesModal}
         onClose={() => setShowFavoriteHolesModal(false)}
-        onSave={setFavoriteHoles}
+        onSave={(holes) => setFavoriteHoles(holes)}
         selectedHoles={favoriteHoles}
         totalHoles={18}
       />
 
+      {/* Playing Partners Modal */}
       <PlayingPartnersModal
         visible={showPlayingPartnersModal}
         onClose={() => setShowPlayingPartnersModal(false)}
-        onSave={setPlayingPartners}
+        onSave={(partners) => setPlayingPartners(partners)}
         selectedUsers={playingPartners}
       />
     </KeyboardAvoidingView>
