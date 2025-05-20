@@ -10,21 +10,19 @@ export default function AuthLayout() {
   const theme = useTheme();
   const colorScheme = useColorScheme();
 
-  // If not authenticated, redirect to login
-  if (!user) {
-    return <Stack redirect="/auth/login" />;
-  }
+  // Note: No redirect here to allow showing the welcome screen to unauthenticated users
 
   return (
     <Stack
       screenOptions={{
-        headerShown: false,
+      headerShown: false,
         contentStyle: {
           backgroundColor: theme.colors.background,
         },
       }}
     >
       <Stack.Screen name="welcome" options={{ headerShown: false }} />
+      <Stack.Screen name="onboarding-signup" options={{ headerShown: false }} />
       <Stack.Screen
         name="first-review"
         options={{

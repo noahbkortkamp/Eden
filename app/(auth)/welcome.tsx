@@ -11,7 +11,7 @@ export default function WelcomeScreen() {
   const { height } = useWindowDimensions();
   
   const handleGetStarted = () => {
-    router.push('/auth/signup');
+    router.push('/(auth)/onboarding-signup');
   };
   
   const handleLogin = () => {
