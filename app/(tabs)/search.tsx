@@ -185,6 +185,8 @@ export default function SearchScreen() {
   const [bookmarkedCourseIds, setBookmarkedCourseIds] = useState<Set<string>>(new Set());
   const [bookmarkLoading, setBookmarkLoading] = useState<{[key: string]: boolean}>({});
   const [initialLoadComplete, setInitialLoadComplete] = useState(false);
+  const coursesListRef = useRef<FlatList>(null);
+  const membersListRef = useRef<FlatList>(null);
   
   // Track if we're coming from review success
   const isFromReviewSuccess = params.fromReviewSuccess === 'true';
@@ -474,6 +476,25 @@ export default function SearchScreen() {
     debouncedSearch(searchQuery);
   }, [searchQuery, activeTab, debouncedSearch]);
 
+  // Add effect to scroll to top when search results change
+  useEffect(() => {
+    // Ensure the list scrolls to top when results change
+    if (activeTab === 'courses' && coursesListRef.current) {
+      setTimeout(() => {
+        coursesListRef.current?.scrollToOffset({ offset: 0, animated: true });
+      }, 50); // Small timeout to ensure the list has updated
+    }
+  }, [courses, activeTab]);
+
+  // Similar effect for members list
+  useEffect(() => {
+    if (activeTab === 'members' && membersListRef.current) {
+      setTimeout(() => {
+        membersListRef.current?.scrollToOffset({ offset: 0, animated: true });
+      }, 50);
+    }
+  }, [users, activeTab]);
+
   // Add a ref to track the last pressed course to prevent double clicks
   const lastCoursePress = useRef<{ id: string, time: number } | null>(null);
   
@@ -520,8 +541,16 @@ export default function SearchScreen() {
     
     if (activeTab === 'courses') {
       loadCourses();
+      // Scroll courses list to top after clearing search
+      setTimeout(() => {
+        coursesListRef.current?.scrollToOffset({ offset: 0, animated: false });
+      }, 50);
     } else {
       setUsers([]);
+      // Scroll members list to top after clearing search
+      setTimeout(() => {
+        membersListRef.current?.scrollToOffset({ offset: 0, animated: false });
+      }, 50);
     }
   };
 
@@ -534,8 +563,16 @@ export default function SearchScreen() {
     if (tab === 'courses') {
       setUsers([]);
       loadCourses();
+      // Ensure courses list is at the top
+      setTimeout(() => {
+        coursesListRef.current?.scrollToOffset({ offset: 0, animated: false });
+      }, 50);
     } else {
       setCourses([]);
+      // Ensure members list is at the top
+      setTimeout(() => {
+        membersListRef.current?.scrollToOffset({ offset: 0, animated: false });
+      }, 50);
     }
   };
 
@@ -788,29 +825,26 @@ export default function SearchScreen() {
         {/* Courses Tab Content */}
         {activeTab === 'courses' && !loading && !error && courses.length > 0 && (
           <FlatList
-            keyboardShouldPersistTaps="always" // Changed from "handled" to "always" for better touch handling
+            key={`courses-${searchQuery}`}
+            keyboardShouldPersistTaps="always"
             keyboardDismissMode="on-drag"
             data={courses}
             keyExtractor={keyExtractor}
             initialNumToRender={8}
             maxToRenderPerBatch={5}
             windowSize={5}
-            removeClippedSubviews={Platform.OS === 'android'} // Only use on Android for better iOS touch handling
+            removeClippedSubviews={Platform.OS === 'android'}
             
             getItemLayout={getItemLayout}
             updateCellsBatchingPeriod={50}
             
-            maintainVisibleContentPosition={{
-              minIndexForVisible: 0,
-              autoscrollToTopThreshold: 10
-            }}
+            ref={coursesListRef}
             
             renderItem={renderCourseItem}
             
             contentContainerStyle={styles.listContent}
             ListFooterComponent={<View style={styles.listFooter} />}
             
-            // Add props to improve responsiveness
             pointerEvents="auto"
             scrollEnabled={true}
           />
@@ -819,6 +853,7 @@ export default function SearchScreen() {
         {/* Members Tab Content */}
         {activeTab === 'members' && !loading && !error && users.length > 0 && (
           <FlatList
+            key={`members-${searchQuery}`}
             keyboardShouldPersistTaps="handled"
             keyboardDismissMode="on-drag"
             data={users}
@@ -880,6 +915,7 @@ export default function SearchScreen() {
               </Card>
             )}
             ListFooterComponent={<View style={styles.listFooter} />}
+            ref={membersListRef}
           />
         )}
       </View>
