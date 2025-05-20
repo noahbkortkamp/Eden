@@ -1,6 +1,6 @@
 import { Tabs } from 'expo-router';
 import { useEdenTheme } from '../theme/ThemeProvider';
-import { Home, List, Search, Trophy, User } from 'lucide-react-native';
+import { Home, List, PlusCircle, Trophy, User } from 'lucide-react-native';
 import { Platform, View } from 'react-native';
 
 export default function TabLayout() {
@@ -68,7 +68,7 @@ export default function TabLayout() {
         name="search"
         options={{
           title: 'Search',
-          tabBarIcon: ({ color, focused }) => <Search size={24} color={color} strokeWidth={focused ? 2.5 : 1.5} />,
+          tabBarIcon: ({ color, focused }) => <PlusCircle size={28} color={color} strokeWidth={focused ? 2.5 : 1.5} />,
           headerStyle: {
             backgroundColor: theme.colors.background,
             elevation: 0,
