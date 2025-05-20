@@ -7,12 +7,13 @@ import { format } from 'date-fns';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import * as ImagePicker from 'expo-image-picker';
 import { TagSelectionModal } from '../components/TagSelectionModal';
-import { Tag, TAGS_BY_CATEGORY } from '../constants/tags';
+import { Tag } from '../constants/tags';
 import { ChevronRight, Check, Minus, X } from 'lucide-react-native';
 import { FavoriteHolesModal, FavoriteHole } from '../components/FavoriteHolesModal';
 import { PlayingPartnersModal } from '../components/PlayingPartnersModal';
 import { User } from '../../types';
 import { Heading2, Heading3, BodyText, SmallText } from '../../components/eden/Typography';
+import { getAllTags } from '../../utils/reviews';
 
 // Sentiment rating options with their corresponding icons
 const SENTIMENT_ICONS = {
@@ -32,6 +33,7 @@ export const ReviewScreen: React.FC<ReviewScreenProps> = ({
   const [rating, setRating] = useState<SentimentRating | null>(null);
   const [notes, setNotes] = useState('');
   const [tags, setTags] = useState<string[]>([]);
+  const [localSelectedTags, setLocalSelectedTags] = useState<Tag[]>([]);
   const [favoriteHoles, setFavoriteHoles] = useState<FavoriteHole[]>([]);
   const [photos, setPhotos] = useState<string[]>([]);
   const [datePlayed, setDatePlayed] = useState(new Date());
@@ -64,6 +66,26 @@ export const ReviewScreen: React.FC<ReviewScreenProps> = ({
       keyboardDidHideListener.remove();
     };
   }, []);
+
+  // Sync tags with localSelectedTags if tags are passed in externally
+  useEffect(() => {
+    if (tags.length > 0 && localSelectedTags.length === 0) {
+      // If we have tags but no localSelectedTags, we need to fetch the tag details
+      const fetchTagDetails = async () => {
+        try {
+          const allTags = await getAllTags();
+          const foundTags = tags
+            .map(tagId => allTags.find(t => t.id === tagId))
+            .filter((tag): tag is Tag => tag !== undefined);
+          setLocalSelectedTags(foundTags);
+        } catch (error) {
+          console.error("Error loading tag details:", error);
+        }
+      };
+      
+      fetchTagDetails();
+    }
+  }, [tags, localSelectedTags]);
 
   const handlePhotoUpload = async () => {
     const result = await ImagePicker.launchImageLibraryAsync({
@@ -111,16 +133,15 @@ export const ReviewScreen: React.FC<ReviewScreenProps> = ({
   };
 
   const handleTagsSave = (selectedTags: Tag[]) => {
+    // Save the full tag objects for the modal
+    setLocalSelectedTags(selectedTags);
+    // Save just the tag IDs for submission
     setTags(selectedTags.map(tag => tag.id));
   };
 
   const getSelectedTagNames = () => {
-    // Convert tag IDs back to names for display
-    const tagNames = tags.map(tagId => {
-      const allTags = Object.values(TAGS_BY_CATEGORY).flat();
-      const tag = allTags.find(t => t.id === tagId);
-      return tag ? tag.name : '';
-    }).filter(Boolean);
+    // Just return the names of the selected tags from localSelectedTags
+    const tagNames = localSelectedTags.map(tag => tag.name);
 
     if (tagNames.length <= 3) {
       return tagNames.join(', ');
@@ -604,10 +625,7 @@ export const ReviewScreen: React.FC<ReviewScreenProps> = ({
         visible={showTagsModal}
         onClose={() => setShowTagsModal(false)}
         onSave={handleTagsSave}
-        selectedTags={tags.map(tagId => {
-          const allTags = Object.values(TAGS_BY_CATEGORY).flat();
-          return allTags.find(t => t.id === tagId);
-        }).filter(Boolean) as Tag[]}
+        selectedTags={localSelectedTags}
       />
 
       {/* Favorite Holes Modal */}
