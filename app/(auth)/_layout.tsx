@@ -1,10 +1,14 @@
+import { Stack, Slot } from 'expo-router';
 import React from 'react';
-import { Stack } from 'expo-router';
 import { useAuth } from '../context/AuthContext';
 import { edenTheme } from '../theme/edenTheme';
+import { useColorScheme } from 'react-native';
+import { useTheme } from '@/app/theme';
 
 export default function AuthLayout() {
   const { user } = useAuth();
+  const theme = useTheme();
+  const colorScheme = useColorScheme();
 
   // If not authenticated, redirect to login
   if (!user) {
@@ -12,13 +16,15 @@ export default function AuthLayout() {
   }
 
   return (
-    <Stack screenOptions={{ 
-      headerShown: false,
-      contentStyle: { backgroundColor: edenTheme.colors.background },
-      animation: 'none',
-      headerBackVisible: false,
-      presentation: 'modal'
-    }}>
+    <Stack
+      screenOptions={{
+        headerShown: false,
+        contentStyle: {
+          backgroundColor: theme.colors.background,
+        },
+      }}
+    >
+      <Stack.Screen name="welcome" options={{ headerShown: false }} />
       <Stack.Screen
         name="first-review"
         options={{
@@ -26,6 +32,7 @@ export default function AuthLayout() {
           gestureEnabled: false, // Prevent back gesture
         }}
       />
+      <Stack.Screen name="index" options={{ headerShown: false }} />
     </Stack>
   );
 } 

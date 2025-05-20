@@ -14,10 +14,10 @@ export default function Index() {
     );
   }
 
-  // If logged in, go to lists; otherwise go to login
+  // If logged in, go to lists; otherwise go to welcome screen
   return user ? (
     <Redirect href="/(tabs)/lists" />
   ) : (
-    <Redirect href="/auth/login" />
+    <Redirect href="/(auth)/welcome" />
   );
 } 
