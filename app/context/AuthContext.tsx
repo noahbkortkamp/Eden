@@ -57,7 +57,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       // This assumes existing users don't need to go through onboarding
       if (user && user.user_metadata?.onboardingComplete === false) {
         addDebugLog('Redirecting to onboarding');
-        router.replace('/onboarding/frequency');
+        router.replace('/onboarding/profile-info');
       }
     } catch (error) {
       addDebugLog(`Error checking user: ${error instanceof Error ? error.message : String(error)}`);
@@ -76,7 +76,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       // This assumes existing users don't need to go through onboarding
       if (user && user.user_metadata?.onboardingComplete === false) {
         addDebugLog('Redirecting to onboarding after email sign-in');
-        router.replace('/onboarding/frequency');
+        router.replace('/onboarding/profile-info');
         return;
       }
       
@@ -125,7 +125,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         // Check if user needs to go through onboarding
         if (result.session.user.user_metadata?.onboardingComplete === false) {
           addDebugLog('Redirecting to onboarding after Google sign-in');
-          router.replace('/onboarding/frequency');
+          router.replace('/onboarding/profile-info');
           return;
         }
         

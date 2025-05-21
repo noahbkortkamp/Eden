@@ -11,7 +11,6 @@ export default function OnboardingLayout() {
         headerBackVisible: false,
         presentation: 'modal'
       }}>
-      <Stack.Screen name="frequency" options={{ gestureEnabled: false }} />
       <Stack.Screen name="profile-info" options={{ gestureEnabled: false }} />
       <Stack.Screen name="golf-sickko" options={{ gestureEnabled: false }} />
       <Stack.Screen name="location-permission" options={{ gestureEnabled: false }} />

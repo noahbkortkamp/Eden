@@ -67,7 +67,7 @@ export default function AuthCallbackScreen() {
           const currentUser = data.session.user;
           if (currentUser && currentUser.user_metadata?.onboardingComplete === false) {
             console.log('Redirecting to onboarding');
-            router.replace('/onboarding/frequency');
+            router.replace('/onboarding/profile-info');
           } else {
             // Direct users to the search tab
             console.log('Redirecting to main app');
@@ -109,7 +109,7 @@ export default function AuthCallbackScreen() {
         // Check onboarding status and redirect
         const currentUser = data.session.user;
         if (currentUser && currentUser.user_metadata?.onboardingComplete === false) {
-          router.replace('/onboarding/frequency');
+          router.replace('/onboarding/profile-info');
         } else {
           router.replace('/(tabs)/search');
         }

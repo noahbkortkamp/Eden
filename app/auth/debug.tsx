@@ -186,7 +186,7 @@ export default function OAuthDebugScreen() {
         const shouldNavigate = confirm('Session found! Navigate to main app?');
         if (shouldNavigate) {
           if (data.session.user.user_metadata?.onboardingComplete === false) {
-            router.replace('/onboarding/frequency');
+            router.replace('/onboarding/profile-info');
           } else {
             router.replace('/(tabs)/search');
           }
