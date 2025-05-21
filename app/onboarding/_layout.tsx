@@ -14,6 +14,7 @@ export default function OnboardingLayout() {
       <Stack.Screen name="frequency" options={{ gestureEnabled: false }} />
       <Stack.Screen name="profile-info" options={{ gestureEnabled: false }} />
       <Stack.Screen name="golf-sickko" options={{ gestureEnabled: false }} />
+      <Stack.Screen name="location-permission" options={{ gestureEnabled: false }} />
       <Stack.Screen name="course" options={{ gestureEnabled: false }} />
       <Stack.Screen name="done" options={{ gestureEnabled: false }} />
     </Stack>

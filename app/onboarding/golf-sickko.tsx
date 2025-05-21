@@ -28,7 +28,7 @@ export default function GolfSickkoScreen() {
         })
         .eq('id', user.id);
       if (updateError) throw updateError;
-      // TODO: Navigate to next onboarding step
+      router.replace('/onboarding/location-permission');
     } catch (err: any) {
       setError(err.message || 'Failed to update profile');
     } finally {

@@ -14,6 +14,7 @@
       "infoPlist": {
         "NSCameraUsageDescription": "We need access to your camera to take profile pictures.",
         "NSPhotoLibraryUsageDescription": "We need access to your photo library to select profile pictures.",
+        "NSLocationWhenInUseUsageDescription": "Eden uses your location to find nearby golf courses and make recommendations.",
         "CFBundleURLTypes": [
           {
             "CFBundleURLSchemes": [
