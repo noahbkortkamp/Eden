@@ -142,19 +142,60 @@ export async function getFollowCounts(userId: string): Promise<{followers: numbe
 export async function searchUsersByName(query: string, limit: number = 10): Promise<User[]> {
   if (!query.trim()) return [];
   
-  const { data, error } = await supabase
-    .from('users')
-    .select('id, full_name, avatar_url, username')
-    .or(`full_name.ilike.%${query}%, username.ilike.%${query}%`)
-    .limit(limit);
+  try {
+    // First get the basic user data with a simpler query
+    const { data, error } = await supabase
+      .from('users')
+      .select('id, full_name, avatar_url, username')
+      .or(`full_name.ilike.%${query}%, username.ilike.%${query}%`)
+      .limit(limit);
 
-  if (error) {
-    console.error("Error searching users:", error);
-    throw error;
+    if (error) {
+      console.error("Error searching users:", error);
+      return [];
+    }
+
+    if (!data || data.length === 0) {
+      return [];
+    }
+    
+    // Get review counts for each user individually
+    const processedUsersPromises = data.map(async (user) => {
+      try {
+        const { count, error: countError } = await supabase
+          .from('reviews')
+          .select('*', { count: 'exact', head: true })
+          .eq('user_id', user.id);
+        
+        return {
+          ...user,
+          review_count: countError ? 0 : (count || 0)
+        };
+      } catch (e) {
+        console.error(`Error getting review count for user ${user.id}:`, e);
+        return {
+          ...user,
+          review_count: 0
+        };
+      }
+    });
+    
+    try {
+      // Wait for all the review count queries to complete
+      const processedUsers = await Promise.all(processedUsersPromises);
+      return processedUsers;
+    } catch (e) {
+      console.error("Error processing search results:", e);
+      // Return users without review counts as fallback
+      return data.map(user => ({
+        ...user,
+        review_count: 0
+      }));
+    }
+  } catch (error) {
+    console.error("Error in searchUsersByName:", error);
+    return [];
   }
-  
-  console.log("User search results:", data);
-  return data || [];
 }
 
 // Helper function to convert sentiment to numeric rating
@@ -330,16 +371,94 @@ export async function getFriendsReviews(userId: string, page: number = 1, limit:
  * @returns Promise<User[]>
  */
 export async function getSuggestedUsers(userId: string, limit: number = 5): Promise<User[]> {
-  // Get active users with recent reviews who the user is not already following
-  const { data, error } = await supabase
-    .rpc('get_suggested_users', { user_id: userId, max_suggestions: limit });
-
-  if (error) {
-    console.error("Error getting suggested users:", error);
-    throw error;
+  try {
+    // Get users except self using a simple query first
+    const { data: users, error: usersError } = await supabase
+      .from('users')
+      .select('id, full_name, avatar_url, username')
+      .neq('id', userId)
+      .limit(limit * 2);  // Get more than we need so we can filter
+    
+    if (usersError || !users || users.length === 0) {
+      console.error("Error getting users:", usersError);
+      return [];
+    }
+    
+    // Now get users the current user is already following to filter them out
+    const { data: followingData, error: followingError } = await supabase
+      .from('follows')
+      .select('following_id')
+      .eq('follower_id', userId);
+    
+    const followingIds = followingError ? [] : (followingData || []).map(f => f.following_id);
+    const followingSet = new Set(followingIds);
+    
+    // Filter out users the current user already follows
+    const filteredUsers = users.filter(user => !followingSet.has(user.id));
+    
+    if (filteredUsers.length === 0) {
+      return [];
+    }
+    
+    // Get review counts for each user individually
+    // This is less efficient but more compatible
+    const processedUsersPromises = filteredUsers.map(async (user) => {
+      try {
+        const { count, error: countError } = await supabase
+          .from('reviews')
+          .select('*', { count: 'exact', head: true })
+          .eq('user_id', user.id);
+        
+        return {
+          ...user,
+          review_count: countError ? 0 : (count || 0)
+        };
+      } catch (e) {
+        console.error(`Error getting review count for user ${user.id}:`, e);
+        return {
+          ...user,
+          review_count: 0
+        };
+      }
+    });
+    
+    try {
+      // Wait for all the review count queries to complete
+      const processedUsers = await Promise.all(processedUsersPromises);
+      
+      // Sort by review count (most reviews first)
+      const sortedUsers = processedUsers.sort((a, b) => (b.review_count || 0) - (a.review_count || 0));
+      
+      // Return up to the requested limit
+      return sortedUsers.slice(0, limit);
+    } catch (e) {
+      console.error("Error processing users:", e);
+      // Return filtered users without review counts as fallback
+      return filteredUsers.slice(0, limit).map(user => ({
+        ...user,
+        review_count: 0
+      }));
+    }
+  } catch (error) {
+    console.error("Unexpected error in getSuggestedUsers:", error);
+    
+    // Basic fallback - just get any users
+    try {
+      const { data } = await supabase
+        .from('users')
+        .select('id, full_name, avatar_url, username')
+        .neq('id', userId)
+        .limit(limit);
+      
+      return (data || []).map(user => ({
+        ...user,
+        review_count: 0
+      }));
+    } catch (e) {
+      console.error("Failed even with basic fallback:", e);
+      return [];
+    }
   }
-  
-  return data || [];
 }
 
 /**
@@ -373,4 +492,28 @@ export async function getFollowingUsers(userId: string): Promise<User[]> {
     name: follow.users.full_name || '',
     profileImage: follow.users.avatar_url || undefined
   }));
+}
+
+/**
+ * Get the number of reviews posted by a user
+ * @param userId The ID of the user
+ * @returns Promise<number>
+ */
+export async function getUserReviewCount(userId: string): Promise<number> {
+  try {
+    const { count, error } = await supabase
+      .from('reviews')
+      .select('*', { count: 'exact', head: true })
+      .eq('user_id', userId);
+      
+    if (error) {
+      console.error("Error getting user review count:", error);
+      return 0;
+    }
+    
+    return count || 0;
+  } catch (error) {
+    console.error("Unexpected error in getUserReviewCount:", error);
+    return 0;
+  }
 } 

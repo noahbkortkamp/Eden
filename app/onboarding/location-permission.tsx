@@ -17,8 +17,8 @@ export default function LocationPermissionScreen() {
     try {
       const { status } = await Location.requestForegroundPermissionsAsync();
       // You can store the permission status or location here if needed
-      // Proceed to first review flow in the signup process
-      router.replace('/(auth)/first-review');
+      // Proceed to find friends screen
+      router.replace('/onboarding/find-friends');
     } catch (err: any) {
       setError('Failed to request location permission');
     } finally {
@@ -27,7 +27,7 @@ export default function LocationPermissionScreen() {
   };
 
   const handleNotNow = () => {
-    router.replace('/(auth)/first-review'); // Skip to first review even if location is denied
+    router.replace('/onboarding/find-friends'); // Skip to find friends even if location is denied
   };
 
   return (

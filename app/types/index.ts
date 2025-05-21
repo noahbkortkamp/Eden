@@ -52,6 +52,11 @@ export interface User {
   followingCount?: number;
   /** URL of user's profile image */
   profileImage?: string;
+  /** Number of reviews the user has posted */
+  review_count?: number;
+  /** Raw properties from database */
+  full_name?: string;
+  avatar_url?: string;
 }
 
 /**
