@@ -301,12 +301,10 @@ const styles = StyleSheet.create({
     backgroundColor: edenTheme.colors.background,
   },
   container: {
-    flex: 1,
+    flexGrow: 1,
     paddingHorizontal: edenTheme.spacing.xl,
-    paddingTop: 40,
-    paddingBottom: 20,
-    display: 'flex',
-    flexDirection: 'column',
+    paddingTop: 12,
+    paddingBottom: 32,
   },
   header: {
     fontSize: 32,

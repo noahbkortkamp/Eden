@@ -73,10 +73,9 @@ const styles = StyleSheet.create({
     backgroundColor: edenTheme.colors.background,
   },
   container: {
-    flex: 1,
-    alignItems: 'flex-start',
+    flexGrow: 1,
     paddingHorizontal: edenTheme.spacing.xl,
-    paddingTop: 60,
+    paddingTop: 12,
     paddingBottom: 32,
   },
   icon: {

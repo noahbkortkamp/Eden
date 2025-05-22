@@ -95,7 +95,7 @@ const styles = StyleSheet.create({
   container: {
     flexGrow: 1,
     paddingHorizontal: edenTheme.spacing.xl,
-    paddingTop: 48,
+    paddingTop: 12,
     paddingBottom: 32,
   },
   title: {

@@ -133,9 +133,10 @@ const styles = StyleSheet.create({
     backgroundColor: edenTheme.colors.background,
   },
   container: {
-    flex: 1,
-    padding: edenTheme.spacing.lg,
-    backgroundColor: edenTheme.colors.background,
+    flexGrow: 1,
+    paddingHorizontal: edenTheme.spacing.xl,
+    paddingTop: 12,
+    paddingBottom: 32,
   },
   title: {
     marginBottom: edenTheme.spacing.xl,
