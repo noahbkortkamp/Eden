@@ -211,6 +211,23 @@ export const ReviewProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         
         // Always mark the user as having completed first review for all first reviews
         try {
+          // Update both onboardingComplete and firstReviewCompleted flags
+          const { data: userUpdate, error: updateError } = await supabase.auth.updateUser({
+            data: { 
+              has_completed_first_review: true,
+              firstReviewCompleted: true,
+              firstReviewTimestamp: new Date().toISOString(),
+              onboardingComplete: true // Ensure onboarding is marked as complete
+            }
+          });
+          
+          if (updateError) {
+            console.error('Error updating user metadata:', updateError);
+          } else {
+            console.log('Successfully updated user metadata:', userUpdate?.user?.user_metadata);
+          }
+          
+          // Still call the service method for compatibility
           const markResult = await userService.markFirstReviewComplete(user.id);
           console.log(`Marked user as having completed first review: ${markResult ? 'success' : 'failed'}`);
         } catch (err) {
