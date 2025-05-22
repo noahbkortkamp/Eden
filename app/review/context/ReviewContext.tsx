@@ -9,9 +9,12 @@ import { reviewService } from '../../services/reviewService';
 import { rankingService } from '../../services/rankingService';
 import { supabase } from '../../utils/supabase';
 import { getCourse } from '../../utils/courses';
+import { userService } from '../../services/userService';
 
 interface ReviewContextType {
-  submitReview: (review: Omit<CourseReview, 'review_id' | 'user_id' | 'created_at' | 'updated_at'>) => Promise<void>;
+  submitReview: (review: Omit<CourseReview, 'review_id' | 'user_id' | 'created_at' | 'updated_at'> & { 
+    fromOnboarding?: boolean 
+  }) => Promise<void>;
   startComparisons: (rating: SentimentRating) => Promise<void>;
   handleComparison: (preferredCourseId: string, otherCourseId: string) => Promise<void>;
   skipComparison: (courseAId: string, courseBId: string) => void;
@@ -93,7 +96,9 @@ export const ReviewProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const [comparisonResults, setComparisonResults] = useState<Array<{ preferredId: string, otherId: string }>>([]);
 
   const submitReview = useCallback(async (
-    review: Omit<CourseReview, 'review_id' | 'user_id' | 'created_at' | 'updated_at'>
+    review: Omit<CourseReview, 'review_id' | 'user_id' | 'created_at' | 'updated_at'> & { 
+      fromOnboarding?: boolean 
+    }
   ) => {
     if (!user) {
       router.push('/auth/login');
@@ -106,6 +111,7 @@ export const ReviewProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       userMetadata: user.user_metadata
     });
 
+    const isFromOnboarding = review.fromOnboarding === true;
     console.log('ReviewContext: Starting review submission:', {
       userId: user.id,
       courseId: review.course_id,
@@ -114,7 +120,8 @@ export const ReviewProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       favoriteHoles: review.favorite_holes,
       photosCount: review.photos.length,
       datePlayed: review.date_played,
-      tags: review.tags
+      tags: review.tags,
+      fromOnboarding: isFromOnboarding
     });
 
     setIsSubmitting(true);
@@ -193,24 +200,95 @@ export const ReviewProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       // Wait for all parallel operations to complete
       const [reviewCount, _, userReviews] = await Promise.all(promises);
       
+      console.log(`🔍 CRITICAL DEBUG: Review count = ${reviewCount}, isFromOnboarding = ${isFromOnboarding}`);
+      
       // Check if this is the user's first review - if so, skip comparisons and show first review success screen
-      if (reviewCount === 1) {
-        console.log('🎉 This is the user\'s first review! Showing first review success screen.');
+      if (reviewCount === 1 || isFromOnboarding) {
+        console.log('🎉 This is the user\'s first review or from onboarding! Showing first review success screen.');
+        
+        // Set a variable to prevent nested navigations
+        let navigationAttempted = false;
+        
+        // Always mark the user as having completed first review for all first reviews
+        try {
+          const markResult = await userService.markFirstReviewComplete(user.id);
+          console.log(`Marked user as having completed first review: ${markResult ? 'success' : 'failed'}`);
+        } catch (err) {
+          console.error('Error marking first review complete:', err);
+          // Continue anyway
+        }
         
         // Close the review modal
-        router.back();
-        await new Promise(resolve => setTimeout(resolve, 100));
+        if (!navigationAttempted) {
+          console.log('Closing review modal before showing success screen');
+          router.back();
+          
+          // Wait for the modal to close properly
+          await new Promise(resolve => setTimeout(resolve, 300));
+        }
         
-        // Navigate to the dedicated first review success screen
-        router.push({
-          pathname: '/(modals)/first-review-success',
-          params: {
-            courseId: review.course_id,
-            datePlayed: review.date_played.toISOString()
+        // Get the course details for display on the success screen
+        let courseName = 'Course';
+        let courseLocation = '';
+        
+        try {
+          const courseDetails = await getCourse(review.course_id);
+          if (courseDetails) {
+            courseName = courseDetails.name;
+            courseLocation = courseDetails.location || '';
+            console.log('Got course details for success screen:', {
+              name: courseName,
+              location: courseLocation
+            });
           }
+        } catch (error) {
+          console.error('Error fetching course details:', error);
+        }
+        
+        console.log('Navigating to onboarding-first-review-success with params:', {
+          courseName,
+          courseLocation,
+          datePlayed: review.date_played.toISOString()
         });
         
-        return; // Exit early, skipping the comparison flow
+        // Use a clean approach with replace to avoid state conflicts
+        if (!navigationAttempted) {
+          try {
+            console.log('🚀 Executing navigation to onboarding-first-review-success screen');
+            console.log('Navigation params:', {
+              pathname: '/(modals)/onboarding-first-review-success',
+              params: {
+                courseName: encodeURIComponent(courseName),
+                courseLocation: courseLocation ? encodeURIComponent(courseLocation) : undefined,
+                datePlayed: encodeURIComponent(review.date_played.toISOString())
+              }
+            });
+            
+            // Force a 100ms delay before navigation to ensure previous operations are complete
+            await new Promise(resolve => setTimeout(resolve, 100));
+            
+            // Mark that we've attempted navigation to prevent multiple attempts
+            navigationAttempted = true;
+            
+            router.replace({
+              pathname: '/(modals)/onboarding-first-review-success',
+              params: {
+                courseName: encodeURIComponent(courseName),
+                courseLocation: courseLocation ? encodeURIComponent(courseLocation) : undefined,
+                datePlayed: encodeURIComponent(review.date_played.toISOString())
+              }
+            });
+            
+            // Log after navigation attempt
+            console.log('Navigation executed - if you see this, the router.replace call completed without throwing');
+          } catch (navError) {
+            console.error('Navigation error details:', navError);
+            // Fallback - just go to the main app
+            router.replace('/(tabs)/lists');
+          }
+        }
+        
+        return;
       }
       
       const reviewedCoursesWithSentiment = userReviews.filter(r => r.rating === review.rating);
