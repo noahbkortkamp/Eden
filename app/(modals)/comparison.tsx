@@ -103,6 +103,17 @@ export default function ComparisonModal() {
         if (!courseAId || !courseBId) {
           throw new Error('Missing course IDs');
         }
+        
+        // VALIDATION: Prevent comparing a course against itself
+        if (courseAId === courseBId) {
+          console.error('[ERROR] Attempted to compare a course against itself:', courseAId);
+          setError('Cannot compare a course against itself');
+          // Go back to the main view after showing the error briefly
+          setTimeout(() => {
+            router.replace('/(tabs)');
+          }, 1500);
+          return;
+        }
 
         // Helper function to load a course with caching
         const loadCourseWithCache = async (id: string, label: string): Promise<Course> => {

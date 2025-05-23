@@ -451,12 +451,20 @@ export const ReviewProvider: React.FC<{ children: React.ReactNode }> = ({ childr
             course => course.course_id !== medianCourse.course_id
           );
           
-          // Shuffle the other courses for randomness
-          const shuffledOtherCourses = [...otherCourses].sort(() => Math.random() - 0.5);
-          
-          // Use the median course as course A and a random other course as course B
-          courseA = { course_id: medianCourse.course_id };
-          courseB = shuffledOtherCourses[0];
+          if (otherCourses.length === 0) {
+            console.log('No other courses found for comparison after filtering out median course');
+            // Fall back to random selection from all courses
+            const shuffledCourses = [...reviewedCoursesWithSentiment].sort(() => Math.random() - 0.5);
+            courseA = shuffledCourses[0];
+            courseB = shuffledCourses[1];
+          } else {
+            // Shuffle the other courses for randomness
+            const shuffledOtherCourses = [...otherCourses].sort(() => Math.random() - 0.5);
+            
+            // Use the median course as course A and a random other course as course B
+            courseA = { course_id: medianCourse.course_id };
+            courseB = shuffledOtherCourses[0];
+          }
           
           console.log(`Initial comparison set up: Median course ${courseA.course_id} vs Random course ${courseB.course_id}`);
         } else {
@@ -471,6 +479,33 @@ export const ReviewProvider: React.FC<{ children: React.ReactNode }> = ({ childr
           courseB = shuffledCourses[1];
           
           console.log(`Random selection: ${courseA.course_id} vs ${courseB.course_id}`);
+        }
+        
+        // VALIDATION: Ensure we don't compare a course against itself
+        if (courseA.course_id === courseB.course_id) {
+          console.error(`[ERROR] Attempted to set up comparison of course ${courseA.course_id} against itself`);
+          // Try to find another course for comparison
+          const otherCourses = reviewedCoursesWithSentiment.filter(
+            course => course.course_id !== courseA.course_id
+          );
+          
+          if (otherCourses.length > 0) {
+            // Pick a different course for B
+            const shuffledOtherCourses = [...otherCourses].sort(() => Math.random() - 0.5);
+            courseB = shuffledOtherCourses[0];
+            console.log(`Fixed self-comparison issue. New selection: ${courseA.course_id} vs ${courseB.course_id}`);
+          } else {
+            console.error('No other courses available for comparison. Aborting comparison flow.');
+            // Not enough distinct courses, show success screen for the first course
+            router.push({
+              pathname: '/(modals)/review-success',
+              params: {
+                courseId: courseA.course_id,
+                datePlayed: reviewedCoursesWithSentiment[0].date_played
+              }
+            });
+            return;
+          }
         }
         
         // Calculate max comparisons dynamically based on the count
@@ -534,6 +569,77 @@ export const ReviewProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
     try {
       console.log(`Processing comparison result: ${preferredCourseId} was preferred over ${otherCourseId}`);
+      
+      // VALIDATION: Prevent comparing a course against itself
+      if (preferredCourseId === otherCourseId) {
+        console.error(`[ERROR] Attempted to process comparison of course ${preferredCourseId} against itself`);
+        // Skip this comparison and move on to the next one or end flow
+        const newComparisonsRemaining = comparisonsRemaining - 1;
+        setComparisonsRemaining(newComparisonsRemaining);
+        
+        if (newComparisonsRemaining <= 0) {
+          // End comparison flow if no more comparisons needed
+          const userReviews = await getReviewsForUser(user.id);
+          const originalReview = userReviews.find(r => r.course_id === originalReviewedCourseId);
+          
+          if (originalReview) {
+            router.push({
+              pathname: '/(modals)/review-success',
+              params: {
+                courseId: originalReviewedCourseId,
+                datePlayed: originalReview.date_played
+              }
+            });
+          } else {
+            router.replace('/(tabs)/lists');
+          }
+          return;
+        }
+        
+        // Otherwise, try to set up the next comparison
+        const userReviews = await getReviewsForUser(user.id);
+        const originalReview = userReviews.find(r => r.course_id === originalReviewedCourseId);
+        
+        if (originalReview) {
+          const sentiment = originalReview.rating as SentimentRating;
+          
+          // Get all previously compared courses
+          const comparedCourseIds = new Set();
+          comparedCourseIds.add(originalReviewedCourseId);
+          comparedCourseIds.add(preferredCourseId); // This is same as otherCourseId in this case
+          
+          comparisonResults.forEach(result => {
+            comparedCourseIds.add(result.preferredId);
+            comparedCourseIds.add(result.otherId);
+          });
+          
+          const otherCoursesWithSentiment = userReviews.filter(r => 
+            !comparedCourseIds.has(r.course_id) &&
+            r.rating === originalReview.rating
+          );
+          
+          if (otherCoursesWithSentiment.length > 0) {
+            const shuffledCourses = [...otherCoursesWithSentiment].sort(() => Math.random() - 0.5);
+            const randomCourse = shuffledCourses[0];
+            
+            router.push({
+              pathname: '/(modals)/comparison',
+              params: {
+                courseAId: originalReviewedCourseId,
+                courseBId: randomCourse.course_id,
+                remainingComparisons: newComparisonsRemaining,
+                originalSentiment: sentiment,
+                originalReviewedCourseId: originalReviewedCourseId
+              },
+            });
+            return;
+          }
+        }
+        
+        // If we can't set up another comparison, end the flow
+        router.replace('/(tabs)/lists');
+        return;
+      }
       
       // Store the comparison result
       setComparisonResults(prev => [
