@@ -40,6 +40,9 @@ export default function ListsScreen() {
 
       // Combine all rankings
       const allRankings = [...likedRankings, ...fineRankings, ...didntLikeRankings];
+      
+      // Create a set of course IDs with rankings for easy lookup
+      const rankedCourseIds = new Set(allRankings.map(r => r.course_id));
 
       // Fetch course details for all ranked courses
       const { data: courses, error } = await supabase
@@ -57,6 +60,47 @@ export default function ListsScreen() {
           rating: ranking?.score || 0,
         };
       }) || [];
+      
+      // Get all user's reviews to find any that don't have rankings yet (like first-time reviews)
+      const { data: userReviews, error: reviewsError } = await supabase
+        .from('reviews')
+        .select('course_id, rating, date_played')
+        .eq('user_id', user?.id || '');
+        
+      if (reviewsError) throw reviewsError;
+      
+      // Find reviews without rankings
+      const reviewsWithoutRankings = userReviews?.filter(review => 
+        !rankedCourseIds.has(review.course_id)
+      ) || [];
+      
+      // If there are reviews without rankings (e.g., first review), add them to the played courses
+      if (reviewsWithoutRankings.length > 0) {
+        console.log(`Found ${reviewsWithoutRankings.length} reviews without rankings`);
+        
+        // Get course details for unranked reviews
+        const unrankedCourseIds = reviewsWithoutRankings.map(r => r.course_id);
+        
+        const { data: unrankedCourses, error: unrankedError } = await supabase
+          .from('courses')
+          .select('*')
+          .in('id', unrankedCourseIds);
+          
+        if (!unrankedError && unrankedCourses) {
+          // Add these courses to the list with a default rating
+          const additionalCourses = unrankedCourses.map(course => {
+            const review = reviewsWithoutRankings.find(r => r.course_id === course.id);
+            return {
+              ...course,
+              rating: 5.0, // Default rating since rankings aren't generated yet
+              date_played: review?.date_played
+            };
+          });
+          
+          // Add the unranked courses to our list
+          rankedCourses.push(...additionalCourses);
+        }
+      }
 
       // Sort by score descending
       setPlayedCourses(rankedCourses.sort((a, b) => (b.rating || 0) - (a.rating || 0)));
