@@ -330,7 +330,7 @@ export default function ListsScreen() {
       // First, get all the user's reviews to know which courses they've played
       const { data: reviewsData, error: reviewsError } = await supabase
         .from('reviews')
-        .select('course_id, rating')
+        .select('course_id, rating, date_played')
         .eq('user_id', userId);
 
       if (reviewsError) throw reviewsError;
@@ -352,6 +352,9 @@ export default function ListsScreen() {
         sentiment: SentimentRating
       }[] = [];
       
+      // Keep track of course IDs with rankings
+      const rankedCourseIds = new Set<string>();
+      
       for (const sentiment of sentiments) {
         // Get rankings for this sentiment
         const rankings = await rankingService.getUserRankings(userId, sentiment);
@@ -361,6 +364,9 @@ export default function ListsScreen() {
           
           // Get course details for each ranked course
           const courseIds = rankings.map(ranking => ranking.course_id);
+          
+          // Add these to our set of ranked course IDs
+          courseIds.forEach(id => rankedCourseIds.add(id));
           
           const { data: coursesData, error: coursesError } = await supabase
             .from('courses')
@@ -391,7 +397,8 @@ export default function ListsScreen() {
                 rating: ranking.relative_score, // Use the score from rankingService
                 rank_position: ranking.rank_position, // Store position for sorting
                 sentiment: sentiment, // Store the sentiment category
-                showScores: userReviewCount !== null && userReviewCount >= 10
+                showScores: userReviewCount !== null && userReviewCount >= 10,
+                date_played: reviewsData.find(r => r.course_id === courseData.id)?.date_played || undefined
               } as EnhancedCourse;
             }).filter(Boolean) as EnhancedCourse[];
             
@@ -406,21 +413,47 @@ export default function ListsScreen() {
       // Combine all ranked courses across sentiments
       const allCourses = allRankings.flatMap(item => item.courses);
       
-      // Handle case where rankings might be missing for some reviewed courses
-      if (allCourses.length < reviewsData.length) {
-        console.log('🔍 DEBUG: Some reviewed courses are missing rankings, this is unexpected');
+      // Check if there are reviews that don't have corresponding rankings
+      // This is critical for first-time users who just left their first review
+      const reviewsWithoutRankings = reviewsData.filter(review => !rankedCourseIds.has(review.course_id));
+      
+      if (reviewsWithoutRankings.length > 0) {
+        console.log(`🔍 DEBUG: Found ${reviewsWithoutRankings.length} reviews without rankings - adding these to played courses`);
         
-        // Get IDs of courses with rankings
-        const rankedCourseIds = new Set(allCourses.map(c => c.id));
+        // Get the courses for these reviews
+        const missingCourseIds = reviewsWithoutRankings.map(r => r.course_id);
         
-        // Find reviews without rankings
-        const missingReviews = reviewsData.filter(review => !rankedCourseIds.has(review.course_id));
-        
-        if (missingReviews.length > 0) {
-          console.log(`🔍 DEBUG: Found ${missingReviews.length} reviews without rankings`);
+        const { data: missingCoursesData, error: missingCoursesError } = await supabase
+          .from('courses')
+          .select('id, name, location, type, price_level, created_at, updated_at')
+          .in('id', missingCourseIds);
           
-          // This shouldn't happen in normal operation, but we can handle it for robustness
-          // You could add code here to create missing rankings if needed
+        if (!missingCoursesError && missingCoursesData && missingCoursesData.length > 0) {
+          // Create course objects for these reviews without rankings
+          const additionalCourses = missingCoursesData.map(courseData => {
+            const review = reviewsWithoutRankings.find(r => r.course_id === courseData.id);
+            
+            return {
+              id: courseData.id,
+              name: courseData.name,
+              location: courseData.location,
+              type: courseData.type,
+              price_level: courseData.price_level,
+              description: "",
+              created_at: courseData.created_at,
+              updated_at: courseData.updated_at,
+              rating: 5.0, // Default rating since we don't have rankings yet
+              sentiment: review?.rating as SentimentRating || 'fine',
+              showScores: userReviewCount !== null && userReviewCount >= 10,
+              date_played: review?.date_played || undefined
+            } as EnhancedCourse;
+          });
+          
+          // Add these to our courses list
+          allCourses.push(...additionalCourses);
+          console.log('🔍 DEBUG: Added unranked courses to the played list:', 
+            additionalCourses.map(c => ({ name: c.name, id: c.id }))
+          );
         }
       }
       
