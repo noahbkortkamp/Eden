@@ -13,6 +13,7 @@ import { initializeAuthDeepLinks } from './services/auth';
 import * as WebBrowser from 'expo-web-browser';
 import './i18n';
 import { PlayedCoursesProvider } from './context/PlayedCoursesContext';
+import { CourseProvider } from './context/CourseContext';
 
 declare global {
   interface Window {
@@ -199,9 +200,11 @@ export default function RootLayout() {
         <AuthProvider>
           <SearchProvider>
             <PlayedCoursesProvider>
-              <ReviewProvider>
-                <AppContent />
-              </ReviewProvider>
+              <CourseProvider>
+                <ReviewProvider>
+                  <AppContent />
+                </ReviewProvider>
+              </CourseProvider>
             </PlayedCoursesProvider>
           </SearchProvider>
         </AuthProvider>

@@ -164,11 +164,19 @@ export default function ListsScreen() {
     useCallback(() => {
       console.log('Lists tab is now focused, usingTestData:', usingTestData);
       
+      // Track if user review count has changed to determine if we need to refresh played courses
+      let reviewCountChanged = false;
+      
       // Refresh user review count on tab focus
       if (user) {
         reviewService.getUserReviewCount(user.id)
           .then(count => {
             console.log(`🔢 Tab focused: User has ${count} reviews. Score visibility: ${count >= 10 ? 'ENABLED' : 'DISABLED'}`);
+            // Check if review count has changed since last time
+            if (userReviewCount !== count) {
+              console.log('🔄 Review count changed, will refresh played courses');
+              reviewCountChanged = true;
+            }
             setUserReviewCount(count);
           })
           .catch(err => {
@@ -189,21 +197,33 @@ export default function ListsScreen() {
       // 1. Not using test data AND
       // 2. Either:
       //    a. No courses loaded yet OR
-      //    b. The data has been marked for refresh
-      if (!usingTestData && !hasLoadedCourses) {
-        console.log('Triggering data reload on focus - courses not loaded yet');
+      //    b. The data has been marked for refresh due to a review count change
+      if (!usingTestData && (!hasLoadedCourses || reviewCountChanged)) {
+        console.log('Triggering data reload on focus - courses not loaded or review count changed');
         lastRefreshTime.current = now;
         loadData();
+      } else if (!usingTestData && currentTimestampRef.current !== lastUpdateTimestamp) {
+        // If only the timestamp changed but reviews didn't change, 
+        // just refresh want-to-play and recommended, not played courses
+        console.log('PARTIAL REFRESH: Refreshing only want-to-play and recommended sections');
+        
+        // Update timestamp ref to prevent repeated refreshes
+        currentTimestampRef.current = lastUpdateTimestamp;
+        
+        // Only refresh Want-to-Play courses
+        if (fetchWantToPlayCoursesRef.current) {
+          fetchWantToPlayCoursesRef.current();
+        }
       } else {
         console.log('SKIPPING automatic data reload since we',
           usingTestData ? 'ARE using test data' : 
-            (hasLoadedCourses ? 'already loaded courses' : 'are currently loading or have courses'));
+            (hasLoadedCourses ? 'already loaded courses and review count is unchanged' : 'are currently loading or have courses'));
       }
       
       return () => {
         console.log('Lists tab lost focus');
       };
-    }, [usingTestData, hasLoadedCourses, isCoursesLoading, lastUpdateTimestamp, user, setNeedsRefresh])
+    }, [usingTestData, hasLoadedCourses, isCoursesLoading, lastUpdateTimestamp, user, setNeedsRefresh, userReviewCount])
   );
 
   // Watch for changes in userReviewCount and update showScores property for all courses
@@ -239,20 +259,6 @@ export default function ListsScreen() {
       setRefreshKey(Date.now());
     }
   }, [userReviewCount]);
-
-  // Add a useEffect to listen for changes in lastUpdateTimestamp
-  useEffect(() => {
-    // Only refresh if the timestamp has actually changed
-    if (currentTimestampRef.current !== lastUpdateTimestamp) {
-      console.log('🔄 Detected change in lastUpdateTimestamp, refreshing want-to-play courses...');
-      currentTimestampRef.current = lastUpdateTimestamp;
-      
-      // Always refresh want-to-play courses when timestamp changes, regardless of current tab
-      if (fetchWantToPlayCoursesRef.current) {
-        fetchWantToPlayCoursesRef.current();
-      }
-    }
-  }, [lastUpdateTimestamp]);
 
   // Centralized data loading function
   const loadData = async () => {
@@ -342,9 +348,11 @@ export default function ListsScreen() {
       }
 
       console.log(`🔍 DEBUG: Found ${reviewsData.length} reviews`);
+      console.log('🔍 DEBUG: Review course IDs:', reviewsData.map(r => r.course_id));
 
       // Get unique sentiment categories from reviews
       const sentiments = [...new Set(reviewsData.map(review => review.rating))] as SentimentRating[];
+      console.log('🔍 DEBUG: Found sentiment categories:', sentiments);
       
       // For each sentiment category, get the rankings from rankingService
       const allRankings: { 
@@ -355,27 +363,43 @@ export default function ListsScreen() {
       // Keep track of course IDs with rankings
       const rankedCourseIds = new Set<string>();
       
+      // Track if we found any valid rankings
+      let foundValidRankings = false;
+      
       for (const sentiment of sentiments) {
         // Get rankings for this sentiment
-        const rankings = await rankingService.getUserRankings(userId, sentiment);
-        
-        if (rankings.length > 0) {
-          console.log(`🔍 DEBUG: Found ${rankings.length} rankings for ${sentiment} sentiment`);
+        try {
+          console.log(`🔍 DEBUG: Getting rankings for sentiment: ${sentiment}`);
+          const rankings = await rankingService.getUserRankings(userId, sentiment);
           
-          // Get course details for each ranked course
-          const courseIds = rankings.map(ranking => ranking.course_id);
-          
-          // Add these to our set of ranked course IDs
-          courseIds.forEach(id => rankedCourseIds.add(id));
-          
-          const { data: coursesData, error: coursesError } = await supabase
-            .from('courses')
-            .select('id, name, location, type, price_level, created_at, updated_at')
-            .in('id', courseIds);
+          if (rankings.length > 0) {
+            console.log(`🔍 DEBUG: Found ${rankings.length} rankings for ${sentiment} sentiment`);
+            foundValidRankings = true;
             
-          if (coursesError) throw coursesError;
-          
-          if (coursesData && coursesData.length > 0) {
+            // Get course details for each ranked course
+            const courseIds = rankings.map(ranking => ranking.course_id);
+            console.log(`🔍 DEBUG: Course IDs from rankings:`, courseIds);
+            
+            // Add these to our set of ranked course IDs
+            courseIds.forEach(id => rankedCourseIds.add(id));
+            
+            const { data: coursesData, error: coursesError } = await supabase
+              .from('courses')
+              .select('id, name, location, type, price_level, created_at, updated_at')
+              .in('id', courseIds);
+              
+            if (coursesError) {
+              console.error(`🔍 ERROR: Failed to fetch courses for sentiment ${sentiment}:`, coursesError);
+              continue; // Skip this sentiment but try others
+            }
+            
+            if (!coursesData || coursesData.length === 0) {
+              console.log(`🔍 DEBUG: No course data found for sentiment ${sentiment}`);
+              continue;
+            }
+            
+            console.log(`🔍 DEBUG: Found ${coursesData.length} courses for sentiment ${sentiment}`);
+            
             // Create formatted courses with ranking data
             const formattedCourses = rankings.map(ranking => {
               const courseData = coursesData.find(c => c.id === ranking.course_id);
@@ -402,36 +426,63 @@ export default function ListsScreen() {
               } as EnhancedCourse;
             }).filter(Boolean) as EnhancedCourse[];
             
+            console.log(`🔍 DEBUG: Created ${formattedCourses.length} formatted courses for sentiment ${sentiment}`);
+            
             allRankings.push({
               courses: formattedCourses,
               sentiment
             });
+          } else {
+            console.log(`🔍 DEBUG: No rankings found for sentiment ${sentiment}`);
           }
+        } catch (sentimentError) {
+          console.error(`🔍 ERROR: Failed to get rankings for sentiment ${sentiment}:`, sentimentError);
+          // Continue with next sentiment
         }
       }
       
       // Combine all ranked courses across sentiments
       const allCourses = allRankings.flatMap(item => item.courses);
+      console.log(`🔍 DEBUG: Combined ${allCourses.length} courses from all sentiments`);
       
       // Check if there are reviews that don't have corresponding rankings
       // This is critical for first-time users who just left their first review
       const reviewsWithoutRankings = reviewsData.filter(review => !rankedCourseIds.has(review.course_id));
       
-      if (reviewsWithoutRankings.length > 0) {
+      if (reviewsWithoutRankings.length > 0 || allCourses.length === 0) {
         console.log(`🔍 DEBUG: Found ${reviewsWithoutRankings.length} reviews without rankings - adding these to played courses`);
         
         // Get the courses for these reviews
-        const missingCourseIds = reviewsWithoutRankings.map(r => r.course_id);
+        const missingCourseIds = reviewsWithoutRankings.length > 0 
+          ? reviewsWithoutRankings.map(r => r.course_id) 
+          : reviewsData.map(r => r.course_id); // If no courses with rankings, use all reviews
+        
+        console.log('🔍 DEBUG: Missing course IDs:', missingCourseIds);
         
         const { data: missingCoursesData, error: missingCoursesError } = await supabase
           .from('courses')
           .select('id, name, location, type, price_level, created_at, updated_at')
           .in('id', missingCourseIds);
           
-        if (!missingCoursesError && missingCoursesData && missingCoursesData.length > 0) {
+        if (missingCoursesError) {
+          console.error('🔍 ERROR: Failed to fetch missing courses:', missingCoursesError);
+          throw new Error('Failed to fetch missing courses');
+        }
+          
+        if (!missingCoursesData || missingCoursesData.length === 0) {
+          console.log('🔍 DEBUG: No missing course data found');
+          // If we have some courses from rankings, continue with those
+          if (allCourses.length > 0) {
+            console.log(`🔍 DEBUG: Using ${allCourses.length} courses from rankings only`);
+          } else {
+            throw new Error('No course data found');
+          }
+        } else {
+          console.log(`🔍 DEBUG: Found ${missingCoursesData.length} missing courses`);
+          
           // Create course objects for these reviews without rankings
           const additionalCourses = missingCoursesData.map(courseData => {
-            const review = reviewsWithoutRankings.find(r => r.course_id === courseData.id);
+            const review = reviewsData.find(r => r.course_id === courseData.id);
             
             return {
               id: courseData.id,
@@ -455,6 +506,11 @@ export default function ListsScreen() {
             additionalCourses.map(c => ({ name: c.name, id: c.id }))
           );
         }
+      }
+      
+      // If we still have no courses, throw an error to trigger the fallback
+      if (allCourses.length === 0) {
+        throw new Error('No courses found after processing rankings and reviews');
       }
       
       // First, group courses by sentiment tier
@@ -517,10 +573,17 @@ export default function ListsScreen() {
           .select('course_id, rating, date_played')
           .eq('user_id', userId);
           
-        if (basicReviewsError || !basicReviews || basicReviews.length === 0) {
+        if (basicReviewsError) {
+          console.error('🔍 ERROR: Failed to fetch basic reviews:', basicReviewsError);
+          throw new Error('Failed to fetch basic reviews');
+        }
+          
+        if (!basicReviews || basicReviews.length === 0) {
           console.log('🔍 DEBUG: Last resort fallback failed - no reviews found');
           throw new Error('No reviews found');
         }
+        
+        console.log(`🔍 DEBUG: Last resort fallback - found ${basicReviews.length} reviews`);
         
         // Get unique course IDs
         const uniqueCourseIds = [...new Set(basicReviews.map(r => r.course_id))];
@@ -532,10 +595,17 @@ export default function ListsScreen() {
           .select('id, name, location, type, price_level')
           .in('id', uniqueCourseIds);
           
-        if (basicCoursesError || !basicCourses || basicCourses.length === 0) {
+        if (basicCoursesError) {
+          console.error('🔍 ERROR: Failed to fetch basic courses:', basicCoursesError);
+          throw new Error('Failed to fetch basic courses');
+        }
+          
+        if (!basicCourses || basicCourses.length === 0) {
           console.log('🔍 DEBUG: Last resort fallback failed - no course data found');
           throw new Error('No course data found');
         }
+        
+        console.log(`🔍 DEBUG: Last resort fallback - found ${basicCourses.length} courses`);
         
         // Create lookup maps for course sentiments and dates
         const courseSentiments: Record<string, SentimentRating> = {};
