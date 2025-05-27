@@ -206,12 +206,21 @@ export const ReviewProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       if (reviewCount === 1 || isFromOnboarding) {
         console.log('🎉 This is the user\'s first review or from onboarding! Showing first review success screen.');
         
-        // Set a variable to prevent nested navigations
-        let navigationAttempted = false;
+        // Use a clear flag to manage navigation state
+        let isNavigating = false;
         
-        // Always mark the user as having completed first review for all first reviews
         try {
-          // Update both onboardingComplete and firstReviewCompleted flags
+          // Preload course details as early as possible
+          let courseName = 'Course';
+          let courseLocation = '';
+          
+          // Start fetching course details immediately (in parallel with other operations)
+          const courseDetailsPromise = getCourse(review.course_id).catch(err => {
+            console.warn('Error pre-fetching course details, will use defaults:', err);
+            return null;
+          });
+          
+          // First, update user metadata in a single atomic operation
           const { data: userUpdate, error: updateError } = await supabase.auth.updateUser({
             data: { 
               has_completed_first_review: true,
@@ -223,84 +232,112 @@ export const ReviewProvider: React.FC<{ children: React.ReactNode }> = ({ childr
           
           if (updateError) {
             console.error('Error updating user metadata:', updateError);
+            // Continue anyway - we'll try the legacy method as fallback
           } else {
             console.log('Successfully updated user metadata:', userUpdate?.user?.user_metadata);
           }
           
-          // Still call the service method for compatibility
-          const markResult = await userService.markFirstReviewComplete(user.id);
-          console.log(`Marked user as having completed first review: ${markResult ? 'success' : 'failed'}`);
-        } catch (err) {
-          console.error('Error marking first review complete:', err);
-          // Continue anyway
-        }
-        
-        // Close the review modal
-        if (!navigationAttempted) {
-          console.log('Closing review modal before showing success screen');
-          router.back();
-          
-          // Wait for the modal to close properly
-          await new Promise(resolve => setTimeout(resolve, 300));
-        }
-        
-        // Get the course details for display on the success screen
-        let courseName = 'Course';
-        let courseLocation = '';
-        
-        try {
-          const courseDetails = await getCourse(review.course_id);
-          if (courseDetails) {
-            courseName = courseDetails.name;
-            courseLocation = courseDetails.location || '';
-            console.log('Got course details for success screen:', {
-              name: courseName,
-              location: courseLocation
-            });
-          }
-        } catch (error) {
-          console.error('Error fetching course details:', error);
-        }
-        
-        console.log('Navigating to onboarding-first-review-success with params:', {
-          courseName,
-          courseLocation,
-          datePlayed: review.date_played.toISOString()
-        });
-        
-        // Use a clean approach with replace to avoid state conflicts
-        if (!navigationAttempted) {
+          // Call the legacy service method for backward compatibility
           try {
-            console.log('🚀 Executing navigation to onboarding-first-review-success screen');
-            console.log('Navigation params:', {
-              pathname: '/(modals)/onboarding-first-review-success',
-              params: {
-                courseName: encodeURIComponent(courseName),
-                courseLocation: courseLocation ? encodeURIComponent(courseLocation) : undefined,
-                datePlayed: encodeURIComponent(review.date_played.toISOString())
+            const markResult = await userService.markFirstReviewComplete(user.id);
+            console.log(`Marked user as having completed first review: ${markResult ? 'success' : 'failed'}`);
+          } catch (legacyErr) {
+            console.error('Error in legacy markFirstReviewComplete call:', legacyErr);
+            // Continue anyway since we already updated the metadata via Supabase
+          }
+          
+          // Get course details (should be ready from the earlier promise)
+          try {
+            const courseDetails = await courseDetailsPromise;
+            if (courseDetails) {
+              courseName = courseDetails.name || 'Course';
+              courseLocation = courseDetails.location || '';
+              console.log('Got course details for success screen:', {
+                name: courseName,
+                location: courseLocation
+              });
+            } else {
+              console.warn('getCourse returned null or undefined for course ID:', review.course_id);
+            }
+          } catch (courseError) {
+            console.error('Error fetching course details:', courseError);
+            // Continue with default values
+          }
+          
+          // First, close any open modals or flows to ensure clean navigation
+          try {
+            // Create a stable copy of navigation params
+            const safeNavigationParams = {
+              courseName: encodeURIComponent(courseName),
+              courseLocation: courseLocation ? encodeURIComponent(courseLocation) : undefined,
+              datePlayed: encodeURIComponent(review.date_played.toISOString()),
+              timestamp: Date.now().toString()
+            };
+            
+            // Log navigation intent
+            console.log('🚀 Starting first review success navigation sequence');
+            console.log('Navigation params:', JSON.stringify(safeNavigationParams, null, 2));
+            
+            // Flag to track if we're already in the navigation process
+            isNavigating = true;
+            
+            // Use a more reliable navigation pattern with better transition management
+            setTimeout(() => {
+              try {
+                // First ensure any current modals are closed by navigating to tabs
+                // This step prevents screen stack issues
+                console.log('🚀 Step 1: Clearing navigation stack');
+                router.replace('/(tabs)');
+                
+                // Give the UI time to stabilize before showing the success screen
+                setTimeout(() => {
+                  try {
+                    console.log('🚀 Step 2: Preparing to show success screen');
+                    
+                    // Use push with specific animation options for a clean modal presentation
+                    router.push({
+                      pathname: '/(modals)/onboarding-first-review-success',
+                      params: safeNavigationParams
+                    });
+                    
+                    console.log('🚀 Success screen navigation executed');
+                  } catch (finalNavError) {
+                    console.error('Error during final navigation step:', finalNavError);
+                    // Last resort - go to lists tab
+                    router.replace('/(tabs)/lists');
+                  }
+                }, 100); // Reduced from 400ms to 100ms for faster display
+              } catch (innerNavError) {
+                console.error('Error during initial navigation step:', innerNavError);
+                router.replace('/(tabs)/lists');
               }
-            });
-            
-            // Force a 100ms delay before navigation to ensure previous operations are complete
-            await new Promise(resolve => setTimeout(resolve, 100));
-            
-            // Mark that we've attempted navigation to prevent multiple attempts
-            navigationAttempted = true;
-            
-            router.replace({
-              pathname: '/(modals)/onboarding-first-review-success',
-              params: {
-                courseName: encodeURIComponent(courseName),
-                courseLocation: courseLocation ? encodeURIComponent(courseLocation) : undefined,
-                datePlayed: encodeURIComponent(review.date_played.toISOString())
-              }
-            });
-            
-            // Log after navigation attempt
-            console.log('Navigation executed - if you see this, the router.replace call completed without throwing');
+            }, 50); // Reduced from 200ms to 50ms for faster initial navigation
           } catch (navError) {
-            console.error('Navigation error details:', navError);
-            // Fallback - just go to the main app
+            console.error('Navigation error:', navError);
+            
+            // Last resort fallback - try a direct push after a delay
+            setTimeout(() => {
+              try {
+                router.push({
+                  pathname: '/(modals)/onboarding-first-review-success',
+                  params: safeNavigationParams
+                });
+              } catch (finalError) {
+                console.error('Final navigation attempt failed:', finalError);
+                // If all else fails, go to lists tab
+                router.replace('/(tabs)/lists');
+              }
+            }, 100); // Reduced from 500ms to 100ms for faster fallback
+          }
+          
+          return;
+        } catch (err) {
+          console.error('Error in first review success flow:', err);
+          
+          // Only attempt fallback navigation if we haven't already started navigating
+          if (!isNavigating) {
+            console.log('Attempting fallback navigation to lists tab');
+            // Fallback - navigate directly to lists tab
             router.replace('/(tabs)/lists');
           }
         }

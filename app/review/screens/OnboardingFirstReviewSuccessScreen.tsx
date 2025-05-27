@@ -34,38 +34,108 @@ export const OnboardingFirstReviewSuccessScreen: React.FC<OnboardingFirstReviewS
     datePlayed: datePlayed ? datePlayed.toISOString() : 'null'
   });
   
+  // Add component lifecycle logging
+  React.useEffect(() => {
+    console.log('🏆 OnboardingFirstReviewSuccessScreen mounted');
+    
+    return () => {
+      console.log('🏆 OnboardingFirstReviewSuccessScreen unmounted');
+    };
+  }, []);
+  
   // All hooks at the top level - no conditions
   const theme = useEdenTheme();
   const router = useRouter();
   
+  // Track if navigation is in progress to prevent multiple clicks
+  const isNavigating = React.useRef(false);
+  
   // Helper function to format date safely
   const formatDatePlayed = () => {
     try {
+      // Validate the date first
       if (!datePlayed || !isValid(datePlayed)) {
+        console.warn('Invalid date provided to OnboardingFirstReviewSuccessScreen', datePlayed);
         return 'Recently';
       }
+      
+      // Format with proper error handling
       return format(datePlayed, 'MMMM d, yyyy');
     } catch (error) {
       console.error('Date formatting error:', error);
+      // Return a safe fallback
       return 'Recently';
     }
   };
 
-  // Simple, direct navigation handlers with no state changes
-  const handleFindNextCourse = () => {
-    console.log('Navigating to search tab');
-    router.replace('/(tabs)/search');
-  };
+  // Memoize navigation handlers to prevent recreating on each render
+  const handleFindNextCourse = React.useCallback(() => {
+    // Prevent multiple navigation attempts
+    if (isNavigating.current) return;
+    isNavigating.current = true;
+    
+    try {
+      console.log('🏆 Navigating to search tab from success screen');
+      
+      // Faster transition - reduce delay times
+      router.replace('/(tabs)');
+      
+      // Then navigate to search with minimal delay
+      setTimeout(() => {
+        router.replace('/(tabs)/search');
+        console.log('🏆 Successfully navigated to search tab');
+        // Reset navigation flag after completion
+        isNavigating.current = false;
+      }, 50); // Reduced from 400ms to 50ms
+    } catch (err) {
+      console.error('Error navigating to search tab:', err);
+      // Ultimate fallback - immediate execution
+      router.replace('/(tabs)');
+      isNavigating.current = false;
+    }
+  }, [router]);
 
-  const handleGoToHome = () => {
-    console.log('Navigating to lists tab');
-    router.replace('/(tabs)/lists');
-  };
+  const handleGoToHome = React.useCallback(() => {
+    // Prevent multiple navigation attempts
+    if (isNavigating.current) return;
+    isNavigating.current = true;
+    
+    try {
+      console.log('🏆 Navigating to lists tab from success screen');
+      
+      // Direct navigation without unnecessary delays
+      router.replace('/(tabs)/lists');
+      console.log('🏆 Successfully navigated to lists tab');
+      // Reset navigation flag immediately
+      isNavigating.current = false;
+    } catch (err) {
+      console.error('Error navigating to lists tab:', err);
+      // Fallback with minimal delay
+      router.replace('/(tabs)');
+      isNavigating.current = false;
+    }
+  }, [router]);
   
-  const handleClose = () => {
-    console.log('Closing screen and navigating to lists tab');
-    router.replace('/(tabs)/lists');
-  };
+  const handleClose = React.useCallback(() => {
+    // Prevent multiple navigation attempts
+    if (isNavigating.current) return;
+    isNavigating.current = true;
+    
+    try {
+      console.log('🏆 Closing success screen and navigating to lists tab');
+      
+      // Direct navigation without unnecessary delays
+      router.replace('/(tabs)/lists');
+      console.log('🏆 Successfully closed success screen');
+      // Reset navigation flag immediately
+      isNavigating.current = false;
+    } catch (err) {
+      console.error('Error closing success screen:', err);
+      // Fallback with minimal delay
+      router.replace('/(tabs)');
+      isNavigating.current = false;
+    }
+  }, [router]);
   
   // For safety, wrap the return in a try/catch
   try {
