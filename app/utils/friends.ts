@@ -248,7 +248,8 @@ export async function getFriendsReviews(userId: string, page: number = 1, limit:
   const offset = (page - 1) * limit;
   
   try {
-    // First fetch the reviews data - no inner join with course_rankings
+    console.log(`getFriendsReviews: Fetching reviews for user ${userId}, page ${page}, limit ${limit}`);
+    // First fetch the reviews data
     const { data: reviewsData, error: reviewsError } = await supabase
       .from('followed_users_reviews')
       .select('*')
@@ -262,106 +263,279 @@ export async function getFriendsReviews(userId: string, page: number = 1, limit:
     }
 
     if (!reviewsData || reviewsData.length === 0) {
+      console.log('No reviews found');
       return [];
     }
 
-    // Sanitize and normalize the review data
-    const sanitizedReviews = reviewsData.map(review => {
-      const sanitized = sanitizeReview(review);
-      
-      // First apply the basic sentiment-to-rating conversion
-      // This handles cases like would_play_again, it_was_fine, would_not_play_again
-      let baseRating = sentimentToRating(sanitized.sentiment);
-      
-      // Also map legacy sentiment values to the correct ranges
-      if (sanitized.sentiment === 'liked') {
-        baseRating = 8.5; // Same as would_play_again
-      } else if (sanitized.sentiment === 'fine') {
-        baseRating = 5.0; // Same as it_was_fine
-      } else if (sanitized.sentiment === 'didnt_like') {
-        baseRating = 2.0; // Same as would_not_play_again
-      }
-      
-      return {
-        ...sanitized,
-        baseRating
-      };
-    });
+    // Get all the review IDs and course IDs for batch operations
+    const reviewIds = reviewsData.map(review => review.id);
+    const courseIds = reviewsData.map(review => review.course_id);
+    const userIds = reviewsData.map(review => review.user_id);
     
-    // Group by sentiment categories for position-based scoring
-    const likedReviews = sanitizedReviews.filter(r => 
-      r.sentiment === 'liked' || 
-      r.sentiment === 'would_play_again' ||
-      r.baseRating >= 7.0);
+    console.log(`Processing ${reviewIds.length} reviews`);
     
-    const fineReviews = sanitizedReviews.filter(r => 
-      r.sentiment === 'fine' || 
-      r.sentiment === 'it_was_fine' ||
-      (r.baseRating < 7.0 && r.baseRating >= 3.0));
+    // Run all queries in parallel for better performance
+    const [likesData, bookmarksData, relativeScoresData] = await Promise.all([
+      // Get likes data in a single query
+      fetchLikesData(reviewIds, userId),
+      
+      // Get bookmarks data in a single query
+      fetchBookmarksData(courseIds, userId),
+      
+      // Get relative scores for each user-course combination
+      fetchRelativeScoresData(reviewsData)
+    ]);
     
-    const didntLikeReviews = sanitizedReviews.filter(r => 
-      r.sentiment === 'didnt_like' || 
-      r.sentiment === 'would_not_play_again' ||
-      r.baseRating < 3.0);
+    // Process the reviews with interaction data
+    const processedReviews = processReviewsWithInteractions(
+      reviewsData, 
+      likesData.likedReviewIds,
+      likesData.likesCountMap,
+      likesData.commentsCountMap,
+      bookmarksData.bookmarkedCourseIds,
+      relativeScoresData
+    );
     
-    // Process reviews with position-based scoring
-    const processedReviews = sanitizedReviews.map(review => {
-      let finalRating = review.baseRating; // Start with the base rating
-      
-      // Apply position-based scoring for "liked" reviews
-      if (likedReviews.includes(review)) {
-        const position = likedReviews.indexOf(review);
-        const total = likedReviews.length;
-        
-        if (total === 1 || position === 0) {
-          finalRating = 10.0; // Top "liked" course
-        } else {
-          // Scale from 7.0 to 10.0 based on position
-          finalRating = 7.0 + ((10.0 - 7.0) * (total - position - 1) / Math.max(total - 1, 1));
-        }
-      } 
-      // Apply position-based scoring for "fine" reviews
-      else if (fineReviews.includes(review)) {
-        const position = fineReviews.indexOf(review);
-        const total = fineReviews.length;
-        
-        if (total === 1 || position === 0) {
-          finalRating = 6.9; // Top "fine" course
-        } else {
-          // Scale from 3.0 to 6.9 based on position
-          finalRating = 3.0 + ((6.9 - 3.0) * (total - position - 1) / Math.max(total - 1, 1));
-        }
-      }
-      // Apply position-based scoring for "didnt_like" reviews
-      else if (didntLikeReviews.includes(review)) {
-        const position = didntLikeReviews.indexOf(review);
-        const total = didntLikeReviews.length;
-        
-        if (total === 1 || position === 0) {
-          finalRating = 2.9; // Top "didnt_like" course
-        } else {
-          // Scale from 0.0 to 2.9 based on position
-          finalRating = 0.0 + ((2.9 - 0.0) * (total - position - 1) / Math.max(total - 1, 1));
-        }
-      }
-      
-      // Round to one decimal place for consistency
-      finalRating = Math.round(finalRating * 10) / 10;
-      
-      // Remove the temporary baseRating property
-      const { baseRating, ...reviewWithoutBase } = review;
-      
-      return {
-        ...reviewWithoutBase,
-        rating: finalRating
-      };
-    });
-    
+    console.log(`Processed ${processedReviews.length} reviews with interaction data`);
     return processedReviews;
   } catch (error) {
     console.error('Error in getFriendsReviews:', error);
     throw error;
   }
+}
+
+// Helper function to fetch likes and comments data
+async function fetchLikesData(reviewIds: string[], userId: string) {
+  try {
+    // Check which reviews the current user has liked in a single query
+    const { data: likedReviewsData, error: likedError } = await supabase
+      .from('review_likes')
+      .select('review_id')
+      .eq('user_id', userId)
+      .in('review_id', reviewIds);
+      
+    // Create a Set of liked review IDs for fast lookup
+    const likedReviewIds = new Set((likedError || !likedReviewsData) ? [] : 
+      likedReviewsData.map(item => item.review_id));
+    
+    // Fetch all likes for these reviews in a single query
+    const { data: allLikesData, error: allLikesError } = await supabase
+      .from('review_likes')
+      .select('review_id')
+      .in('review_id', reviewIds);
+    
+    // Count likes for each review manually
+    const likesCountMap = new Map();
+    if (!allLikesError && allLikesData) {
+      // Count occurrences of each review_id
+      allLikesData.forEach(item => {
+        const reviewId = item.review_id;
+        likesCountMap.set(reviewId, (likesCountMap.get(reviewId) || 0) + 1);
+      });
+    }
+    
+    // Fetch all comments for these reviews in a single query
+    const { data: allCommentsData, error: allCommentsError } = await supabase
+      .from('review_comments')
+      .select('review_id')
+      .in('review_id', reviewIds);
+    
+    // Count comments for each review manually
+    const commentsCountMap = new Map();
+    if (!allCommentsError && allCommentsData) {
+      // Count occurrences of each review_id
+      allCommentsData.forEach(item => {
+        const reviewId = item.review_id;
+        commentsCountMap.set(reviewId, (commentsCountMap.get(reviewId) || 0) + 1);
+      });
+    }
+    
+    return { likedReviewIds, likesCountMap, commentsCountMap };
+  } catch (error) {
+    console.error('Error fetching likes data:', error);
+    // Return empty data structures as fallback
+    return { 
+      likedReviewIds: new Set(), 
+      likesCountMap: new Map(),
+      commentsCountMap: new Map()
+    };
+  }
+}
+
+// Helper function to fetch bookmarks data
+async function fetchBookmarksData(courseIds: string[], userId: string) {
+  try {
+    // Check which courses the user has bookmarked
+    const { data: bookmarkedData, error: bookmarkedError } = await supabase
+      .from('want_to_play_courses')
+      .select('course_id')
+      .eq('user_id', userId)
+      .in('course_id', courseIds);
+      
+    // Create a Set of bookmarked course IDs
+    const bookmarkedCourseIds = new Set((bookmarkedError || !bookmarkedData) ? [] : 
+      bookmarkedData.map(item => item.course_id));
+    
+    return { bookmarkedCourseIds };
+  } catch (error) {
+    console.error('Error fetching bookmarks data:', error);
+    // Return empty data structure as fallback
+    return { bookmarkedCourseIds: new Set() };
+  }
+}
+
+// Helper function to fetch relative scores data
+async function fetchRelativeScoresData(reviewsData: any[]) {
+  try {
+    // Create user-course pairs for the query
+    const userCoursePairs = reviewsData.map(review => ({
+      user_id: review.user_id,
+      course_id: review.course_id
+    }));
+    
+    // Fetch relative scores for each user-course combination
+    const relativeScoresPromises = userCoursePairs.map(async ({ user_id, course_id }) => {
+      const { data, error } = await supabase
+        .from('course_rankings')
+        .select('relative_score')
+        .eq('user_id', user_id)
+        .eq('course_id', course_id)
+        .single();
+      
+      if (error || !data) {
+        return { user_id, course_id, relative_score: null };
+      }
+      
+      return { user_id, course_id, relative_score: data.relative_score };
+    });
+    
+    const relativeScoresResults = await Promise.all(relativeScoresPromises);
+    
+    // Create a map using user_id + course_id as key
+    const relativeScoresMap = new Map<string, number>();
+    relativeScoresResults.forEach(({ user_id, course_id, relative_score }) => {
+      if (relative_score !== null) {
+        const key = `${user_id}-${course_id}`;
+        relativeScoresMap.set(key, relative_score);
+      }
+    });
+    
+    console.log(`Fetched relative scores for ${relativeScoresMap.size} user-course combinations`);
+    return relativeScoresMap;
+  } catch (error) {
+    console.error('Error fetching relative scores:', error);
+    return new Map<string, number>();
+  }
+}
+
+// Helper function to process reviews with interaction data
+function processReviewsWithInteractions(
+  reviewsData: any[],
+  likedReviewIds: Set<string>,
+  likesCountMap: Map<string, number>,
+  commentsCountMap: Map<string, number>,
+  bookmarkedCourseIds: Set<string>,
+  relativeScoresMap: Map<string, number>
+) {
+  // Sanitize and normalize the review data
+  const sanitizedReviews = reviewsData.map(review => {
+    const sanitized = sanitizeReview(review);
+    
+    // First apply the basic sentiment-to-rating conversion
+    // This handles cases like would_play_again, it_was_fine, would_not_play_again
+    let baseRating = sentimentToRating(sanitized.sentiment);
+    
+    // Also map legacy sentiment values to the correct ranges
+    if (sanitized.sentiment === 'liked') {
+      baseRating = 8.5; // Same as would_play_again
+    } else if (sanitized.sentiment === 'fine') {
+      baseRating = 5.0; // Same as it_was_fine
+    } else if (sanitized.sentiment === 'didnt_like') {
+      baseRating = 2.0; // Same as would_not_play_again
+    }
+    
+    return {
+      ...sanitized,
+      baseRating
+    };
+  });
+  
+  // Group by sentiment categories for position-based scoring
+  const likedReviews = sanitizedReviews.filter(r => 
+    r.sentiment === 'liked' || 
+    r.sentiment === 'would_play_again' ||
+    r.baseRating >= 7.0);
+  
+  const fineReviews = sanitizedReviews.filter(r => 
+    r.sentiment === 'fine' || 
+    r.sentiment === 'it_was_fine' ||
+    (r.baseRating < 7.0 && r.baseRating >= 3.0));
+  
+  const didntLikeReviews = sanitizedReviews.filter(r => 
+    r.sentiment === 'didnt_like' || 
+    r.sentiment === 'would_not_play_again' ||
+    r.baseRating < 3.0);
+  
+  // Process reviews with position-based scoring
+  const processedReviews = sanitizedReviews.map(review => {
+    let finalRating = review.baseRating; // Start with the base rating
+    
+    // Apply position-based scoring for "liked" reviews
+    if (likedReviews.includes(review)) {
+      const position = likedReviews.indexOf(review);
+      const total = likedReviews.length;
+      
+      if (total === 1 || position === 0) {
+        finalRating = 10.0; // Top "liked" course
+      } else {
+        // Scale from 7.0 to 10.0 based on position
+        finalRating = 7.0 + ((10.0 - 7.0) * (total - position - 1) / Math.max(total - 1, 1));
+      }
+    } 
+    // Apply position-based scoring for "fine" reviews
+    else if (fineReviews.includes(review)) {
+      const position = fineReviews.indexOf(review);
+      const total = fineReviews.length;
+      
+      if (total === 1 || position === 0) {
+        finalRating = 6.9; // Top "fine" course
+      } else {
+        // Scale from 3.0 to 6.9 based on position
+        finalRating = 3.0 + ((6.9 - 3.0) * (total - position - 1) / Math.max(total - 1, 1));
+      }
+    }
+    // Apply position-based scoring for "didnt_like" reviews
+    else if (didntLikeReviews.includes(review)) {
+      const position = didntLikeReviews.indexOf(review);
+      const total = didntLikeReviews.length;
+      
+      if (total === 1 || position === 0) {
+        finalRating = 2.9; // Top "didnt_like" course
+      } else {
+        // Scale from 0.0 to 2.9 based on position
+        finalRating = 0.0 + ((2.9 - 0.0) * (total - position - 1) / Math.max(total - 1, 1));
+      }
+    }
+    
+    // Round to one decimal place for consistency
+    finalRating = Math.round(finalRating * 10) / 10;
+    
+    // Remove the temporary baseRating property
+    const { baseRating, ...reviewWithoutBase } = review;
+    
+    // Add interaction-specific properties from our pre-fetched data
+    return {
+      ...reviewWithoutBase,
+      rating: finalRating,
+      likes_count: likesCountMap.get(review.id) || 0,
+      comments_count: commentsCountMap.get(review.id) || 0,
+      is_liked_by_me: likedReviewIds.has(review.id),
+      is_bookmarked: bookmarkedCourseIds.has(review.course_id),
+      relative_score: relativeScoresMap.get(`${review.user_id}-${review.course_id}`)
+    };
+  });
+  
+  return processedReviews;
 }
 
 /**

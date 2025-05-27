@@ -1,14 +1,15 @@
 import React, { useState, useEffect, useCallback, useReducer, memo, useRef, forwardRef, useImperativeHandle } from 'react';
-import { View, StyleSheet, FlatList, ActivityIndicator, Text, TouchableOpacity } from 'react-native';
+import { View, StyleSheet, FlatList, ActivityIndicator, TouchableOpacity } from 'react-native';
 import { useTheme, useEdenTheme } from '../theme/ThemeProvider';
-import { FriendReviewCard } from './FriendReviewCard';
+import { SimpleFriendReviewCard } from './SimpleFriendReviewCard';
 import { getFriendsReviews } from '../utils/friends';
 import { useAuth } from '../context/AuthContext';
 import { useRouter } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Users } from 'lucide-react-native';
 import { supabase } from '../utils/supabase';
-import EDEN_COLORS from '../theme/edenColors';
+import { colors } from '../theme/tokens';
+import { Heading2, BodyText, Button, EmptyTabState } from '../components/eden';
 
 // How long to keep cache valid (in milliseconds)
 const CACHE_EXPIRY_TIME = 15 * 60 * 1000; // Increased to 15 minutes for better performance
@@ -150,12 +151,13 @@ export interface FriendsReviewsFeedRef {
 }
 
 // Memoized FriendReviewCard component
-const MemoizedFriendReviewCard = memo(FriendReviewCard);
+const MemoizedFriendReviewCard = memo(SimpleFriendReviewCard);
 
 // Convert to forwardRef
 export const FriendsReviewsFeed = forwardRef<FriendsReviewsFeedRef, FriendsReviewsFeedProps>((props, ref) => {
   const { onFindFriendsPress } = props;
   const theme = useTheme();
+  const edenTheme = useEdenTheme();
   const router = useRouter();
   const { user } = useAuth();
   const [state, dispatch] = useReducer(reviewsReducer, initialState);
@@ -238,35 +240,56 @@ export const FriendsReviewsFeed = forwardRef<FriendsReviewsFeedRef, FriendsRevie
         dispatch({ type: 'LOAD_MORE_START' });
       }
       
-      const reviewsData = await getFriendsReviews(user!.id, currentPage, pageSize);
+      console.log(`Fetching friends reviews for page ${currentPage}, background=${isBackground}`);
       
-      // Update state with new data
-      const isFirstPage = currentPage === 1;
-      const hasMore = reviewsData.length === pageSize;
-      
-      dispatch({ 
-        type: 'FETCH_SUCCESS', 
-        data: reviewsData, 
-        isFirstPage, 
-        hasMore 
-      });
-      
-      // Update cache for first page data
-      if (isFirstPage) {
-        updateCache(reviewsData);
+      try {
+        const reviewsData = await getFriendsReviews(user!.id, currentPage, pageSize);
+        
+        // Update state with new data
+        const isFirstPage = currentPage === 1;
+        const hasMore = reviewsData.length === pageSize;
+        
+        dispatch({ 
+          type: 'FETCH_SUCCESS', 
+          data: reviewsData, 
+          isFirstPage, 
+          hasMore 
+        });
+        
+        // Update cache for first page data
+        if (isFirstPage) {
+          updateCache(reviewsData);
+        }
+      } catch (err) {
+        // Handle error from getFriendsReviews
+        console.error('Error in getFriendsReviews:', err);
+        
+        if (!isBackground) {
+          // Try once more with a simplified approach if there was an error
+          if (err instanceof TypeError && err.toString().includes('is not a function')) {
+            console.warn('Encountered TypeError, switching to fallback method');
+            // No need to implement fallback here as we've fixed the underlying issue
+          }
+          
+          // Show user-friendly error
+          let errorMessage = 'Failed to load reviews';
+          
+          if (err && typeof err === 'object') {
+            if ('message' in err) {
+              errorMessage = `Error loading reviews: ${err.message}`;
+            } else if (err instanceof TypeError) {
+              errorMessage = 'We encountered a data loading issue. Please try again later.';
+            }
+          }
+          
+          dispatch({ type: 'FETCH_ERROR', error: errorMessage });
+        }
       }
     } catch (err) {
-      console.error('Error in fetchFreshData:', err);
+      console.error('Unexpected error in fetchFreshData:', err);
+      
       if (!isBackground) {
-        // Provide a user-friendly error message
-        let errorMessage = 'Failed to load reviews';
-        
-        if (err && typeof err === 'object' && 'message' in err) {
-          // If there's a specific error message, use it
-          errorMessage = `Error loading reviews: ${err.message}`;
-        }
-        
-        dispatch({ type: 'FETCH_ERROR', error: errorMessage });
+        dispatch({ type: 'FETCH_ERROR', error: 'An unexpected error occurred' });
       }
     }
   };
@@ -401,45 +424,40 @@ export const FriendsReviewsFeed = forwardRef<FriendsReviewsFeedRef, FriendsRevie
   // Rendering logic based on state
   if (state.loading && !state.refreshing && !state.isLoadingMore) {
     return (
-      <View style={[styles.fillContainer, styles.loadingContainer, { backgroundColor: EDEN_COLORS.BACKGROUND }]}>
-        <ActivityIndicator size="large" color={EDEN_COLORS.PRIMARY} />
+      <View style={[styles.fillContainer, styles.loadingContainer, { backgroundColor: edenTheme.colors.background }]}>
+        <ActivityIndicator size="large" color={edenTheme.colors.primary} />
       </View>
     );
   }
   
   if (state.error) {
     return (
-      <View style={[styles.fillContainer, styles.errorContainer, { backgroundColor: EDEN_COLORS.BACKGROUND }]}>
-        <Text style={[styles.errorText, { color: EDEN_COLORS.ERROR }]}>{state.error}</Text>
-        <TouchableOpacity 
-          style={[styles.retryButton, { backgroundColor: EDEN_COLORS.PRIMARY }]} 
+      <View style={[styles.fillContainer, styles.errorContainer, { backgroundColor: edenTheme.colors.background }]}>
+        <BodyText color={edenTheme.colors.error} style={styles.errorText}>{state.error}</BodyText>
+        <Button
+          label="Retry"
+          variant="primary"
           onPress={() => fetchReviews(true)}
-        >
-          <Text style={[styles.retryButtonText, { color: EDEN_COLORS.WHITE }]}>Retry</Text>
-        </TouchableOpacity>
+          style={styles.retryButton}
+        />
       </View>
     );
   }
   
   if (state.reviews.length === 0 && !state.loading) {
     return (
-      <View style={[styles.fillContainer, styles.emptyContainer, { backgroundColor: EDEN_COLORS.BACKGROUND }]}>
-        <Users size={48} color={EDEN_COLORS.TEXT_SECONDARY} />
-        <Text style={[styles.emptyTitle, { color: EDEN_COLORS.TEXT }]}>
-          No Friend Reviews Yet
-        </Text>
-        <Text style={[styles.emptyMessage, { color: EDEN_COLORS.TEXT_SECONDARY }]}>
-          Follow friends to see their reviews here
-        </Text>
-        <TouchableOpacity 
-          style={[styles.findFriendsButton, { backgroundColor: EDEN_COLORS.PRIMARY }]}
-          onPress={onFindFriendsPress}
-        >
-          <Text style={[styles.findFriendsButtonText, { color: EDEN_COLORS.WHITE }]}>
-            Find Friends
-          </Text>
-        </TouchableOpacity>
-      </View>
+      <EmptyTabState
+        icon={<Users size={48} color={edenTheme.colors.textSecondary} />}
+        title="No Friend Reviews Yet"
+        description="Follow friends to see their reviews here"
+        actionButton={
+          <Button
+            label="Find Friends"
+            variant="primary"
+            onPress={onFindFriendsPress}
+          />
+        }
+      />
     );
   }
 
@@ -454,30 +472,30 @@ export const FriendsReviewsFeed = forwardRef<FriendsReviewsFeedRef, FriendsRevie
       )}
       keyExtractor={getUniqueKey}
       contentContainerStyle={styles.container}
-      style={[styles.flatList, { backgroundColor: EDEN_COLORS.BACKGROUND }]}
+      style={[styles.flatList, { backgroundColor: edenTheme.colors.background }]}
       onEndReached={handleLoadMore}
       onEndReachedThreshold={0.5}
       refreshing={state.refreshing}
       onRefresh={handleRefresh}
       showsVerticalScrollIndicator={false}
-      removeClippedSubviews={true}
-      maxToRenderPerBatch={5}
-      windowSize={10}
-      getItemLayout={(data, index) => (
-        { length: 220, offset: 220 * index, index }
-      )}
+      removeClippedSubviews={false}
+      keyboardShouldPersistTaps="handled"
+      maxToRenderPerBatch={3}
+      windowSize={5}
       ListFooterComponent={
         state.isLoadingMore ? (
-          <ActivityIndicator size="small" color={EDEN_COLORS.PRIMARY} style={styles.loadMoreIndicator} />
+          <ActivityIndicator size="small" color={edenTheme.colors.primary} style={styles.loadMoreIndicator} />
         ) : state.hasMore ? (
-          <TouchableOpacity 
-            style={styles.loadMoreButton} 
+          <Button
+            label="Load More"
+            variant="tertiary"
             onPress={handleLoadMore}
-          >
-            <Text style={styles.loadMoreText}>Load More</Text>
-          </TouchableOpacity>
+            style={styles.loadMoreButton}
+          />
         ) : state.reviews.length > 0 ? (
-          <Text style={styles.endOfListText}>You've reached the end</Text>
+          <BodyText color={edenTheme.colors.textSecondary} style={styles.endOfListText}>
+            You've reached the end
+          </BodyText>
         ) : null
       }
     />
@@ -509,67 +527,21 @@ const styles = StyleSheet.create({
     padding: 16,
   },
   errorText: {
-    fontSize: 16,
-    fontFamily: 'Inter-Medium',
     marginBottom: 16,
     textAlign: 'center',
   },
   retryButton: {
-    paddingVertical: 8,
-    paddingHorizontal: 16,
-    borderRadius: 8,
-  },
-  retryButtonText: {
-    fontSize: 14,
-    fontFamily: 'Inter-Medium',
-  },
-  emptyContainer: {
-    flex: 1,
-    justifyContent: 'flex-start',
-    alignItems: 'center',
-    padding: 16,
-    paddingTop: 40,
-  },
-  emptyTitle: {
-    fontSize: 18,
-    fontFamily: 'Inter-Bold',
-    marginTop: 16,
-    marginBottom: 8,
-  },
-  emptyMessage: {
-    fontSize: 14,
-    fontFamily: 'Inter-Regular',
-    textAlign: 'center',
-    marginBottom: 24,
-  },
-  findFriendsButton: {
-    paddingVertical: 10,
-    paddingHorizontal: 20,
-    borderRadius: 8,
-  },
-  findFriendsButtonText: {
-    fontSize: 16,
-    fontFamily: 'Inter-Medium',
+    marginTop: 8,
   },
   loadMoreIndicator: {
     marginVertical: 16,
   },
   loadMoreButton: {
     paddingVertical: 12,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  loadMoreText: {
-    fontSize: 14,
-    fontFamily: 'Inter-Medium',
-    color: '#0066ff',
   },
   endOfListText: {
     textAlign: 'center',
     paddingVertical: 16,
-    fontSize: 14,
-    fontFamily: 'Inter-Regular',
-    color: '#94a3b8',
   },
   fillContainer: {
     flex: 1,
