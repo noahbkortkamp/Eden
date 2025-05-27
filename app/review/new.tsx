@@ -110,10 +110,6 @@ export default function NewReviewScreen() {
   const [scoreBreakdown, setScoreBreakdown] = useState<any>(null);
   const scrollViewRef = useRef<ScrollView>(null);
 
-  if (!fontsLoaded) {
-    return null;
-  }
-
   const pickImage = async () => {
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ImagePicker.MediaTypeOptions.Images,
@@ -182,6 +178,14 @@ export default function NewReviewScreen() {
       scrollViewRef.current?.scrollToEnd({ animated: true });
     }, 100);
   };
+
+  if (!fontsLoaded) {
+    return (
+      <View style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]}>
+        <Text>Loading...</Text>
+      </View>
+    );
+  }
 
   return (
     <View style={styles.container}>

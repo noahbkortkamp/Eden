@@ -29,6 +29,22 @@ function ReviewSuccessContent() {
   const [error, setError] = useState<string | null>(null);
   const [loadAttempts, setLoadAttempts] = useState(0);
   const [fadeAnim] = useState(new Animated.Value(0));
+  
+  // Add a timeout to prevent being stuck in loading state forever
+  useEffect(() => {
+    console.log(`ReviewSuccessScreen: Initializing with courseId=${courseId}, loading=${isLoading}, courseLoading=${courseLoading}`);
+    
+    // Set up a global timeout to prevent getting stuck in loading state
+    const globalTimeout = setTimeout(() => {
+      if (isLoading || courseLoading) {
+        console.warn(`ReviewSuccessScreen: Global timeout triggered after 10s, courseId=${courseId}`);
+        setError('Loading timed out, please try again');
+        setIsLoading(false);
+      }
+    }, 10000); // 10 second global timeout
+    
+    return () => clearTimeout(globalTimeout);
+  }, []);
 
   // Force refresh all rankings when the success screen is shown
   // This ensures proper score distribution after comparisons
@@ -70,6 +86,7 @@ function ReviewSuccessContent() {
 
   useEffect(() => {
     if (!courseId || !user) {
+      console.log(`ReviewSuccessScreen: Missing required parameters, courseId=${courseId}, userId=${user?.id}`);
       setError('Missing required parameters');
       setIsLoading(false);
       return;
@@ -77,26 +94,42 @@ function ReviewSuccessContent() {
 
     // If we've tried too many times, give up
     if (loadAttempts >= 3) {
+      console.warn(`ReviewSuccessScreen: Failed to load after ${loadAttempts} attempts`);
       setError('Failed to load review data after multiple attempts');
       setIsLoading(false);
       return;
     }
 
-    // Skip the data loading if the course is still loading
+    // Skip the data loading if the course is still loading,
+    // but protect against infinite loading with an attempt counter
     if (courseLoading) {
-      return;
+      console.log(`ReviewSuccessScreen: Course is still loading, attempt ${loadAttempts + 1}/3`);
+      
+      // If course is taking too long to load, try to continue anyway after a certain number of attempts
+      if (loadAttempts >= 1) {
+        console.log('ReviewSuccessScreen: Course loading too long, continuing with data loading anyway');
+      } else {
+        // Set a timeout to retry
+        const retryTimeout = setTimeout(() => {
+          setLoadAttempts(prev => prev + 1);
+        }, 2000);
+        return () => clearTimeout(retryTimeout);
+      }
     }
 
     const loadReviewData = async () => {
       try {
+        console.log(`ReviewSuccessScreen: Loading review data for courseId=${courseId}`);
         setIsLoading(true);
 
         // Get user's total review count to determine if we should show rating
         const totalReviews = await reviewService.getUserReviewCount(user.id);
+        console.log(`ReviewSuccessScreen: User has ${totalReviews} total reviews`);
         setUserReviewCount(totalReviews);
 
         // Get how many times the user has reviewed this course
         const courseReviews = await getReviewsForCourse(courseId, user.id);
+        console.log(`ReviewSuccessScreen: Found ${courseReviews?.length || 0} reviews for this course`);
         
         if (courseReviews && courseReviews.length > 0) {
           // For the rating, we'll use the course ranking if the user has enough reviews
@@ -106,29 +139,38 @@ function ReviewSuccessContent() {
               const latestReview = courseReviews[0]; // Assuming reviews are sorted by date descending
               const sentiment = latestReview.rating;
               
+              console.log(`ReviewSuccessScreen: Getting rankings for sentiment=${sentiment}`);
               const rankings = await rankingService.getUserRankings(user.id, sentiment);
               
               const courseRanking = rankings.find(r => r.course_id === courseId);
               
               if (courseRanking) {
+                console.log(`ReviewSuccessScreen: Found ranking score ${courseRanking.relative_score} for this course`);
                 setRating(courseRanking.relative_score);
               } else if (course?.rating) {
                 // Fallback to course rating if ranking not found
+                console.log(`ReviewSuccessScreen: No ranking found, using course rating ${course.rating}`);
                 setRating(course.rating);
               }
             } catch (rankingError) {
+              console.error('ReviewSuccessScreen: Error getting rankings:', rankingError);
               // Fallback to course rating
               if (course?.rating) {
+                console.log(`ReviewSuccessScreen: Using fallback course rating ${course.rating} after error`);
                 setRating(course.rating);
               }
             }
           }
         }
         
+        console.log('ReviewSuccessScreen: Successfully loaded review data');
         setIsLoading(false);
       } catch (error) {
+        console.error('ReviewSuccessScreen: Error loading review data:', error);
+        
         // Retry automatically after a short delay
         if (loadAttempts < 2) {
+          console.log(`ReviewSuccessScreen: Will retry loading data, attempt ${loadAttempts + 1}/3`);
           setLoadAttempts(prev => prev + 1);
           setTimeout(() => {
             // This will trigger the effect again due to loadAttempts change
@@ -141,8 +183,9 @@ function ReviewSuccessContent() {
       }
     };
 
-    // Only load review data if we have a course or there's a course error
-    if (course || courseError) {
+    // Only load review data if we have a course or there's a course error,
+    // or if we've made several attempts and want to proceed anyway
+    if (course || courseError || loadAttempts >= 1) {
       loadReviewData();
     }
   }, [courseId, user, loadAttempts, course, courseLoading, courseError]);

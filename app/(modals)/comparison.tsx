@@ -8,6 +8,8 @@ import { useTheme } from '../theme/ThemeProvider';
 import { getCourse } from '../utils/courses';
 import { rankingService } from '../services/rankingService';
 import { useAuth } from '../context/AuthContext';
+import { getReviewsForUser } from '../utils/reviews';
+import { reviewService } from '../services/reviewService';
 
 // Cache for course data to prevent redundant loading
 const courseCache = new Map<string, Course>();
@@ -98,11 +100,76 @@ export default function ComparisonModal() {
   useEffect(() => {
     async function loadCourses() {
       try {
+        // Wait for the parameter check to complete
         console.log('Loading courses with IDs:', { courseAId, courseBId });
         
         if (!courseAId || !courseBId) {
           throw new Error('Missing course IDs');
         }
+        
+        // VALIDATION: Prevent comparing a course against itself
+        if (courseAId === courseBId) {
+          console.error('[ERROR] Attempted to compare a course against itself:', courseAId);
+          setError('Cannot compare a course against itself');
+          
+          // We need to navigate to the success screen instead of just showing an error
+          if (originalReviewedCourseId) {
+            console.log(`Detected same-course comparison. Navigating to success screen for course: ${originalReviewedCourseId}`);
+            
+            try {
+              // Get additional params from the original review
+              if (user?.id) {
+                const reviews = await reviewService.getReviewsForUser(user.id);
+                const courseReview = reviews.find(r => r.course_id === originalReviewedCourseId);
+                
+                if (courseReview) {
+                  // First clear the error we set earlier
+                  setError(null);
+                  
+                  console.log(`Found review for ${originalReviewedCourseId}, navigating to success screen`);
+                  // Use replace instead of push to avoid navigation stack issues
+                  router.replace({
+                    pathname: '/(modals)/review-success',
+                    params: {
+                      courseId: originalReviewedCourseId,
+                      datePlayed: courseReview.date_played || new Date().toISOString()
+                    }
+                  });
+                  return;
+                }
+              }
+              
+              // If we couldn't find the review or there's no user, fall back to a more basic approach
+              console.log('Falling back to basic navigation for same-course comparison');
+              router.replace({
+                pathname: '/(modals)/review-success',
+                params: {
+                  courseId: originalReviewedCourseId,
+                  datePlayed: new Date().toISOString()
+                }
+              });
+            } catch (err) {
+              console.error('Error handling same-course comparison:', err);
+              // If there's an error getting the review, still navigate to success but with minimal params
+              router.replace({
+                pathname: '/(modals)/review-success',
+                params: {
+                  courseId: originalReviewedCourseId,
+                  datePlayed: new Date().toISOString()
+                }
+              });
+            }
+            return;
+          } else {
+            // Fallback if we don't have the original course ID
+            console.log('No original reviewed course ID, returning to lists tab');
+            router.replace('/(tabs)/lists');
+            return;
+          }
+        }
+        
+        // Continue with normal course loading...
+        setLoadingMessage('Loading course data...');
 
         // Helper function to load a course with caching
         const loadCourseWithCache = async (id: string, label: string): Promise<Course> => {

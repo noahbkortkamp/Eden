@@ -82,7 +82,7 @@ export default function SignUpScreen() {
       
       // Use a different navigation approach to avoid header issues
       router.push({
-        pathname: '/onboarding/frequency',
+        pathname: '/onboarding/profile-info',
         params: { noHeader: 'true' }
       });
     } catch (err) {

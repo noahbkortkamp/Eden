@@ -3,6 +3,7 @@ import { supabase } from '../utils/supabase';
 export const userService = {
   /**
    * Update user metadata with first review completion
+   * @deprecated Use markFirstReviewComplete instead
    */
   updateFirstReviewCompleted: async (userId: string): Promise<void> => {
     try {
@@ -11,6 +12,7 @@ export const userService = {
       const { data, error } = await supabase.auth.updateUser({
         data: { 
           firstReviewCompleted: true,
+          has_completed_first_review: true, // Add both flags for compatibility
           firstReviewTimestamp: new Date().toISOString()
         }
       });
@@ -29,21 +31,102 @@ export const userService = {
   },
   
   /**
+   * Marks a user as having completed their first review
+   */
+  markFirstReviewComplete: async (userId: string): Promise<boolean> => {
+    try {
+      console.log(`📝 Marking first review as complete for user: ${userId}`);
+      
+      // Get current user data first
+      const { data: userData } = await supabase.auth.getUser();
+      console.log('Current user metadata:', userData?.user?.user_metadata);
+      
+      // Update the metadata
+      const { data, error } = await supabase.auth.updateUser({
+        data: { 
+          has_completed_first_review: true,
+          firstReviewCompleted: true, // Add both flags for compatibility
+          firstReviewTimestamp: new Date().toISOString(),
+          onboardingComplete: true // Ensure onboarding is marked as complete
+        }
+      });
+      
+      if (error) {
+        console.error('Error marking first review as complete:', error);
+        return false;
+      }
+      
+      // Verify the update was successful by checking the metadata again
+      const { data: verifyData } = await supabase.auth.getUser();
+      const updatedMetadata = verifyData?.user?.user_metadata;
+      
+      // Check if flags were actually set
+      const flagsSet = updatedMetadata?.has_completed_first_review === true && 
+                       updatedMetadata?.firstReviewCompleted === true &&
+                       updatedMetadata?.onboardingComplete === true;
+      
+      console.log('✅ Verification of first review completion flags:', {
+        flagsSet,
+        metadata: updatedMetadata
+      });
+      
+      if (!flagsSet) {
+        console.error('⚠️ Failed to set first review completion flags in metadata!', updatedMetadata);
+        
+        // Make one more attempt with direct API call
+        try {
+          const { data: retryData, error: retryError } = await supabase.auth.updateUser({
+            data: { 
+              has_completed_first_review: true,
+              firstReviewCompleted: true,
+              firstReviewTimestamp: new Date().toISOString(),
+              onboardingComplete: true,
+              _retry_flag_set: true // Add a flag to indicate this is a retry
+            }
+          });
+          
+          if (retryError) {
+            console.error('⚠️ Retry also failed:', retryError);
+          } else {
+            console.log('✅ Retry successful:', retryData?.user?.user_metadata);
+          }
+        } catch (retryErr) {
+          console.error('⚠️ Exception in retry:', retryErr);
+        }
+      }
+      
+      return true;
+    } catch (err) {
+      console.error('Exception marking first review as complete:', err);
+      return false;
+    }
+  },
+  
+  /**
    * Check if user has completed their first review
    */
   hasCompletedFirstReview: async (userId: string): Promise<boolean> => {
     try {
-      const { data, error } = await supabase.auth.getUser();
+      console.log(`🔍 Checking if user ${userId} has completed first review`);
+      const { data } = await supabase.auth.getUser();
       
-      if (error) {
-        console.error('Error getting user data:', error);
+      if (!data || !data.user || !data.user.user_metadata) {
+        console.log('❌ No user data or metadata found');
         return false;
       }
       
-      // Check if the firstReviewCompleted flag exists in user metadata
-      return !!data.user?.user_metadata?.firstReviewCompleted;
-    } catch (error) {
-      console.error('Error checking first review status:', error);
+      // Check both possible metadata flags
+      const hasCompleted = 
+        !!data.user.user_metadata.has_completed_first_review || 
+        !!data.user.user_metadata.firstReviewCompleted;
+      
+      console.log(`🔍 User first review status: ${hasCompleted}`, {
+        metadata: data.user.user_metadata
+      });
+      
+      return hasCompleted;
+    } catch (err) {
+      console.error('Error checking if user completed first review:', err);
       return false;
     }
   }

@@ -48,19 +48,58 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const checkUser = async () => {
     try {
       addDebugLog('Checking current user');
+      
+      // First try getting the current session
+      const session = await authService.getSession();
+      addDebugLog(`Session check: ${session ? 'active session found' : 'no active session'}`);
+      
+      // Then get the user details
       const user = await authService.getCurrentUser();
-      setUser(user);
+      addDebugLog(`User check: ${user ? `found user (id: ${user.id})` : 'no user found'}`);
       
-      addDebugLog(`User check complete: ${user ? 'found user' : 'no user'}`);
-      
-      // Only show onboarding for new users who explicitly have onboardingComplete set to false
-      // This assumes existing users don't need to go through onboarding
-      if (user && user.user_metadata?.onboardingComplete === false) {
-        addDebugLog('Redirecting to onboarding');
-        router.replace('/onboarding/frequency');
+      if (user) {
+        // Log user metadata for debugging
+        addDebugLog(`User metadata: ${JSON.stringify(user.user_metadata || {})}`);
+        setUser(user);
+        
+        // Only show onboarding for new users who have NEVER completed onboarding
+        // If onboardingComplete is explicitly false, show onboarding
+        // If onboardingComplete doesn't exist or is true, go to lists tab
+        if (user.user_metadata?.onboardingComplete === false) {
+          addDebugLog('Redirecting to onboarding');
+          router.replace('/onboarding/profile-info');
+        } else {
+          // If user is authenticated and doesn't need onboarding, ensure they go to lists tab
+          addDebugLog('User is authenticated and onboarding is complete, directing to lists tab');
+          router.replace('/(tabs)/lists');
+        }
+      } else if (session) {
+        // We have a session but no user - try to recover
+        addDebugLog('Session exists but user is null - attempting to refresh session');
+        try {
+          const { data: refreshData, error: refreshError } = await authService.refreshSession();
+          
+          if (refreshError) {
+            addDebugLog(`Session refresh failed: ${refreshError.message}`);
+          } else if (refreshData?.user) {
+            addDebugLog(`Session refresh successful, user id: ${refreshData.user.id}`);
+            setUser(refreshData.user);
+            
+            // Only redirect to onboarding if explicitly marked as false
+            if (refreshData.user.user_metadata?.onboardingComplete === false) {
+              router.replace('/onboarding/profile-info');
+            } else {
+              // Otherwise direct to lists tab - even if onboardingComplete is undefined
+              router.replace('/(tabs)/lists');
+            }
+          }
+        } catch (refreshError) {
+          addDebugLog(`Exception in session refresh: ${refreshError instanceof Error ? refreshError.message : String(refreshError)}`);
+        }
       }
     } catch (error) {
       addDebugLog(`Error checking user: ${error instanceof Error ? error.message : String(error)}`);
+      console.error('AuthContext checkUser error:', error);
     } finally {
       setLoading(false);
     }
@@ -76,7 +115,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       // This assumes existing users don't need to go through onboarding
       if (user && user.user_metadata?.onboardingComplete === false) {
         addDebugLog('Redirecting to onboarding after email sign-in');
-        router.replace('/onboarding/frequency');
+        router.replace('/onboarding/profile-info');
         return;
       }
       
@@ -104,9 +143,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         }
       }
       
-      // Direct users to the search tab
+      // Direct users to the lists tab
       addDebugLog('Redirecting to main app after email sign-in');
-      router.replace('/(tabs)/search');
+      router.replace('/(tabs)/lists');
     } catch (error) {
       addDebugLog(`Error signing in: ${error instanceof Error ? error.message : String(error)}`);
       throw error;
@@ -125,7 +164,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         // Check if user needs to go through onboarding
         if (result.session.user.user_metadata?.onboardingComplete === false) {
           addDebugLog('Redirecting to onboarding after Google sign-in');
-          router.replace('/onboarding/frequency');
+          router.replace('/onboarding/profile-info');
           return;
         }
         
@@ -151,9 +190,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           // Continue with normal flow on error
         }
         
-        // Direct users to the search tab
+        // Direct users to the lists tab
         addDebugLog('Redirecting to main app after Google sign-in');
-        router.replace('/(tabs)/search');
+        router.replace('/(tabs)/lists');
       } else {
         addDebugLog('Google sign-in completed but no session was created');
         // You can show a debug dialog in development

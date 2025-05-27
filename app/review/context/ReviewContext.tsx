@@ -9,9 +9,12 @@ import { reviewService } from '../../services/reviewService';
 import { rankingService } from '../../services/rankingService';
 import { supabase } from '../../utils/supabase';
 import { getCourse } from '../../utils/courses';
+import { userService } from '../../services/userService';
 
 interface ReviewContextType {
-  submitReview: (review: Omit<CourseReview, 'review_id' | 'user_id' | 'created_at' | 'updated_at'>) => Promise<void>;
+  submitReview: (review: Omit<CourseReview, 'review_id' | 'user_id' | 'created_at' | 'updated_at'> & { 
+    fromOnboarding?: boolean 
+  }) => Promise<void>;
   startComparisons: (rating: SentimentRating) => Promise<void>;
   handleComparison: (preferredCourseId: string, otherCourseId: string) => Promise<void>;
   skipComparison: (courseAId: string, courseBId: string) => void;
@@ -93,7 +96,9 @@ export const ReviewProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const [comparisonResults, setComparisonResults] = useState<Array<{ preferredId: string, otherId: string }>>([]);
 
   const submitReview = useCallback(async (
-    review: Omit<CourseReview, 'review_id' | 'user_id' | 'created_at' | 'updated_at'>
+    review: Omit<CourseReview, 'review_id' | 'user_id' | 'created_at' | 'updated_at'> & { 
+      fromOnboarding?: boolean 
+    }
   ) => {
     if (!user) {
       router.push('/auth/login');
@@ -106,6 +111,7 @@ export const ReviewProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       userMetadata: user.user_metadata
     });
 
+    const isFromOnboarding = review.fromOnboarding === true;
     console.log('ReviewContext: Starting review submission:', {
       userId: user.id,
       courseId: review.course_id,
@@ -114,7 +120,8 @@ export const ReviewProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       favoriteHoles: review.favorite_holes,
       photosCount: review.photos.length,
       datePlayed: review.date_played,
-      tags: review.tags
+      tags: review.tags,
+      fromOnboarding: isFromOnboarding
     });
 
     setIsSubmitting(true);
@@ -193,24 +200,149 @@ export const ReviewProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       // Wait for all parallel operations to complete
       const [reviewCount, _, userReviews] = await Promise.all(promises);
       
+      console.log(`🔍 CRITICAL DEBUG: Review count = ${reviewCount}, isFromOnboarding = ${isFromOnboarding}`);
+      
       // Check if this is the user's first review - if so, skip comparisons and show first review success screen
-      if (reviewCount === 1) {
-        console.log('🎉 This is the user\'s first review! Showing first review success screen.');
+      if (reviewCount === 1 || isFromOnboarding) {
+        console.log('🎉 This is the user\'s first review or from onboarding! Showing first review success screen.');
         
-        // Close the review modal
-        router.back();
-        await new Promise(resolve => setTimeout(resolve, 100));
+        // Use a clear flag to manage navigation state
+        let isNavigating = false;
         
-        // Navigate to the dedicated first review success screen
-        router.push({
-          pathname: '/(modals)/first-review-success',
-          params: {
-            courseId: review.course_id,
-            datePlayed: review.date_played.toISOString()
+        try {
+          // Preload course details as early as possible
+          let courseName = 'Course';
+          let courseLocation = '';
+          
+          // Start fetching course details immediately (in parallel with other operations)
+          const courseDetailsPromise = getCourse(review.course_id).catch(err => {
+            console.warn('Error pre-fetching course details, will use defaults:', err);
+            return null;
+          });
+          
+          // First, update user metadata in a single atomic operation
+          const { data: userUpdate, error: updateError } = await supabase.auth.updateUser({
+            data: { 
+              has_completed_first_review: true,
+              firstReviewCompleted: true,
+              firstReviewTimestamp: new Date().toISOString(),
+              onboardingComplete: true // Ensure onboarding is marked as complete
+            }
+          });
+          
+          if (updateError) {
+            console.error('Error updating user metadata:', updateError);
+            // Continue anyway - we'll try the legacy method as fallback
+          } else {
+            console.log('Successfully updated user metadata:', userUpdate?.user?.user_metadata);
           }
-        });
+          
+          // Call the legacy service method for backward compatibility
+          try {
+            const markResult = await userService.markFirstReviewComplete(user.id);
+            console.log(`Marked user as having completed first review: ${markResult ? 'success' : 'failed'}`);
+          } catch (legacyErr) {
+            console.error('Error in legacy markFirstReviewComplete call:', legacyErr);
+            // Continue anyway since we already updated the metadata via Supabase
+          }
+          
+          // Get course details (should be ready from the earlier promise)
+          try {
+            const courseDetails = await courseDetailsPromise;
+            if (courseDetails) {
+              courseName = courseDetails.name || 'Course';
+              courseLocation = courseDetails.location || '';
+              console.log('Got course details for success screen:', {
+                name: courseName,
+                location: courseLocation
+              });
+            } else {
+              console.warn('getCourse returned null or undefined for course ID:', review.course_id);
+            }
+          } catch (courseError) {
+            console.error('Error fetching course details:', courseError);
+            // Continue with default values
+          }
+          
+          // First, close any open modals or flows to ensure clean navigation
+          try {
+            // Create a stable copy of navigation params
+            const safeNavigationParams = {
+              courseName: encodeURIComponent(courseName),
+              courseLocation: courseLocation ? encodeURIComponent(courseLocation) : undefined,
+              datePlayed: encodeURIComponent(review.date_played.toISOString()),
+              timestamp: Date.now().toString()
+            };
+            
+            // Log navigation intent
+            console.log('🚀 Starting first review success navigation sequence');
+            console.log('Navigation params:', JSON.stringify(safeNavigationParams, null, 2));
+            
+            // Flag to track if we're already in the navigation process
+            isNavigating = true;
+            
+            // Use a more reliable navigation pattern with better transition management
+            setTimeout(() => {
+              try {
+                // First ensure any current modals are closed by navigating to tabs
+                // This step prevents screen stack issues
+                console.log('🚀 Step 1: Clearing navigation stack');
+                router.replace('/(tabs)');
+                
+                // Give the UI time to stabilize before showing the success screen
+                setTimeout(() => {
+                  try {
+                    console.log('🚀 Step 2: Preparing to show success screen');
+                    
+                    // Use push with specific animation options for a clean modal presentation
+                    router.push({
+                      pathname: '/(modals)/onboarding-first-review-success',
+                      params: safeNavigationParams
+                    });
+                    
+                    console.log('🚀 Success screen navigation executed');
+                  } catch (finalNavError) {
+                    console.error('Error during final navigation step:', finalNavError);
+                    // Last resort - go to lists tab
+                    router.replace('/(tabs)/lists');
+                  }
+                }, 100); // Reduced from 400ms to 100ms for faster display
+              } catch (innerNavError) {
+                console.error('Error during initial navigation step:', innerNavError);
+                router.replace('/(tabs)/lists');
+              }
+            }, 50); // Reduced from 200ms to 50ms for faster initial navigation
+          } catch (navError) {
+            console.error('Navigation error:', navError);
+            
+            // Last resort fallback - try a direct push after a delay
+            setTimeout(() => {
+              try {
+                router.push({
+                  pathname: '/(modals)/onboarding-first-review-success',
+                  params: safeNavigationParams
+                });
+              } catch (finalError) {
+                console.error('Final navigation attempt failed:', finalError);
+                // If all else fails, go to lists tab
+                router.replace('/(tabs)/lists');
+              }
+            }, 100); // Reduced from 500ms to 100ms for faster fallback
+          }
+          
+          return;
+        } catch (err) {
+          console.error('Error in first review success flow:', err);
+          
+          // Only attempt fallback navigation if we haven't already started navigating
+          if (!isNavigating) {
+            console.log('Attempting fallback navigation to lists tab');
+            // Fallback - navigate directly to lists tab
+            router.replace('/(tabs)/lists');
+          }
+        }
         
-        return; // Exit early, skipping the comparison flow
+        return;
       }
       
       const reviewedCoursesWithSentiment = userReviews.filter(r => r.rating === review.rating);
@@ -356,12 +488,20 @@ export const ReviewProvider: React.FC<{ children: React.ReactNode }> = ({ childr
             course => course.course_id !== medianCourse.course_id
           );
           
-          // Shuffle the other courses for randomness
-          const shuffledOtherCourses = [...otherCourses].sort(() => Math.random() - 0.5);
-          
-          // Use the median course as course A and a random other course as course B
-          courseA = { course_id: medianCourse.course_id };
-          courseB = shuffledOtherCourses[0];
+          if (otherCourses.length === 0) {
+            console.log('No other courses found for comparison after filtering out median course');
+            // Fall back to random selection from all courses
+            const shuffledCourses = [...reviewedCoursesWithSentiment].sort(() => Math.random() - 0.5);
+            courseA = shuffledCourses[0];
+            courseB = shuffledCourses[1];
+          } else {
+            // Shuffle the other courses for randomness
+            const shuffledOtherCourses = [...otherCourses].sort(() => Math.random() - 0.5);
+            
+            // Use the median course as course A and a random other course as course B
+            courseA = { course_id: medianCourse.course_id };
+            courseB = shuffledOtherCourses[0];
+          }
           
           console.log(`Initial comparison set up: Median course ${courseA.course_id} vs Random course ${courseB.course_id}`);
         } else {
@@ -376,6 +516,33 @@ export const ReviewProvider: React.FC<{ children: React.ReactNode }> = ({ childr
           courseB = shuffledCourses[1];
           
           console.log(`Random selection: ${courseA.course_id} vs ${courseB.course_id}`);
+        }
+        
+        // VALIDATION: Ensure we don't compare a course against itself
+        if (courseA.course_id === courseB.course_id) {
+          console.error(`[ERROR] Attempted to set up comparison of course ${courseA.course_id} against itself`);
+          // Try to find another course for comparison
+          const otherCourses = reviewedCoursesWithSentiment.filter(
+            course => course.course_id !== courseA.course_id
+          );
+          
+          if (otherCourses.length > 0) {
+            // Pick a different course for B
+            const shuffledOtherCourses = [...otherCourses].sort(() => Math.random() - 0.5);
+            courseB = shuffledOtherCourses[0];
+            console.log(`Fixed self-comparison issue. New selection: ${courseA.course_id} vs ${courseB.course_id}`);
+          } else {
+            console.error('No other courses available for comparison. Aborting comparison flow.');
+            // Not enough distinct courses, show success screen for the first course
+            router.push({
+              pathname: '/(modals)/review-success',
+              params: {
+                courseId: courseA.course_id,
+                datePlayed: reviewedCoursesWithSentiment[0].date_played
+              }
+            });
+            return;
+          }
         }
         
         // Calculate max comparisons dynamically based on the count
@@ -439,6 +606,77 @@ export const ReviewProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
     try {
       console.log(`Processing comparison result: ${preferredCourseId} was preferred over ${otherCourseId}`);
+      
+      // VALIDATION: Prevent comparing a course against itself
+      if (preferredCourseId === otherCourseId) {
+        console.error(`[ERROR] Attempted to process comparison of course ${preferredCourseId} against itself`);
+        // Skip this comparison and move on to the next one or end flow
+        const newComparisonsRemaining = comparisonsRemaining - 1;
+        setComparisonsRemaining(newComparisonsRemaining);
+        
+        if (newComparisonsRemaining <= 0) {
+          // End comparison flow if no more comparisons needed
+          const userReviews = await getReviewsForUser(user.id);
+          const originalReview = userReviews.find(r => r.course_id === originalReviewedCourseId);
+          
+          if (originalReview) {
+            router.push({
+              pathname: '/(modals)/review-success',
+              params: {
+                courseId: originalReviewedCourseId,
+                datePlayed: originalReview.date_played
+              }
+            });
+          } else {
+            router.replace('/(tabs)/lists');
+          }
+          return;
+        }
+        
+        // Otherwise, try to set up the next comparison
+        const userReviews = await getReviewsForUser(user.id);
+        const originalReview = userReviews.find(r => r.course_id === originalReviewedCourseId);
+        
+        if (originalReview) {
+          const sentiment = originalReview.rating as SentimentRating;
+          
+          // Get all previously compared courses
+          const comparedCourseIds = new Set();
+          comparedCourseIds.add(originalReviewedCourseId);
+          comparedCourseIds.add(preferredCourseId); // This is same as otherCourseId in this case
+          
+          comparisonResults.forEach(result => {
+            comparedCourseIds.add(result.preferredId);
+            comparedCourseIds.add(result.otherId);
+          });
+          
+          const otherCoursesWithSentiment = userReviews.filter(r => 
+            !comparedCourseIds.has(r.course_id) &&
+            r.rating === originalReview.rating
+          );
+          
+          if (otherCoursesWithSentiment.length > 0) {
+            const shuffledCourses = [...otherCoursesWithSentiment].sort(() => Math.random() - 0.5);
+            const randomCourse = shuffledCourses[0];
+            
+            router.push({
+              pathname: '/(modals)/comparison',
+              params: {
+                courseAId: originalReviewedCourseId,
+                courseBId: randomCourse.course_id,
+                remainingComparisons: newComparisonsRemaining,
+                originalSentiment: sentiment,
+                originalReviewedCourseId: originalReviewedCourseId
+              },
+            });
+            return;
+          }
+        }
+        
+        // If we can't set up another comparison, end the flow
+        router.replace('/(tabs)/lists');
+        return;
+      }
       
       // Store the comparison result
       setComparisonResults(prev => [
