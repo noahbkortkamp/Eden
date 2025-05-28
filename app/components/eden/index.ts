@@ -62,4 +62,10 @@ export type {
   FilterSection, 
   FilterOption, 
   FilterValue 
-} from './SearchFilters'; 
+} from './SearchFilters';
+
+// Utility components
+export { default as LoadingScreen } from '../LoadingScreen';
+export type { LoadingScreenProps } from '../LoadingScreen';
+export { default as ThemedLoadingScreen } from '../ThemedLoadingScreen';
+export type { ThemedLoadingScreenProps } from '../ThemedLoadingScreen'; 

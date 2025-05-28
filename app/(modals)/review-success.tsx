@@ -1,12 +1,13 @@
-import React, { useEffect, useState } from 'react';
-import { ActivityIndicator, View, StyleSheet, Text, Animated } from 'react-native';
+import React, { useEffect, useState, useRef } from 'react';
+import { View, StyleSheet, Text, Animated } from 'react-native';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
-import { ReviewSuccessScreen } from '../review/screens/ReviewSuccessScreen';
-import { getReviewsForCourse } from '../utils/reviews';
 import { useAuth } from '../context/AuthContext';
+import { useCourse, CourseProvider } from '../context/CourseContext';
+import { ReviewSuccessScreen } from '../review/screens/ReviewSuccessScreen';
 import { reviewService } from '../services/reviewService';
-import { CourseProvider, useCourse } from '../context/CourseContext';
+import { getReviewsForUser } from '../utils/reviews';
 import { rankingService } from '../services/rankingService';
+import ThemedLoadingScreen from '../components/ThemedLoadingScreen';
 import { usePlayedCourses } from '../context/PlayedCoursesContext';
 
 // Inner component that uses the CourseContext
@@ -128,7 +129,8 @@ function ReviewSuccessContent() {
         setUserReviewCount(totalReviews);
 
         // Get how many times the user has reviewed this course
-        const courseReviews = await getReviewsForCourse(courseId, user.id);
+        const allUserReviews = await getReviewsForUser(user.id);
+        const courseReviews = allUserReviews.filter(review => review.course_id === courseId);
         console.log(`ReviewSuccessScreen: Found ${courseReviews?.length || 0} reviews for this course`);
         
         if (courseReviews && courseReviews.length > 0) {
@@ -218,13 +220,7 @@ function ReviewSuccessContent() {
 
   if (courseLoading || isLoading) {
     return (
-      <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#234D2C" />
-        <Text style={styles.loadingText}>
-          Loading review details...
-          {loadAttempts > 0 ? ` (Attempt ${loadAttempts + 1}/3)` : ''}
-        </Text>
-      </View>
+      <ThemedLoadingScreen message="Loading review details" />
     );
   }
 
@@ -279,19 +275,6 @@ export default function ReviewSuccessModal() {
 }
 
 const styles = StyleSheet.create({
-  loadingContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: '#F8F5EC',
-    padding: 20,
-  },
-  loadingText: {
-    marginTop: 20,
-    fontSize: 16,
-    color: '#234D2C',
-    textAlign: 'center',
-  },
   errorContainer: {
     flex: 1,
     justifyContent: 'center',

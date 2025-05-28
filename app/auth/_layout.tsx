@@ -1,7 +1,7 @@
 import { useEffect } from 'react';
 import { Redirect, Stack } from 'expo-router';
 import { useAuth } from '../context/AuthContext';
-import { View, ActivityIndicator } from 'react-native';
+import ThemedLoadingScreen from '../components/ThemedLoadingScreen';
 
 export default function AuthLayout() {
   const { user, loading } = useAuth();
@@ -13,11 +13,7 @@ export default function AuthLayout() {
 
   // Show loading indicator while checking auth status
   if (loading) {
-    return (
-      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
-        <ActivityIndicator size="large" color="#2563eb" />
-      </View>
-    );
+    return <ThemedLoadingScreen message="Checking authentication" />;
   }
 
   // If not logged in, show the auth stack

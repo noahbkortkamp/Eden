@@ -3,10 +3,10 @@ import { useEffect, useState } from 'react';
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { SearchProvider } from './context/SearchContext';
-import { AuthProvider } from './context/AuthContext';
+import { AuthProvider, useAuth } from './context/AuthContext';
 import { ReviewProvider } from './review/context/ReviewContext';
 import { ThemeProvider, useTheme } from './theme/ThemeProvider';
-import { View, ActivityIndicator, Text, StyleSheet, Platform } from 'react-native';
+import { View, Text, StyleSheet, Platform } from 'react-native';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { useTranslation } from 'react-i18next';
 import { initializeAuthDeepLinks } from './services/auth';
@@ -14,6 +14,7 @@ import * as WebBrowser from 'expo-web-browser';
 import './i18n';
 import { PlayedCoursesProvider } from './context/PlayedCoursesContext';
 import { CourseProvider } from './context/CourseContext';
+import LoadingScreen from './components/LoadingScreen';
 
 declare global {
   interface Window {
@@ -21,9 +22,15 @@ declare global {
   }
 }
 
-// Separate AppContent component to use hooks that depend on context providers
+// Separate AppContent component that waits for auth to be ready
 function AppContent() {
   const theme = useTheme();
+  const { loading: authLoading } = useAuth();
+  
+  // Show loading screen while auth is still checking
+  if (authLoading) {
+    return <LoadingScreen />;
+  }
   
   return (
     <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
@@ -124,18 +131,6 @@ function AppContent() {
   );
 }
 
-function LoadingScreen() {
-  const { t } = useTranslation();
-  return (
-    <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
-      <ActivityIndicator size="large" color="#2563eb" />
-      <View>
-        <Text style={{ marginTop: 16, color: '#64748b' }}>{t('loading.initializing')}</Text>
-      </View>
-    </View>
-  );
-}
-
 function ErrorScreen({ error }: { error: Error }) {
   const { t } = useTranslation();
   return (
@@ -154,12 +149,14 @@ function ErrorScreen({ error }: { error: Error }) {
 
 // Root layout component
 export default function RootLayout() {
-  const [isLoading, setIsLoading] = useState(true);
+  const [isFrameworkLoading, setIsFrameworkLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
 
   useEffect(() => {
     const initializeFramework = async () => {
       try {
+        console.log('🔄 Starting framework initialization...');
+        
         if (Platform.OS === 'web' && window.frameworkReady) {
           await window.frameworkReady();
         }
@@ -170,22 +167,32 @@ export default function RootLayout() {
         // Initialize deep linking for auth with better error handling
         try {
           initializeAuthDeepLinks();
-          console.log('Deep linking initialized successfully');
+          console.log('✅ Deep linking initialized successfully');
         } catch (deepLinkError) {
-          console.error('Failed to initialize deep linking:', deepLinkError);
+          console.error('❌ Failed to initialize deep linking:', deepLinkError);
         }
         
-        setIsLoading(false);
+        // TEMPORARY: Add delay to see loading screen in development
+        // Remove this before production build
+        if (__DEV__) {
+          console.log('🔄 Showing loading screen for 2 seconds (dev mode only)');
+          await new Promise(resolve => setTimeout(resolve, 2000));
+        }
+        
+        console.log('✅ Framework initialization complete');
+        setIsFrameworkLoading(false);
       } catch (err) {
+        console.error('❌ Framework initialization failed:', err);
         setError(err instanceof Error ? err : new Error('Failed to initialize'));
-        setIsLoading(false);
+        setIsFrameworkLoading(false);
       }
     };
 
     initializeFramework();
   }, []);
 
-  if (isLoading) {
+  // Show loading screen during framework initialization
+  if (isFrameworkLoading) {
     return <LoadingScreen />;
   }
 
@@ -193,7 +200,7 @@ export default function RootLayout() {
     return <ErrorScreen error={error} />;
   }
 
-  // Ensure proper nesting of context providers
+  // Once framework is ready, initialize providers and let AuthProvider handle its own loading
   return (
     <ErrorBoundary>
       <ThemeProvider>
