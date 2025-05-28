@@ -172,13 +172,6 @@ export default function RootLayout() {
           console.error('❌ Failed to initialize deep linking:', deepLinkError);
         }
         
-        // TEMPORARY: Add delay to see loading screen in development
-        // Remove this before production build
-        if (__DEV__) {
-          console.log('🔄 Showing loading screen for 2 seconds (dev mode only)');
-          await new Promise(resolve => setTimeout(resolve, 2000));
-        }
-        
         console.log('✅ Framework initialization complete');
         setIsFrameworkLoading(false);
       } catch (err) {
