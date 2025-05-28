@@ -42,6 +42,20 @@ export const TagSelectionModal: React.FC<TagSelectionModalProps> = ({
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  // Define the desired category order
+  const CATEGORY_ORDER = [
+    'Conditions',
+    'Course Type',
+    'Pace of Play',
+    'Course Design',
+    'Practice Facilities',
+    'Amenities',
+    'Facilities',
+    'Value',
+    'Booking',
+    'Difficulty'
+  ];
+
   // Fetch tags from Supabase when modal becomes visible
   useEffect(() => {
     if (visible) {
@@ -139,23 +153,46 @@ export const TagSelectionModal: React.FC<TagSelectionModalProps> = ({
     }, 300);
   };
 
-  // Filter tags based on search query
-  const filteredCategories = Object.entries(dbTags).reduce((acc, [category, tags]) => {
-    if (searchQuery.trim() === '') {
-      acc[category] = tags;
+  // Filter tags based on search query and apply custom category ordering
+  const filteredCategories = (() => {
+    // First filter based on search query
+    const filtered = Object.entries(dbTags).reduce((acc, [category, tags]) => {
+      if (searchQuery.trim() === '') {
+        acc[category] = tags;
+        return acc;
+      }
+      
+      const filteredTags = tags.filter(tag => 
+        tag.name.toLowerCase().includes(searchQuery.toLowerCase())
+      );
+      
+      if (filteredTags.length > 0) {
+        acc[category] = filteredTags;
+      }
+      
       return acc;
-    }
-    
-    const filteredTags = tags.filter(tag => 
-      tag.name.toLowerCase().includes(searchQuery.toLowerCase())
-    );
-    
-    if (filteredTags.length > 0) {
-      acc[category] = filteredTags;
-    }
-    
-    return acc;
-  }, {} as Record<string, Tag[]>);
+    }, {} as Record<string, Tag[]>);
+
+    // Then sort categories according to CATEGORY_ORDER
+    const sortedEntries = Object.entries(filtered).sort(([categoryA], [categoryB]) => {
+      const indexA = CATEGORY_ORDER.indexOf(categoryA);
+      const indexB = CATEGORY_ORDER.indexOf(categoryB);
+      
+      // If both categories are in the order array, sort by their position
+      if (indexA !== -1 && indexB !== -1) {
+        return indexA - indexB;
+      }
+      
+      // If only one category is in the order array, prioritize it
+      if (indexA !== -1) return -1;
+      if (indexB !== -1) return 1;
+      
+      // If neither category is in the order array, sort alphabetically
+      return categoryA.localeCompare(categoryB);
+    });
+
+    return Object.fromEntries(sortedEntries);
+  })();
 
   return (
     <>
