@@ -4,6 +4,7 @@ import * as Linking from 'expo-linking';
 import * as WebBrowser from 'expo-web-browser';
 import { makeRedirectUri, AuthSessionResult, startAsync } from 'expo-auth-session';
 import { Platform } from 'react-native';
+import * as AppleAuthentication from 'expo-apple-authentication';
 
 export interface SignUpData {
   email: string;
@@ -248,6 +249,49 @@ export const signInWithGoogle = async () => {
     }
   } catch (error) {
     console.error('Error in Google sign-in:', error);
+    throw error;
+  }
+};
+
+export const signInWithApple = async () => {
+  try {
+    console.log('Starting Apple sign-in...');
+    
+    // Check if Apple Authentication is available
+    const isAvailable = await AppleAuthentication.isAvailableAsync();
+    if (!isAvailable) {
+      throw new Error('Apple Sign In is not available on this device');
+    }
+    
+    // Request Apple authentication
+    const credential = await AppleAuthentication.signInAsync({
+      requestedScopes: [
+        AppleAuthentication.AppleAuthenticationScope.FULL_NAME,
+        AppleAuthentication.AppleAuthenticationScope.EMAIL,
+      ],
+    });
+
+    console.log('Apple credential received:', credential);
+
+    if (credential.identityToken) {
+      const { data, error } = await supabase.auth.signInWithIdToken({
+        provider: 'apple',
+        token: credential.identityToken,
+        nonce: credential.nonce,
+      });
+
+      if (error) {
+        console.error('Supabase Apple sign-in error:', error);
+        throw error;
+      }
+
+      console.log('Apple sign-in successful:', data);
+      return data;
+    } else {
+      throw new Error('No identity token received from Apple');
+    }
+  } catch (error) {
+    console.error('Apple sign-in error:', error);
     throw error;
   }
 };

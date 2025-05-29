@@ -12,9 +12,10 @@ export default function LoginScreen() {
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
+  const [appleLoading, setAppleLoading] = useState(false);
   const [error, setError] = useState('');
   const [showPassword, setShowPassword] = useState(false);
-  const { signIn, signInWithGoogle } = useAuth();
+  const { signIn, signInWithGoogle, signInWithApple } = useAuth();
   const router = useRouter();
 
   // Configure keyboard animations
@@ -80,6 +81,18 @@ export default function LoginScreen() {
       setError(errorHandler.getUserFriendlyMessage(err));
     } finally {
       setGoogleLoading(false);
+    }
+  };
+
+  const handleAppleSignIn = async () => {
+    try {
+      setAppleLoading(true);
+      setError('');
+      await signInWithApple();
+    } catch (err) {
+      setError('Apple sign-in failed.');
+    } finally {
+      setAppleLoading(false);
     }
   };
 
@@ -207,10 +220,12 @@ export default function LoginScreen() {
 
               <Button
                 mode="outlined"
-                disabled
-                style={[styles.googleButton, styles.disabledAppleButton]}
+                onPress={handleAppleSignIn}
+                loading={appleLoading}
+                disabled={loading || googleLoading || appleLoading}
+                style={styles.googleButton}
                 icon="apple"
-                textColor={edenTheme.colors.textSecondary}
+                textColor={edenTheme.components.button.secondary.color}
                 labelStyle={{
                   fontFamily: edenTheme.typography.buttonSecondary.fontFamily,
                   fontWeight: edenTheme.typography.buttonSecondary.fontWeight as any,

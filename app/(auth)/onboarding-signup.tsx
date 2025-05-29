@@ -16,12 +16,13 @@ export default function OnboardingSignupScreen() {
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
+  const [appleLoading, setAppleLoading] = useState(false);
   const [error, setError] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [keyboardIsVisible, setKeyboardIsVisible] = useState(false);
   const { height: screenHeight } = Dimensions.get('window');
   const router = useRouter();
-  const { signUp, signInWithGoogle } = useAuth();
+  const { signUp, signInWithGoogle, signInWithApple } = useAuth();
 
   // Add keyboard listeners to track keyboard visibility
   useEffect(() => {
@@ -54,6 +55,18 @@ export default function OnboardingSignupScreen() {
       setError('Google sign-in failed.');
     } finally {
       setGoogleLoading(false);
+    }
+  };
+
+  const handleAppleSignIn = async () => {
+    try {
+      setAppleLoading(true);
+      setError('');
+      await signInWithApple();
+    } catch (err) {
+      setError('Apple sign-in failed.');
+    } finally {
+      setAppleLoading(false);
     }
   };
 
@@ -150,10 +163,12 @@ export default function OnboardingSignupScreen() {
               
               <Button
                 mode="outlined"
-                disabled
-                style={[styles.socialButton, styles.disabledAppleButton]}
+                onPress={handleAppleSignIn}
+                loading={appleLoading}
+                disabled={loading || googleLoading || appleLoading}
+                style={styles.socialButton}
                 icon="apple"
-                textColor={edenTheme.colors.textSecondary}
+                textColor={edenTheme.colors.text}
                 labelStyle={styles.socialButtonText}
                 theme={{ colors: { outline: edenTheme.colors.border } }}
               >

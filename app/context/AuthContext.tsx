@@ -14,6 +14,7 @@ interface AuthContextType {
   signUp: (data: SignUpData) => Promise<void>;
   signOut: () => Promise<void>;
   signInWithGoogle: () => Promise<void>;
+  signInWithApple: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -210,6 +211,64 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
+  const signInWithApple = async () => {
+    try {
+      addDebugLog('Starting Apple sign-in');
+      const result = await authService.signInWithApple();
+      
+      if (result?.session) {
+        addDebugLog(`Apple sign-in successful: ${result.session.user.id}`);
+        setUser(result.session.user);
+        
+        // Check if user needs to go through onboarding
+        if (result.session.user.user_metadata?.onboardingComplete === false) {
+          addDebugLog('Redirecting to onboarding after Apple sign-in');
+          router.replace('/onboarding/profile-info');
+          return;
+        }
+        
+        // Check if user has any reviews or has completed first review
+        try {
+          // Check review count
+          const reviewCount = await reviewService.getUserReviewCount(result.session.user.id);
+          
+          // Check if first review has been completed via metadata
+          const hasCompletedFirstReview = await userService.hasCompletedFirstReview(result.session.user.id);
+          
+          addDebugLog(`User has ${reviewCount} reviews, firstReviewCompleted: ${hasCompletedFirstReview}`);
+          
+          // Only show first review screen if they have 0 reviews AND haven't completed first review
+          if (reviewCount === 0 && !hasCompletedFirstReview) {
+            // First time user with no reviews - direct to first review screen
+            addDebugLog('User has 0 reviews and no firstReviewCompleted flag, redirecting to first-review screen');
+            router.replace('/(auth)/first-review');
+            return;
+          }
+        } catch (error) {
+          console.error('Error checking user review status:', error);
+          // Continue with normal flow on error
+        }
+        
+        // Direct users to the lists tab
+        addDebugLog('Redirecting to main app after Apple sign-in');
+        router.replace('/(tabs)/lists');
+      } else {
+        addDebugLog('Apple sign-in completed but no session was created');
+        // You can show a debug dialog in development
+        if (__DEV__) {
+          Alert.alert(
+            'Auth Debug',
+            'Apple sign-in returned success but no session was created. Check console logs.',
+            [{ text: 'OK' }]
+          );
+        }
+      }
+    } catch (error) {
+      addDebugLog(`Error with Apple sign-in: ${error instanceof Error ? error.message : String(error)}`);
+      throw error;
+    }
+  };
+
   const signUp = async (data: SignUpData) => {
     try {
       addDebugLog(`Signing up with email: ${data.email}`);
@@ -243,6 +302,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     signUp,
     signOut,
     signInWithGoogle,
+    signInWithApple,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
