@@ -10,6 +10,14 @@
         "resourceClass": "m-medium"
       }
     },
+    "production-test": {
+      "developmentClient": true,
+      "distribution": "internal",
+      "environment": "production",
+      "ios": {
+        "resourceClass": "m-medium"
+      }
+    },
     "preview": {
       "distribution": "internal",
       "ios": {

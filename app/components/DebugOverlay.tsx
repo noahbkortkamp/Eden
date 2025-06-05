@@ -8,7 +8,6 @@ interface DebugInfo {
   nodeEnv: string;
   supabaseUrl: boolean;
   supabaseKey: boolean;
-  apiUrl: boolean;
   envKeys: string[];
 }
 
@@ -25,7 +24,6 @@ export const DebugOverlay: React.FC = () => {
       nodeEnv: process.env.NODE_ENV || 'unknown',
       supabaseUrl: !!process.env.EXPO_PUBLIC_SUPABASE_URL,
       supabaseKey: !!process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY,
-      apiUrl: !!process.env.EXPO_PUBLIC_API_URL,
       envKeys: Object.keys(process.env).filter(key => key.startsWith('EXPO_PUBLIC'))
     };
     
@@ -69,9 +67,6 @@ export const DebugOverlay: React.FC = () => {
           </Text>
           <Text style={[styles.item, debugInfo.supabaseKey ? styles.success : styles.error]}>
             Supabase Key: {debugInfo.supabaseKey ? '✓' : '✗'}
-          </Text>
-          <Text style={[styles.item, debugInfo.apiUrl ? styles.success : styles.error]}>
-            API URL: {debugInfo.apiUrl ? '✓' : '✗'}
           </Text>
           <Text style={styles.item}>
             EXPO_PUBLIC Keys: {debugInfo.envKeys.length}

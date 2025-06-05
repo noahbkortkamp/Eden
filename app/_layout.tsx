@@ -28,17 +28,14 @@ console.log('🚨 CRITICAL: Node environment:', process.env.NODE_ENV);
 const envCheck = {
   supabaseUrl: process.env.EXPO_PUBLIC_SUPABASE_URL || '',
   supabaseKey: process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY || '',
-  apiUrl: process.env.EXPO_PUBLIC_API_URL || '',
   allExpoKeys: Object.keys(process.env).filter(key => key.startsWith('EXPO_PUBLIC'))
 };
 
 console.log('🚨 CRITICAL: Environment check results:', {
   supabaseUrlLength: envCheck.supabaseUrl.length,
   supabaseKeyLength: envCheck.supabaseKey.length,
-  apiUrlLength: envCheck.apiUrl.length,
   supabaseUrlPresent: !!envCheck.supabaseUrl,
   supabaseKeyPresent: !!envCheck.supabaseKey,
-  apiUrlPresent: !!envCheck.apiUrl,
   totalExpoKeys: envCheck.allExpoKeys.length,
   expoKeysList: envCheck.allExpoKeys
 });
@@ -54,7 +51,6 @@ if (!__DEV__) {
 Environment Status:
 • Supabase URL: ${envCheck.supabaseUrl ? '✅ Present' : '❌ Missing'} (${envCheck.supabaseUrl.length} chars)
 • Supabase Key: ${envCheck.supabaseKey ? '✅ Present' : '❌ Missing'} (${envCheck.supabaseKey.length} chars)
-• API URL: ${envCheck.apiUrl ? '✅ Present' : '❌ Missing'} (${envCheck.apiUrl.length} chars)
 
 Platform: ${Platform.OS}
 Total ENV Keys: ${envCheck.allExpoKeys.length}
@@ -123,14 +119,6 @@ function AppContent() {
           />
           <Stack.Screen
             name="onboarding"
-            options={{
-              headerShown: false,
-              animation: 'none',
-              presentation: 'transparentModal'
-            }}
-          />
-          <Stack.Screen
-            name="(auth)"
             options={{
               headerShown: false,
               animation: 'none',

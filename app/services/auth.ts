@@ -168,13 +168,6 @@ export const signInWithGoogle = async () => {
     // Ensure any previous auth sessions are completed
     WebBrowser.maybeCompleteAuthSession();
     
-    // Initialize Supabase auth if needed
-    try {
-      await supabase.auth.initialize();
-    } catch (e) {
-      // Ignore initialization errors, it might already be initialized
-    }
-    
     // Get the OAuth URL from Supabase - use development URL in dev mode
     let redirectUrl;
     if (__DEV__) {
@@ -316,4 +309,10 @@ export const onAuthStateChange = (callback: (user: User | null) => void) => {
   return supabase.auth.onAuthStateChange((event, session) => {
     callback(session?.user ?? null);
   });
+};
+
+export const refreshSession = async () => {
+  const { data, error } = await supabase.auth.refreshSession();
+  if (error) throw error;
+  return data;
 }; 

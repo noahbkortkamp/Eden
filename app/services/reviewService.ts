@@ -25,27 +25,41 @@ export const reviewService = {
 
   /**
    * Upload photos for a review
+   * SAFETY: Disabled to prevent app crashes when API_URL is not configured
    */
   uploadPhotos: async (reviewId: string, photos: string[]): Promise<string[]> => {
-    const formData = new FormData();
-    photos.forEach((photo, index) => {
-      formData.append('photos', {
-        uri: photo,
-        type: 'image/jpeg',
-        name: `photo-${index}.jpg`,
-      });
-    });
-
-    const response = await fetch(`${API_BASE_URL}/reviews/${reviewId}/photos`, {
-      method: 'POST',
-      body: formData,
-    });
-
-    if (!response.ok) {
-      throw new Error('Failed to upload photos');
+    // CRITICAL FIX: Prevent fetch calls to empty URLs
+    if (!API_BASE_URL) {
+      console.warn('Photo upload disabled: API_BASE_URL not configured');
+      // Return empty array instead of crashing
+      return [];
     }
 
-    return response.json();
+    try {
+      const formData = new FormData();
+      photos.forEach((photo, index) => {
+        formData.append('photos', {
+          uri: photo,
+          type: 'image/jpeg',
+          name: `photo-${index}.jpg`,
+        });
+      });
+
+      const response = await fetch(`${API_BASE_URL}/reviews/${reviewId}/photos`, {
+        method: 'POST',
+        body: formData,
+      });
+
+      if (!response.ok) {
+        throw new Error(`Photo upload failed: ${response.status} ${response.statusText}`);
+      }
+
+      return response.json();
+    } catch (error) {
+      console.error('Photo upload failed:', error);
+      // Return empty array instead of crashing the app
+      return [];
+    }
   },
 
   /**
