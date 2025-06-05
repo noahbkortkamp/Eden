@@ -1,0 +1,13 @@
+diff --git a/node_modules/expo-router/build/fork/NavigationContainer.js b/node_modules/expo-router/build/fork/NavigationContainer.js
+index 5e8ae73..d1f4a95 100644
+--- a/node_modules/expo-router/build/fork/NavigationContainer.js
++++ b/node_modules/expo-router/build/fork/NavigationContainer.js
+@@ -7,7 +7,7 @@ exports.NavigationContainer = void 0;
+ const native_1 = require("@react-navigation/native");
+ const react_1 = __importDefault(require("react"));
+ const react_native_1 = require("react-native");
+-const use_latest_callback_1 = __importDefault(require("../../../src/hooks/useLatestCallback"));
++const use_latest_callback_1 = __importDefault(require("use-latest-callback"));
+ const useBackButton_1 = require("./useBackButton");
+ const useDocumentTitle_1 = require("./useDocumentTitle");
+ const useLinking_1 = require("./useLinking"); 

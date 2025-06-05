@@ -18,13 +18,13 @@ module.exports = {
   apps: {
     'ios.debug': {
       type: 'ios.app',
-      binaryPath: 'ios/build/Build/Products/Debug-iphonesimulator/Beli.app',
-      build: 'xcodebuild -workspace ios/Beli.xcworkspace -scheme Beli -configuration Debug -sdk iphonesimulator -derivedDataPath ios/build',
+      binaryPath: 'ios/build/Build/Products/Debug-iphonesimulator/GolfCourseReview.app',
+      build: 'xcodebuild -workspace ios/GolfCourseReview.xcworkspace -scheme GolfCourseReview -configuration Debug -sdk iphonesimulator -derivedDataPath ios/build',
     },
     'ios.release': {
       type: 'ios.app',
-      binaryPath: 'ios/build/Build/Products/Release-iphonesimulator/Beli.app',
-      build: 'xcodebuild -workspace ios/Beli.xcworkspace -scheme Beli -configuration Release -sdk iphonesimulator -derivedDataPath ios/build',
+      binaryPath: 'ios/build/Build/Products/Release-iphonesimulator/GolfCourseReview.app',
+      build: 'xcodebuild -workspace ios/GolfCourseReview.xcworkspace -scheme GolfCourseReview -configuration Release -sdk iphonesimulator -derivedDataPath ios/build',
     },
   },
   devices: {

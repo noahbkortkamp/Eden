@@ -1,0 +1,35 @@
+diff --git a/node_modules/lucide-react-native/dist/esm/icons/index.js b/node_modules/lucide-react-native/dist/esm/icons/index.js
+index 4a3a6f0..5554a1d 100644
+--- a/node_modules/lucide-react-native/dist/esm/icons/index.js
++++ b/node_modules/lucide-react-native/dist/esm/icons/index.js
+@@ -1392,9 +1392,6 @@ export { default as Telescope } from './telescope.js';
+ export { default as TentTree } from './tent-tree.js';
+ export { default as Tent } from './tent.js';
+ export { default as Terminal } from './terminal.js';
+-export { default as TestTubeDiagonal } from './test-tube-diagonal.js';
+-export { default as TestTube } from './test-tube.js';
+-export { default as TestTubes } from './test-tubes.js';
+ export { default as TextCursorInput } from './text-cursor-input.js';
+ export { default as TextCursor } from './text-cursor.js';
+ export { default as TextQuote } from './text-quote.js';
+diff --git a/node_modules/lucide-react-native/dist/esm/lucide-react-native.js b/node_modules/lucide-react-native/dist/esm/lucide-react-native.js
+index 97e48c0..1d6f1d1 100644
+--- a/node_modules/lucide-react-native/dist/esm/lucide-react-native.js
++++ b/node_modules/lucide-react-native/dist/esm/lucide-react-native.js
+@@ -184,7 +184,6 @@ export { default as LucideSquareTerminal, default as LucideTerminalSquare, defau
+ export { default as LucideSquareUserRound, default as LucideUserSquare2, default as SquareUserRound, default as SquareUserRoundIcon, default as UserSquare2, default as UserSquare2Icon } from './icons/square-user-round.js';
+ export { default as LucideSquareUser, default as LucideUserSquare, default as SquareUser, default as SquareUserIcon, default as UserSquare, default as UserSquareIcon } from './icons/square-user.js';
+ export { default as LucideSquareX, default as LucideXSquare, default as SquareX, default as SquareXIcon, default as XSquare, default as XSquareIcon } from './icons/square-x.js';
+-export { default as LucideTestTube2, default as LucideTestTubeDiagonal, default as TestTube2, default as TestTube2Icon, default as TestTubeDiagonal, default as TestTubeDiagonalIcon } from './icons/test-tube-diagonal.js';
+ export { default as LucideTextSelect, default as LucideTextSelection, default as TextSelect, default as TextSelectIcon, default as TextSelection, default as TextSelectionIcon } from './icons/text-select.js';
+ export { default as LucideTrain, default as LucideTramFront, default as Train, default as TrainIcon, default as TramFront, default as TramFrontIcon } from './icons/tram-front.js';
+ export { default as LucidePalmtree, default as LucideTreePalm, default as Palmtree, default as PalmtreeIcon, default as TreePalm, default as TreePalmIcon } from './icons/tree-palm.js';
+@@ -1408,8 +1407,6 @@ export { default as LucideTelescope, default as Telescope, default as TelescopeI
+ export { default as LucideTentTree, default as TentTree, default as TentTreeIcon } from './icons/tent-tree.js';
+ export { default as LucideTent, default as Tent, default as TentIcon } from './icons/tent.js';
+ export { default as LucideTerminal, default as Terminal, default as TerminalIcon } from './icons/terminal.js';
+-export { default as LucideTestTube, default as TestTube, default as TestTubeIcon } from './icons/test-tube.js';
+-export { default as LucideTestTubes, default as TestTubes, default as TestTubesIcon } from './icons/test-tubes.js';
+ export { default as LucideTextCursorInput, default as TextCursorInput, default as TextCursorInputIcon } from './icons/text-cursor-input.js';
+ export { default as LucideTextCursor, default as TextCursor, default as TextCursorIcon } from './icons/text-cursor.js';
+ export { default as LucideTextQuote, default as TextQuote, default as TextQuoteIcon } from './icons/text-quote.js';

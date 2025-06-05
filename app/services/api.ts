@@ -4,7 +4,12 @@ import { GolfCourse, User, SearchFilters, LocationData } from '../types';
 // Import the Supabase-based courses utility
 import { searchCourses as supabaseSearchCourses, CourseWithRelevance } from '../utils/courses';
 
-const BASE_URL = 'https://api.yourgolfapp.com'; // Replace with your actual API URL
+const BASE_URL = process.env.EXPO_PUBLIC_API_URL || '';
+
+// Log error if API URL is not configured in production
+if (!BASE_URL && !__DEV__) {
+  console.error('SECURITY WARNING: EXPO_PUBLIC_API_URL is not configured in production');
+}
 
 interface SearchCoursesParams {
   query: string;

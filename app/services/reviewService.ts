@@ -1,7 +1,12 @@
 import { CourseReview, Course } from '../types/review';
 import { supabase } from '../utils/supabase';
 
-const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL;
+const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL || '';
+
+// Log error if API URL is not configured in production
+if (!API_BASE_URL && !__DEV__) {
+  console.error('SECURITY WARNING: EXPO_PUBLIC_API_URL is not configured in production');
+}
 
 export const reviewService = {
   /**
