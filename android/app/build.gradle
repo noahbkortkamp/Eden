@@ -86,12 +86,12 @@ android {
     buildToolsVersion rootProject.ext.buildToolsVersion
     compileSdk rootProject.ext.compileSdkVersion
 
-    namespace 'com.anonymous.beli'
+    namespace 'com.anonymous.golfcoursereview'
     defaultConfig {
-        applicationId 'com.anonymous.beli'
+        applicationId 'com.anonymous.golfcoursereview'
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 1
+        versionCode 18
         versionName "1.0.0"
     }
     signingConfigs {

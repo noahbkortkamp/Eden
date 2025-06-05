@@ -1,7 +1,7 @@
 {
   "name": "golf-course-review",
-  "main": "expo-router/entry",
-  "version": "1.0.1",
+  "main": "./app/TestNativeEntry.js",
+  "version": "1.0.0",
   "private": true,
   "scripts": {
     "dev": "node ./start-with-polyfill.js",
@@ -24,7 +24,8 @@
     "build:e2e:ios": "detox build -c ios.sim.debug",
     "test:e2e:ios": "detox test -c ios.sim.debug",
     "postinstall": "patch-package",
-    "test:streams": "node scripts/test-streams.js"
+    "test:streams": "node scripts/test-streams.js",
+    "verify-fixes": "node scripts/verify-fixes.js"
   },
   "dependencies": {
     "@babel/runtime": "^7.16.7",
