@@ -2,8 +2,40 @@
 const { getDefaultConfig } = require('expo/metro-config');
 const path = require('path');
 
-// Get the default configuration
+/** @type {import('expo/metro-config').MetroConfig} */
 const config = getDefaultConfig(__dirname);
+
+// Critical: React Native 0.79+ configuration
+config.transformer = {
+  ...config.transformer,
+  // Fix for Hermes compilation issues
+  minifierConfig: {
+    keep_fnames: true,
+    mangle: { keep_fnames: true }
+  }
+};
+
+// Critical: Resolver configuration for production builds
+config.resolver = {
+  ...config.resolver,
+  // Ensure proper module resolution
+  alias: {
+    // Fix potential import conflicts
+    'react-native': 'react-native'
+  }
+};
+
+// Production-specific optimizations
+if (process.env.NODE_ENV === 'production') {
+  config.transformer.minifierConfig = {
+    ...config.transformer.minifierConfig,
+    // Preserve function names for debugging
+    keep_fnames: true,
+    mangle: {
+      keep_fnames: true
+    }
+  };
+}
 
 // Fix platform extensions (adds native-specific resolution)
 config.resolver.platforms = ['ios', 'android', 'native', 'web'];

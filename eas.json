@@ -38,11 +38,13 @@
     },
     "testflight": {
       "distribution": "store",
+      "node": "18.18.0",
       "cache": {
         "disabled": true
       },
       "ios": {
-        "resourceClass": "m-medium"
+        "resourceClass": "m-medium",
+        "image": "latest"
       }
     }
   },

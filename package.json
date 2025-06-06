@@ -1,6 +1,6 @@
 {
   "name": "golf-course-review",
-  "main": "expo-router/entry",
+  "main": "index.js",
   "version": "1.0.0",
   "private": true,
   "scripts": {
