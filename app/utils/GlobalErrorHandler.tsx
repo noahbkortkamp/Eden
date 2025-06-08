@@ -157,30 +157,28 @@ export class GlobalErrorHandler {
   }
 
   private showProductionAlert(title: string, error: any, isFatal?: boolean) {
-    const errorMessage = typeof error === 'string' ? error : error?.message || 'Unknown error';
-    const stack = error?.stack ? error.stack.substring(0, 200) + '...' : 'No stack trace';
+    // Only show alerts in development mode to prevent blocking production UI
+    if (!__DEV__) {
+      console.error(`${title}:`, error);
+      return;
+    }
+
+    const errorString = typeof error === 'string' ? error : 
+                       error?.message || 
+                       error?.toString() || 
+                       'Unknown error';
     
-    const alertMessage = `🚨 ${title}
-
-Error: ${errorMessage}
-
-${isFatal ? '💀 This is a FATAL error\n' : ''}Stack: ${stack}
-
-Platform: ${Platform.OS}
-Time: ${new Date().toLocaleString()}
-
-This error was caught by GlobalErrorHandler.`;
-
-    setTimeout(() => {
-      Alert.alert(
-        `🚨 ${title}`,
-        alertMessage,
-        [
-          { text: 'Copy Details', onPress: () => console.log(alertMessage) },
-          { text: 'OK' }
-        ]
-      );
-    }, 100);
+    Alert.alert(
+      title,
+      errorString,
+      [
+        {
+          text: 'OK',
+          style: 'default'
+        }
+      ],
+      { cancelable: true }
+    );
   }
 
   // Static method to manually report errors from try/catch blocks

@@ -32,8 +32,8 @@ export class ErrorBoundary extends Component<Props, State> {
     
     this.setState({ errorInfo });
     
-    // Show alert in production builds for TestFlight debugging
-    if (!__DEV__) {
+    // Only show alert in development mode
+    if (__DEV__) {
       setTimeout(() => {
         const errorMessage = `🚨 React Error Caught 🚨
 
@@ -127,10 +127,25 @@ ${Object.keys(process.env).filter(k => k.startsWith('EXPO_PUBLIC')).map(k => `${
 Platform: ${Platform.OS}
 Timestamp: ${new Date().toISOString()}`;
 
-                Alert.alert('Full Error Details', fullError, [
-                  { text: 'Copy to Console', onPress: () => console.log(fullError) },
-                  { text: 'OK' }
-                ]);
+                const showErrorDetails = () => {
+                  if (__DEV__) {
+                    Alert.alert(
+                      'Error Details',
+                      fullErrorMessage,
+                      [{ text: 'OK' }]
+                    );
+                  }
+                };
+
+                const showFullError = () => {
+                  if (__DEV__) {
+                    Alert.alert('Full Error Details', fullError, [
+                      { text: 'OK' }
+                    ]);
+                  }
+                };
+
+                showFullError();
               }}
             >
               <Text style={[styles.secondaryButtonText, { color: theme.colors.primary }]}>View Full Error</Text>

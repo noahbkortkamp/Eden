@@ -29,9 +29,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     let subscription: any;
     try {
       const { data } = authService.onAuthStateChange((user) => {
-        if (__DEV__) {
-          console.log('Auth state changed:', user ? `User: ${user.id}` : 'No user');
-        }
+        console.log('Auth state changed:', user ? `User: ${user.id}` : 'No user');
         setUser(user);
         setLoading(false);
       });
@@ -168,6 +166,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     signInWithApple,
   };
 
+  // AuthProvider only provides context - no rendering logic
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
 

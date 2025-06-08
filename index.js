@@ -2,7 +2,7 @@
 console.log('🚀 STARTUP: JavaScript execution started!');
 console.log('🚀 STARTUP: Platform:', typeof global !== 'undefined' ? 'global exists' : 'no global');
 console.log('🚀 STARTUP: React Native check:', typeof require !== 'undefined' ? 'require exists' : 'no require');
-console.log('🚀 STARTUP: Hermes engine:', !!(global as any).HermesInternal ? 'enabled' : 'disabled');
+console.log('🚀 STARTUP: Hermes engine:', !!global.HermesInternal ? 'enabled' : 'disabled');
 
 // Environment validation for production
 const envVars = {

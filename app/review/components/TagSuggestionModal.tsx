@@ -30,8 +30,10 @@ export const TagSuggestionModal: React.FC<TagSuggestionModalProps> = ({
   }, [visible]);
 
   const handleSubmit = async () => {
-    if (!tagName.trim()) {
-      Alert.alert('Error', 'Please enter a tag idea');
+    if (tagName.trim() === '') {
+      if (__DEV__) {
+        Alert.alert('Error', 'Please enter a tag idea');
+      }
       return;
     }
 
@@ -41,14 +43,20 @@ export const TagSuggestionModal: React.FC<TagSuggestionModalProps> = ({
         tagName: tagName.trim(),
       });
       
-      Alert.alert(
-        'Success',
-        'Thank you for your suggestion!',
-        [{ text: 'OK', onPress: handleClose }]
-      );
+      if (__DEV__) {
+        Alert.alert(
+          'Success',
+          'Thank you for your suggestion! We\'ll review it and add it to our tags if appropriate.',
+          [{ text: 'OK', onPress: () => onClose() }]
+        );
+      } else {
+        onClose();
+      }
     } catch (error) {
       console.error('Error submitting tag suggestion:', error);
-      Alert.alert('Error', 'There was a problem submitting your suggestion. Please try again.');
+      if (__DEV__) {
+        Alert.alert('Error', 'There was a problem submitting your suggestion. Please try again.');
+      }
     } finally {
       setIsSubmitting(false);
     }

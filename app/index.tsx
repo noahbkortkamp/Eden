@@ -1,30 +1,18 @@
 import { Redirect } from 'expo-router';
 import { useAuth } from './context/AuthContext';
 import { View, ActivityIndicator, Text } from 'react-native';
-import { useEffect, useState } from 'react';
+import { useEffect } from 'react';
+import { useRouter } from 'expo-router';
 
 export default function Index() {
   console.log('🔍 Index: Component mounting...');
   const { user, loading } = useAuth();
-  const [navigationReady, setNavigationReady] = useState(false);
+  const router = useRouter();
 
   console.log('🔍 Index: Current state - user:', user ? `ID: ${user.id}` : 'null', 'loading:', loading);
 
-  // Simple navigation readiness check
-  useEffect(() => {
-    if (!loading) {
-      console.log('🔍 Index: Auth loading complete, setting navigation ready');
-      // Small delay to ensure auth state is fully settled
-      setTimeout(() => {
-        setNavigationReady(true);
-      }, 100);
-    }
-  }, [loading]);
-
-  console.log('🔍 Index: Rendering with loading:', loading, 'navigationReady:', navigationReady);
-
-  // Show loading spinner while checking auth or navigation not ready
-  if (loading || !navigationReady) {
+  // Show loading spinner while auth is checking
+  if (loading) {
     console.log('🔍 Index: Showing loading spinner');
     return (
       <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#ffffff' }}>
@@ -34,23 +22,20 @@ export default function Index() {
     );
   }
 
-  console.log('🔍 Index: Navigation ready, determining redirect');
-  
-  // If we have a user, check their onboarding status
-  if (user) {
-    console.log('🔍 Index: User present, checking onboarding status');
-    console.log('🔍 Index: User metadata:', user.user_metadata);
-    
-    if (user.user_metadata?.onboardingComplete === false) {
-      console.log('🔍 Index: Redirecting to onboarding');
-      return <Redirect href="/onboarding/profile-info" />;
-    } else {
-      console.log('🔍 Index: Redirecting to main app');
-      return <Redirect href="/(tabs)/lists" />;
-    }
-  }
+  // Check if profile is complete
+  const profileComplete = user?.user_metadata?.onboardingComplete !== false;
 
-  // No user - redirect to auth
-  console.log('🔍 Index: No user, redirecting to auth');
-  return <Redirect href="/auth/login" />;
+  // Single clear redirect block
+  useEffect(() => {
+    if (!user) {
+      router.replace('/auth/login');
+    } else if (!profileComplete) {
+      router.replace('/onboarding/profile-info');
+    } else {
+      router.replace('/(tabs)/lists');
+    }
+  }, [user, profileComplete]);
+
+  // Return null while navigation is happening
+  return null;
 } 
