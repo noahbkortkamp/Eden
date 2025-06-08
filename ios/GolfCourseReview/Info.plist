@@ -4,10 +4,12 @@
   <dict>
     <key>CADisableMinimumFrameDurationOnPhone</key>
     <true/>
+    <key>CFBundleAllowMixedLocalizations</key>
+    <true/>
     <key>CFBundleDevelopmentRegion</key>
     <string>$(DEVELOPMENT_LANGUAGE)</string>
     <key>CFBundleDisplayName</key>
-    <string>Golf Course Review</string>
+    <string>golf-course-review</string>
     <key>CFBundleExecutable</key>
     <string>$(EXECUTABLE_NAME)</string>
     <key>CFBundleIdentifier</key>
@@ -27,12 +29,20 @@
       <dict>
         <key>CFBundleURLSchemes</key>
         <array>
-          <string>com.anonymous.golfcoursereview</string>
+          <string>golfcoursereview</string>
+        </array>
+      </dict>
+      <dict>
+        <key>CFBundleURLSchemes</key>
+        <array>
+          <string>exp+golf-course-review</string>
         </array>
       </dict>
     </array>
     <key>CFBundleVersion</key>
-    <string>26</string>
+    <string>33</string>
+    <key>ITSAppUsesNonExemptEncryption</key>
+    <false/>
     <key>LSMinimumSystemVersion</key>
     <string>12.0</string>
     <key>LSRequiresIPhoneOS</key>
@@ -47,13 +57,13 @@
     <key>NSCameraUsageDescription</key>
     <string>Allow Golf Course Review to access your camera to take profile pictures.</string>
     <key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
-    <string>Allow $(PRODUCT_NAME) to access your location</string>
+    <string>Golf Course Review uses your location to find nearby golf courses and provide personalized recommendations.</string>
     <key>NSLocationAlwaysUsageDescription</key>
-    <string>Allow $(PRODUCT_NAME) to access your location</string>
+    <string>Golf Course Review uses your location to find nearby golf courses and provide personalized recommendations.</string>
     <key>NSLocationWhenInUseUsageDescription</key>
-    <string>Allow $(PRODUCT_NAME) to access your location</string>
+    <string>Golf Course Review uses your location to find nearby golf courses and make recommendations.</string>
     <key>NSMicrophoneUsageDescription</key>
-    <string>Allow $(PRODUCT_NAME) to access your microphone</string>
+    <string>Golf Course Review may need microphone access for voice notes and video recordings of your golf experiences.</string>
     <key>NSPhotoLibraryUsageDescription</key>
     <string>Allow Golf Course Review to access your photos to set your profile picture.</string>
     <key>UILaunchStoryboardName</key>

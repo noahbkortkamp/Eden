@@ -1,4 +1,4 @@
-package com.anonymous.golfcoursereview
+package com.noahkortkamp.golfcoursereview
 import expo.modules.splashscreen.SplashScreenManager
 
 import android.os.Build

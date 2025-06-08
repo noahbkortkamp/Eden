@@ -1,6 +1,9 @@
 {
   "cli": {
-    "version": ">= 12.0.0"
+    "version": ">= 12.0.0",
+    "appVersionSource": "local",
+    "requireCommit": false,
+    "promptToConfigurePushNotifications": false
   },
   "build": {
     "development": {
@@ -26,18 +29,23 @@
       }
     },
     "preview": {
+      "developmentClient": false,
       "distribution": "internal",
       "ios": {
         "resourceClass": "m-medium"
       }
     },
     "production": {
+      "developmentClient": false,
+      "environment": "production",
       "ios": {
         "resourceClass": "m-medium"
       }
     },
     "testflight": {
+      "developmentClient": false,
       "distribution": "store",
+      "environment": "production",
       "node": "18.18.0",
       "cache": {
         "disabled": true

@@ -10,14 +10,14 @@
     "splash": {
       "image": "./assets/images/eden-logo.png",
       "resizeMode": "contain",
-      "backgroundColor": "#ffffff"
+      "backgroundColor": "#F8F5EC"
     },
     "assetBundlePatterns": [
       "**/*"
     ],
     "ios": {
       "supportsTablet": true,
-      "buildNumber": "26",
+      "buildNumber": "34",
       "infoPlist": {
         "NSCameraUsageDescription": "Golf Course Review needs access to your camera to take profile pictures.",
         "NSPhotoLibraryUsageDescription": "Golf Course Review needs access to your photo library to select profile pictures.",
@@ -31,13 +31,16 @@
               "golfcoursereview"
             ]
           }
-        ]
+        ],
+        "ITSAppUsesNonExemptEncryption": false,
+        "CADisableMinimumFrameDurationOnPhone": true
       },
       "bundleIdentifier": "com.noahkortkamp.golfcoursereview",
       "associatedDomains": [
         "applinks:golfcoursereview.app"
       ],
       "usesAppleSignIn": true,
+      "requireFullScreen": false,
       "privacyManifests": {
         "NSPrivacyCollectedDataTypes": [
           {
@@ -150,7 +153,7 @@
         "android.permission.WRITE_EXTERNAL_STORAGE",
         "android.permission.RECORD_AUDIO"
       ],
-      "package": "com.anonymous.golfcoursereview",
+      "package": "com.noahkortkamp.golfcoursereview",
       "intentFilters": [
         {
           "action": "VIEW",
@@ -188,10 +191,14 @@
         "projectId": "11f19839-f20c-428e-a258-d9178196c90a"
       }
     },
-    "newArchEnabled": true,
-    "developmentClient": {
-      "silentLaunch": false
+    "newArchEnabled": false,
+    "owner": "noahbkortkamp",
+    "jsEngine": "hermes",
+    "experiments": {
+      "typedRoutes": false
     },
-    "owner": "noahbkortkamp"
+    "runtimeVersion": {
+      "policy": "appVersion"
+    }
   }
 }

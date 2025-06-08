@@ -11,171 +11,81 @@ import { ErrorBoundary } from './components/ErrorBoundary';
 import { useTranslation } from 'react-i18next';
 import { initializeAuthDeepLinks } from './services/auth';
 import * as WebBrowser from 'expo-web-browser';
+import * as SplashScreen from 'expo-splash-screen';
 import './i18n';
 import { PlayedCoursesProvider } from './context/PlayedCoursesContext';
 import { CourseProvider } from './context/CourseContext';
 import LoadingScreen from './components/LoadingScreen';
+import { validateSupabaseConfig } from './utils/supabase';
 
-// ================================================================================================
-// 🚨 CRITICAL DEBUG: This runs IMMEDIATELY when the app starts, before ANY other code
-// ================================================================================================
-console.log('🚨 CRITICAL: App startup timestamp:', new Date().toISOString());
-console.log('🚨 CRITICAL: Platform detected:', Platform.OS);
-console.log('🚨 CRITICAL: Development mode:', __DEV__);
-console.log('🚨 CRITICAL: Node environment:', process.env.NODE_ENV);
+// Prevent auto-hide of splash screen
+SplashScreen.preventAutoHideAsync();
 
-// Check environment variables IMMEDIATELY
-const envCheck = {
-  supabaseUrl: process.env.EXPO_PUBLIC_SUPABASE_URL || '',
-  supabaseKey: process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY || '',
-  allExpoKeys: Object.keys(process.env).filter(key => key.startsWith('EXPO_PUBLIC'))
-};
-
-console.log('🚨 CRITICAL: Environment check results:', {
-  supabaseUrlLength: envCheck.supabaseUrl.length,
-  supabaseKeyLength: envCheck.supabaseKey.length,
-  supabaseUrlPresent: !!envCheck.supabaseUrl,
-  supabaseKeyPresent: !!envCheck.supabaseKey,
-  totalExpoKeys: envCheck.allExpoKeys.length,
-  expoKeysList: envCheck.allExpoKeys
+// Enhanced initialization logging with startup validation
+console.log('💚 LAYOUT: _layout.tsx loading started:', { 
+  platform: Platform.OS, 
+  dev: __DEV__, 
+  timestamp: new Date().toISOString(),
+  hermes: !!(global as any).HermesInternal,
+  nodeEnv: process.env.NODE_ENV
 });
 
-// IMMEDIATE Alert for production builds (this should show up even if app crashes later)
-if (!__DEV__) {
-  console.log('🚨 PRODUCTION BUILD DETECTED - Setting up immediate alert');
-  
-  // Use setTimeout to ensure this runs as soon as possible
-  setTimeout(() => {
-    const debugMessage = `🚨 PRODUCTION DEBUG 🚨
+// Early environment validation
+const startupEnvCheck = {
+  supabaseUrl: !!process.env.EXPO_PUBLIC_SUPABASE_URL,
+  supabaseKey: !!process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY,
+  hasApiUrl: !!process.env.EXPO_PUBLIC_API_URL // Should be false
+};
 
-Environment Status:
-• Supabase URL: ${envCheck.supabaseUrl ? '✅ Present' : '❌ Missing'} (${envCheck.supabaseUrl.length} chars)
-• Supabase Key: ${envCheck.supabaseKey ? '✅ Present' : '❌ Missing'} (${envCheck.supabaseKey.length} chars)
+console.log('💚 LAYOUT: Environment validation:', startupEnvCheck);
 
-Platform: ${Platform.OS}
-Total ENV Keys: ${envCheck.allExpoKeys.length}
-Keys: ${envCheck.allExpoKeys.join(', ')}
-
-Timestamp: ${new Date().toLocaleString()}`;
-
-    console.log('🚨 Showing production debug alert...');
-    Alert.alert('🚨 Production Debug', debugMessage, [
-      { text: 'Copy Info', onPress: () => console.log('Debug info copied to console') },
-      { text: 'Continue', style: 'default' }
-    ]);
-  }, 100); // Show as quickly as possible
-}
-
-// Comprehensive debugging for production issues
-console.log('🚀 === APP INITIALIZATION DEBUG ===');
-console.log('📱 Platform:', Platform.OS);
-console.log('🛠️ DEV mode:', __DEV__);
-console.log('🌍 NODE_ENV:', process.env.NODE_ENV);
-console.log('⏰ Timestamp:', new Date().toISOString());
-
-declare global {
-  interface Window {
-    frameworkReady?: () => void | Promise<void>;
+if (!startupEnvCheck.supabaseUrl || !startupEnvCheck.supabaseKey) {
+  console.error('❌ LAYOUT: Critical environment variables missing');
+  if (!__DEV__) {
+    console.error('❌ PRODUCTION: App startup may fail due to missing Supabase credentials');
   }
+} else {
+  console.log('✅ LAYOUT: Environment validation passed');
 }
 
-// Separate AppContent component that waits for auth to be ready
+if (startupEnvCheck.hasApiUrl) {
+  console.warn('⚠️ LAYOUT: EXPO_PUBLIC_API_URL is still set - this was previously causing crashes');
+}
+
+// Warm up the browser for OAuth flows
+WebBrowser.maybeCompleteAuthSession();
+
+// Separate AppContent component with error boundaries
 function AppContent() {
   const theme = useTheme();
-  const { loading: authLoading } = useAuth();
   
-  // Show loading screen while auth is still checking
-  if (authLoading) {
-    return <LoadingScreen />;
-  }
+  console.log('🎨 AppContent rendering with theme:', theme.colors.background);
   
   return (
     <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
-      <View style={{ flex: 1 }}>
-        <Stack 
-          initialRouteName="index"
-          screenOptions={{ 
-            headerShown: false,
-            headerBackVisible: false,
-            contentStyle: { backgroundColor: theme.colors.background },
-            animation: 'fade',
-            presentation: 'transparentModal'
-          }}
-        >
-          <Stack.Screen name="index" options={{ headerShown: false }} />
-          <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-          <Stack.Screen
-            name="(modals)"
-            options={{
-              presentation: 'modal',
-              headerShown: false
-            }}
-          />
-          <Stack.Screen
-            name="auth"
-            options={{
-              headerShown: false
-            }}
-          />
-          <Stack.Screen
-            name="onboarding"
-            options={{
-              headerShown: false,
-              animation: 'none',
-              presentation: 'transparentModal'
-            }}
-          />
-          <Stack.Screen
-            name="auth/login"
-            options={{
-              presentation: 'modal',
-              headerShown: false,
-              title: 'Log In',
-              headerStyle: {
-                backgroundColor: theme.colors.background,
-              },
-              headerTintColor: theme.colors.text,
-            }}
-          />
-          <Stack.Screen
-            name="auth/signup"
-            options={{
-              presentation: 'modal',
-              headerShown: false,
-              title: 'Sign Up',
-              headerStyle: {
-                backgroundColor: theme.colors.background,
-              },
-              headerTintColor: theme.colors.text,
-            }}
-          />
-          <Stack.Screen
-            name="(modals)/review"
-            options={{
-              presentation: 'modal',
-              headerShown: false,
-              title: 'Review Course',
-              headerStyle: {
-                backgroundColor: theme.colors.background,
-              },
-              headerTintColor: theme.colors.text,
-            }}
-          />
-          <Stack.Screen
-            name="(modals)/comparison"
-            options={{
-              presentation: 'modal',
-              headerShown: false,
-              title: 'Compare Courses',
-              headerStyle: {
-                backgroundColor: theme.colors.background,
-              },
-              headerTintColor: theme.colors.text,
-            }}
-          />
-        </Stack>
-        <StatusBar style="auto" />
-      </View>
+      <Stack 
+        initialRouteName="index"
+        screenOptions={{ 
+          headerShown: false,
+          contentStyle: { backgroundColor: theme.colors.background }
+        }}
+      >
+        <Stack.Screen name="index" options={{ headerShown: false }} />
+        <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+        <Stack.Screen 
+          name="(modals)" 
+          options={{ presentation: 'modal', headerShown: false }} 
+        />
+        <Stack.Screen 
+          name="auth" 
+          options={{ headerShown: false }} 
+        />
+        <Stack.Screen 
+          name="onboarding" 
+          options={{ headerShown: false }} 
+        />
+      </Stack>
+      <StatusBar style="auto" />
     </View>
   );
 }
@@ -183,126 +93,110 @@ function AppContent() {
 function ErrorScreen({ error }: { error: Error }) {
   const { t } = useTranslation();
   
-  // Also show error in alert for TestFlight debugging
+  // Show error in production for debugging
   useEffect(() => {
+    console.error('🚨 ERROR SCREEN:', error.message, error.stack);
     if (!__DEV__) {
+      // Alert in production for debugging
       setTimeout(() => {
-        Alert.alert(
-          '🚨 App Error Detected',
-          `The app encountered an error during initialization:\n\n${error.message}\n\nStack: ${error.stack?.substring(0, 200)}...`,
-          [{ text: 'OK' }]
-        );
-      }, 500);
+        Alert.alert('App Error', `${error.message}\n\nPlease restart the app.`);
+      }, 1000);
     }
   }, [error]);
   
   return (
-    <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', padding: 20 }}>
-      <Text style={{ color: 'red', textAlign: 'center', marginBottom: 16, fontSize: 16, fontWeight: 'bold' }}>
-        {t('errors.failedToInitialize')}
+    <View style={styles.errorContainer}>
+      <Text style={styles.errorTitle}>
+        {t('errors.generic', 'App Error')}
       </Text>
-      <Text style={{ color: '#64748b', textAlign: 'center', fontSize: 14 }}>
+      <Text style={styles.errorMessage}>
         {error.message}
       </Text>
-      <Text style={{ color: '#64748b', textAlign: 'center', fontSize: 12, marginTop: 10 }}>
-        {error.stack?.substring(0, 300)}...
+      <Text style={styles.errorDetails}>
+        Please restart the app. If this persists, contact support.
       </Text>
     </View>
   );
 }
 
-// Root layout component
-export default function RootLayout() {
-  const [isFrameworkLoading, setIsFrameworkLoading] = useState(true);
-  const [error, setError] = useState<Error | null>(null);
+// Safe fallback component if providers fail
+function SafeFallback() {
+  return (
+    <View style={styles.fallbackContainer}>
+      <Text style={styles.fallbackText}>Golf Course Review</Text>
+      <Text style={styles.fallbackSubtext}>Starting app...</Text>
+    </View>
+  );
+}
 
+export default function RootLayout() {
+  const [initialized, setInitialized] = useState(false);
+  const [error, setError] = useState<Error | null>(null);
+  
   useEffect(() => {
     const initializeFramework = async () => {
       try {
-        console.log('🔄 Starting framework initialization...');
-        console.log('🌐 Window object available:', typeof window !== 'undefined');
-        console.log('📋 WebBrowser available:', !!WebBrowser);
+        console.log('🔧 Starting app initialization...');
         
-        if (Platform.OS === 'web' && window.frameworkReady) {
-          console.log('🌐 Web platform detected, calling frameworkReady...');
-          await window.frameworkReady();
-          console.log('✅ Web frameworkReady completed');
-        } else {
-          console.log('📱 Native platform detected or no frameworkReady');
-        }
+        // Simple validation without crashes
+        validateSupabaseConfig();
+        console.log('✅ Supabase config validated');
         
-        // Make sure WebBrowser can handle auth sessions
-        console.log('🔧 Initializing WebBrowser auth session...');
-        WebBrowser.maybeCompleteAuthSession();
-        console.log('✅ WebBrowser auth session initialized');
+        // Initialize auth deep links
+        await initializeAuthDeepLinks();
+        console.log('✅ Auth deep links initialized');
         
-        // Initialize deep linking for auth with better error handling
-        console.log('🔗 Initializing auth deep links...');
-        try {
-          initializeAuthDeepLinks();
-          console.log('✅ Deep linking initialized successfully');
-        } catch (deepLinkError) {
-          console.error('❌ Failed to initialize deep linking:', deepLinkError);
-          // Don't throw here, deep linking failure shouldn't crash the app
-        }
+        setInitialized(true);
+        console.log('✅ App initialization complete');
         
-        console.log('✅ Framework initialization complete');
-        setIsFrameworkLoading(false);
-      } catch (err) {
-        console.error('❌ Framework initialization failed:', err);
-        console.error('❌ Error details:', {
-          message: err instanceof Error ? err.message : 'Unknown error',
-          stack: err instanceof Error ? err.stack : 'No stack trace',
-          name: err instanceof Error ? err.name : 'Unknown error type'
-        });
-        
-        // Show alert in production for debugging
-        if (!__DEV__) {
-          setTimeout(() => {
-            Alert.alert(
-              '🚨 Framework Init Error',
-              `Framework initialization failed:\n\n${err instanceof Error ? err.message : 'Unknown error'}\n\nThis happened during app startup.`,
-              [{ text: 'OK' }]
-            );
-          }, 200);
-        }
-        
-        setError(err instanceof Error ? err : new Error('Failed to initialize'));
-        setIsFrameworkLoading(false);
+      } catch (error) {
+        console.error('❌ Failed to initialize app:', error);
+        setError(error as Error);
+        setInitialized(true); // Still show the app, but with error state
       }
     };
 
-    console.log('🚀 Starting framework initialization effect...');
     initializeFramework();
   }, []);
 
-  // Show loading screen during framework initialization
-  if (isFrameworkLoading) {
-    console.log('⏳ Framework still loading, showing LoadingScreen...');
+  // Hide splash screen when app is ready
+  useEffect(() => {
+    if (initialized) {
+      console.log('🎬 Hiding splash screen...');
+      SplashScreen.hideAsync()
+        .then(() => console.log('✅ Splash screen hidden'))
+        .catch(err => console.warn('⚠ Splash screen hide failed:', err.message));
+    }
+  }, [initialized]);
+
+  // Show loading screen while initializing
+  if (!initialized) {
+    console.log('⏳ Showing loading screen...');
     return <LoadingScreen />;
   }
 
+  // Show error screen if initialization failed
   if (error) {
-    console.log('❌ Framework error detected, showing ErrorScreen...');
+    console.log('🚨 Showing error screen:', error.message);
     return <ErrorScreen error={error} />;
   }
 
-  console.log('🎉 Framework ready, rendering main app...');
-  
-  // Once framework is ready, initialize providers and let AuthProvider handle its own loading
+  console.log('🚀 Rendering main app with providers...');
+
+  // Main app with all providers and safe fallbacks
   return (
     <ErrorBoundary>
       <ThemeProvider>
         <AuthProvider>
-          <SearchProvider>
+          <CourseProvider>
             <PlayedCoursesProvider>
-              <CourseProvider>
+              <SearchProvider>
                 <ReviewProvider>
                   <AppContent />
                 </ReviewProvider>
-              </CourseProvider>
+              </SearchProvider>
             </PlayedCoursesProvider>
-          </SearchProvider>
+          </CourseProvider>
         </AuthProvider>
       </ThemeProvider>
     </ErrorBoundary>
@@ -312,5 +206,47 @@ export default function RootLayout() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+  },
+  errorContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+    backgroundColor: '#F8F5EC',
+  },
+  errorTitle: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    marginBottom: 16,
+    color: '#234D2C',
+    textAlign: 'center',
+  },
+  errorMessage: {
+    fontSize: 16,
+    marginBottom: 12,
+    color: '#666',
+    textAlign: 'center',
+  },
+  errorDetails: {
+    fontSize: 14,
+    color: '#888',
+    textAlign: 'center',
+    fontStyle: 'italic',
+  },
+  fallbackContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#F8F5EC',
+  },
+  fallbackText: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    color: '#234D2C',
+    marginBottom: 8,
+  },
+  fallbackSubtext: {
+    fontSize: 16,
+    color: '#666',
   },
 });
