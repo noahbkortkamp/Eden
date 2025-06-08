@@ -35,12 +35,12 @@
       <dict>
         <key>CFBundleURLSchemes</key>
         <array>
-          <string>exp+golf-course-review</string>
+          <string>exp+golfcoursereview</string>
         </array>
       </dict>
     </array>
     <key>CFBundleVersion</key>
-    <string>33</string>
+    <string>34</string>
     <key>ITSAppUsesNonExemptEncryption</key>
     <false/>
     <key>LSMinimumSystemVersion</key>
