@@ -105,7 +105,7 @@ export default function LoginScreen() {
           keyboardVerticalOffset={Platform.OS === 'ios' ? 40 : 0}
         >
           <View style={styles.closeButtonContainer}>
-            <TouchableOpacity onPress={() => router.replace('/(auth)/welcome')} hitSlop={16}>
+            <TouchableOpacity onPress={() => router.replace('/auth/welcome')} hitSlop={16}>
               <Ionicons name="close" size={32} color={edenTheme.colors.text} />
             </TouchableOpacity>
           </View>
@@ -241,7 +241,7 @@ export default function LoginScreen() {
 
               <View style={styles.footer}>
                 <Text style={{ color: edenTheme.colors.text }}>Don't have an account? </Text>
-                <Link href="/(auth)/onboarding-signup">
+                <Link href="/auth/onboarding-signup">
                   <Text style={[styles.link, { color: edenTheme.colors.primary }]}>Sign Up</Text>
                 </Link>
               </View>

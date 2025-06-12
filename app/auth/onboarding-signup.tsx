@@ -124,7 +124,7 @@ export default function OnboardingSignupScreen() {
         keyboardVerticalOffset={Platform.OS === 'ios' ? 20 : 0}
       >
         <View style={styles.closeButtonContainer}>
-          <TouchableOpacity onPress={() => router.replace('/(auth)/welcome')} hitSlop={16}>
+          <TouchableOpacity onPress={() => router.replace('/auth/welcome')} hitSlop={16}>
             <Ionicons name="close" size={32} color={edenTheme.colors.text} />
           </TouchableOpacity>
         </View>

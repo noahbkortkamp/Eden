@@ -8,7 +8,7 @@ import { reviewService } from '../services/reviewService';
 import { userService } from '../services/userService';
 import { Search, MapPin } from 'lucide-react-native';
 import { edenTheme } from '../theme/edenTheme';
-import { debounce } from 'lodash'; // You may need to install lodash if not already installed
+import { useDebouncedCallback } from 'use-debounce';
 
 // Course type definition
 type Course = {
@@ -51,7 +51,7 @@ export default function FirstReviewScreen() {
         // If user has reviews or has been marked as completing first review, skip this screen
         if (hasReviews || hasCompletedFirstReview) {
           console.log('🔄 User already has reviews or completed first review, redirecting to main app');
-          router.replace('/(tabs)');
+          router.replace('/(tabs)/lists');
           return;
         }
         
@@ -87,7 +87,7 @@ export default function FirstReviewScreen() {
   };
 
   // Debounced search function to search as user types
-  const debouncedSearch = debounce(async (query: string) => {
+  const debouncedSearch = useDebouncedCallback(async (query: string) => {
     if (!query.trim()) {
       setSearchResults([]);
       return;
@@ -129,7 +129,7 @@ export default function FirstReviewScreen() {
 
   // Skip the review and go to main app
   const handleSkip = async () => {
-    router.replace('/(tabs)');
+    router.replace('/(tabs)/lists');
   };
 
   // Render a single course item

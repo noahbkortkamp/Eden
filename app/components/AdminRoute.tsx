@@ -18,7 +18,7 @@ export function AdminRoute({ children }: { children: React.ReactNode }) {
       router.replace('/auth/login');
     } else if (!isAdmin && inAdminGroup) {
       // Redirect to home if not admin and trying to access admin routes
-      router.replace('/(tabs)');
+      router.replace('/(tabs)/lists');
     }
   }, [user, loading, isAdmin, segments]);
 

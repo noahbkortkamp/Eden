@@ -75,7 +75,7 @@ export const FirstReviewSuccessScreen: React.FC<FirstReviewSuccessScreenProps> =
       const timer = setTimeout(() => {
         InteractionManager.runAfterInteractions(() => {
           // Reset the navigation stack completely to avoid issues
-          globalRouter.replace('/(tabs)');
+          globalRouter.replace('/(tabs)/lists');
         });
       }, 300);
       
@@ -120,7 +120,7 @@ export const FirstReviewSuccessScreen: React.FC<FirstReviewSuccessScreenProps> =
     // Schedule navigation to main tab
     setTimeout(() => {
       // Use replace instead of navigate to reset the stack
-      globalRouter.replace('/(tabs)');
+      globalRouter.replace('/(tabs)/lists');
     }, 300);
   };
   
@@ -134,7 +134,7 @@ export const FirstReviewSuccessScreen: React.FC<FirstReviewSuccessScreenProps> =
     // Schedule navigation to main tab
     setTimeout(() => {
       // Use replace instead of navigate to reset the stack
-      globalRouter.replace('/(tabs)');
+      globalRouter.replace('/(tabs)/lists');
     }, 300);
   };
 

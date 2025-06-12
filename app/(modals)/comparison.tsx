@@ -243,7 +243,7 @@ export default function ComparisonModal() {
         setError(err instanceof Error ? err.message : 'Failed to load courses');
         // After error, wait 2 seconds then return to feed
         setTimeout(() => {
-          router.replace('/(tabs)');
+          router.replace('/(tabs)/lists');
         }, 2000);
       } finally {
         // We'll set loading to false in the debounced effect
@@ -256,7 +256,7 @@ export default function ComparisonModal() {
   // Use useEffect to handle navigation when no courses are found
   useEffect(() => {
     if (screenReady && !loading && (!courseA || !courseB)) {
-      router.replace('/(tabs)');
+                router.replace('/(tabs)/lists');
     }
   }, [screenReady, loading, courseA, courseB, router]);
 

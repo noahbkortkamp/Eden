@@ -18,6 +18,7 @@ import { UserPlus, Check, Search } from 'lucide-react-native';
 import { getSuggestedUsers, searchUsersByName, followUser, unfollowUser, isFollowing } from '../utils/friends';
 import { useAuth } from '../context/AuthContext';
 import { User as UserType } from '../types/index';
+import { supabase } from '../utils/supabase';
 
 export default function FindFriendsScreen() {
   const router = useRouter();
@@ -146,8 +147,24 @@ export default function FindFriendsScreen() {
     }
   };
 
-  const handleContinue = () => {
-    router.replace('/(auth)/first-review');
+  const handleContinue = async () => {
+    try {
+      console.log('Marking onboarding as complete...');
+      
+      // Mark onboarding as complete before navigating to first review
+      await supabase.auth.updateUser({
+        data: { 
+          onboardingComplete: true
+        }
+      });
+      
+      console.log('Onboarding marked complete, navigating to first review');
+      router.replace('/auth/first-review');
+    } catch (error) {
+      console.error('Error completing onboarding:', error);
+      // Navigate anyway to avoid blocking the user
+      router.replace('/auth/first-review');
+    }
   };
 
   // Dismiss keyboard when tapping outside search box

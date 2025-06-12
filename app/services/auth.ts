@@ -305,9 +305,9 @@ export const getSession = async () => {
   return session;
 };
 
-export const onAuthStateChange = (callback: (user: User | null) => void) => {
+export const onAuthStateChange = (callback: (user: User | null, event?: string) => void) => {
   return supabase.auth.onAuthStateChange((event, session) => {
-    callback(session?.user ?? null);
+    callback(session?.user ?? null, event);
   });
 };
 

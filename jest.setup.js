@@ -1,6 +1,4 @@
-// Mock React Native components that might cause issues in tests
-jest.mock('react-native/Libraries/Animated/NativeAnimatedHelper');
-jest.mock('react-native/Libraries/EventEmitter/NativeEventEmitter');
+// Skip problematic React Native mocks that don't exist in the current version
 jest.mock('react-native-reanimated', () => {
   const Reanimated = require('react-native-reanimated/mock');
   Reanimated.default.call = () => {};

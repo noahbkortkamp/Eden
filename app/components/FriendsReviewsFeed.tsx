@@ -7,9 +7,11 @@ import { useAuth } from '../context/AuthContext';
 import { useRouter } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Users } from 'lucide-react-native';
-import { supabase } from '../utils/supabase';
 import { colors } from '../theme/tokens';
 import { Heading2, BodyText, Button, EmptyTabState } from '../components/eden';
+import { RealtimeErrorBoundary } from './RealtimeErrorBoundary';
+import { useOptimizedSubscription } from '../hooks/useOptimizedSubscription';
+import { usePerformanceMonitor } from '../hooks/usePerformanceMonitor';
 
 // How long to keep cache valid (in milliseconds)
 const CACHE_EXPIRY_TIME = 15 * 60 * 1000; // Increased to 15 minutes for better performance
@@ -163,11 +165,22 @@ export const FriendsReviewsFeed = forwardRef<FriendsReviewsFeedRef, FriendsRevie
   const [state, dispatch] = useReducer(reviewsReducer, initialState);
   // Add a ref to store the current state for use in subscriptions
   const stateRef = useRef(state);
+  const userRef = useRef(user);
   
-  // Update ref whenever state changes
+  // Performance monitoring for development
+  const { trackError, logManual } = usePerformanceMonitor({
+    componentName: 'FriendsReviewsFeed',
+    enabled: __DEV__,
+  });
+  
+  // Update refs whenever state/user changes
   useEffect(() => {
     stateRef.current = state;
   }, [state]);
+  
+  useEffect(() => {
+    userRef.current = user;
+  }, [user]);
   
   // More efficient caching strategy
   const loadCachedData = useCallback(async () => {
@@ -204,36 +217,12 @@ export const FriendsReviewsFeed = forwardRef<FriendsReviewsFeedRef, FriendsRevie
       }
     }
   }, []);
-  
-  // Fetch reviews with proper memoization
-  const fetchReviews = useCallback(async (refresh = false) => {
-    if (!user) return;
+
+  // Function to fetch fresh data from API (stable reference)
+  const fetchFreshData = useCallback(async (currentPage: number, pageSize: number, isBackground = false) => {
+    const currentUser = userRef.current;
+    if (!currentUser) return;
     
-    const currentPage = refresh ? 1 : state.page;
-    const pageSize = 10;
-    
-    // Set loading states
-    dispatch({ type: 'FETCH_START', refresh });
-    
-    try {
-      // Stale-while-revalidate pattern: load cache first, then fetch fresh data
-      if (currentPage === 1 && !refresh) {
-        const hasCachedData = await loadCachedData();
-        if (hasCachedData) {
-          // If we have cached data, refresh in background
-          fetchFreshData(currentPage, pageSize, true);
-          return;
-        }
-      }
-      
-      await fetchFreshData(currentPage, pageSize);
-    } catch (err) {
-      dispatch({ type: 'FETCH_ERROR', error: 'Failed to load reviews' });
-    }
-  }, [user, state.page, loadCachedData, updateCache]);
-  
-  // Function to fetch fresh data from API
-  const fetchFreshData = async (currentPage: number, pageSize: number, isBackground = false) => {
     try {
       // Only show loading indicator if not background refresh
       if (!isBackground && currentPage > 1) {
@@ -243,7 +232,7 @@ export const FriendsReviewsFeed = forwardRef<FriendsReviewsFeedRef, FriendsRevie
       console.log(`Fetching friends reviews for page ${currentPage}, background=${isBackground}`);
       
       try {
-        const reviewsData = await getFriendsReviews(user!.id, currentPage, pageSize);
+        const reviewsData = await getFriendsReviews(currentUser.id, currentPage, pageSize);
         
         // Update state with new data
         const isFirstPage = currentPage === 1;
@@ -292,7 +281,39 @@ export const FriendsReviewsFeed = forwardRef<FriendsReviewsFeedRef, FriendsRevie
         dispatch({ type: 'FETCH_ERROR', error: 'An unexpected error occurred' });
       }
     }
-  };
+  }, [updateCache]);
+  
+  // Fetch reviews with proper memoization (stable reference)
+  const fetchReviews = useCallback(async (refresh = false) => {
+    const currentUser = userRef.current;
+    const currentState = stateRef.current;
+    if (!currentUser) return;
+    
+    const currentPage = refresh ? 1 : currentState.page;
+    const pageSize = 10;
+    
+    // Set loading states
+    dispatch({ type: 'FETCH_START', refresh });
+    
+    try {
+      // Stale-while-revalidate pattern: load cache first, then fetch fresh data
+      if (currentPage === 1 && !refresh) {
+        const hasCachedData = await loadCachedData();
+        if (hasCachedData) {
+          // If we have cached data, refresh in background
+          fetchFreshData(currentPage, pageSize, true);
+          return;
+        }
+      }
+      
+      await fetchFreshData(currentPage, pageSize);
+    } catch (err) {
+      dispatch({ type: 'FETCH_ERROR', error: 'Failed to load reviews' });
+    }
+  }, [loadCachedData, fetchFreshData]);
+  
+  // Note: Removed refreshFeedStable to prevent subscription re-creation issues
+  // Real-time subscriptions now handle refresh directly without dependencies
   
   // Initial data load
   useEffect(() => {
@@ -310,87 +331,84 @@ export const FriendsReviewsFeed = forwardRef<FriendsReviewsFeedRef, FriendsRevie
     handleRefresh
   }));
   
-  // Stable refresh function that doesn't depend on handleRefresh
-  const refreshFeed = useCallback(() => {
-    dispatch({ type: 'SET_PAGE', page: 1 });
-    fetchReviews(true);
-  }, [fetchReviews]);
-  
-  // Set up real-time subscription
-  useEffect(() => {
-    if (!user) return;
-    
-    // Subscribe to real-time updates for followed users' reviews
-    const reviewsSubscription = supabase
-      .channel('followed_users_reviews')
-      .on(
-        'postgres_changes',
-        {
-          event: 'INSERT',
-          schema: 'public',
-          table: 'reviews',
-        },
-        async (payload) => {
+  // Optimized real-time subscriptions using new hook
+  const { isActive, retryCount, manualRetry } = useOptimizedSubscription({
+    channelName: 'friends_reviews_feed',
+    userId: user?.id,
+    subscriptions: [
+      {
+        table: 'followed_users_reviews',
+        event: 'INSERT',
+        onPayload: async (payload) => {
           try {
-            // Check if the review is from someone the user follows
-            const { data, error } = await supabase
-              .from('followed_users_reviews')
-              .select('*')
-              .eq('id', payload.new.id)
-              .eq('follower_id', user.id);
+            // Add new review directly to the feed
+            if (payload.new) {
+              dispatch({ type: 'ADD_REAL_TIME_REVIEW', review: payload.new });
               
-            if (!error && data && data.length > 0) {
-              // Add new review to the feed
-              dispatch({ type: 'ADD_REAL_TIME_REVIEW', review: data[0] });
-              
-              // Update cache to include the new review
-              const cachedData = await AsyncStorage.getItem(CACHE_KEY);
-              if (cachedData) {
-                const { timestamp, data: cachedReviews, version } = JSON.parse(cachedData);
-                await AsyncStorage.setItem(CACHE_KEY, JSON.stringify({
-                  timestamp,
-                  data: [data[0], ...cachedReviews],
-                  version,
-                }));
+              // Update cache in background
+              try {
+                const cachedData = await AsyncStorage.getItem(CACHE_KEY);
+                if (cachedData) {
+                  const { timestamp, data: cachedReviews, version } = JSON.parse(cachedData);
+                  await AsyncStorage.setItem(CACHE_KEY, JSON.stringify({
+                    timestamp,
+                    data: [payload.new, ...cachedReviews.slice(0, 9)], // Keep cache size reasonable
+                    version,
+                  }));
+                }
+              } catch (cacheErr) {
+                console.warn('Error updating cache with new review:', cacheErr);
               }
             }
           } catch (err) {
-            console.error('Error processing real-time update:', err);
+            console.error('Error processing new review:', err);
           }
-        }
-      )
-      .subscribe();
-      
-    // Add subscription for follows table to refresh the feed when user follows someone new
-    const followsSubscription = supabase
-      .channel('user_follows')
-      .on(
-        'postgres_changes',
-        {
-          event: 'INSERT',
-          schema: 'public',
-          table: 'follows',
         },
-        async (payload) => {
+        onError: (error) => {
+          console.error('Reviews subscription error:', error);
+          trackError(error);
+          dispatch({ type: 'RESET_ERROR' }); // Clear any existing errors
+        },
+      },
+      {
+        table: 'follows',
+        event: 'INSERT',
+        filter: `follower_id=eq.${user?.id}`,
+        onPayload: async (payload) => {
           try {
-            // Only refresh if the current user is the one following
-            if (payload.new && payload.new.follower_id === user.id) {
+            if (payload.new && payload.new.follower_id === user?.id) {
               console.log('User followed someone new, refreshing feed');
-              // Use refreshFeed instead of handleRefresh to avoid dependency issues
-              refreshFeed();
+              // Trigger a fresh data fetch
+              const currentUser = userRef.current;
+              if (currentUser) {
+                dispatch({ type: 'SET_PAGE', page: 1 });
+                dispatch({ type: 'FETCH_START', refresh: true });
+                
+                try {
+                  const reviewsData = await getFriendsReviews(currentUser.id, 1, 10);
+                  dispatch({ 
+                    type: 'FETCH_SUCCESS', 
+                    data: reviewsData, 
+                    isFirstPage: true, 
+                    hasMore: reviewsData.length === 10 
+                  });
+                } catch (refreshErr) {
+                  console.error('Error refreshing feed after new follow:', refreshErr);
+                  dispatch({ type: 'FETCH_ERROR', error: 'Failed to refresh feed' });
+                }
+              }
             }
           } catch (err) {
-            console.error('Error processing follow update:', err);
+            console.error('Error processing new follow:', err);
           }
-        }
-      )
-      .subscribe();
-      
-    return () => {
-      supabase.removeChannel(reviewsSubscription);
-      supabase.removeChannel(followsSubscription);
-    };
-  }, [user, refreshFeed]);
+        },
+        onError: (error) => {
+          console.error('Follows subscription error:', error);
+          trackError(error);
+        },
+      },
+    ],
+  });
   
   // Function to handle "load more" when reaching the end of the list
   const handleLoadMore = useCallback(() => {
@@ -462,43 +480,50 @@ export const FriendsReviewsFeed = forwardRef<FriendsReviewsFeedRef, FriendsRevie
   }
 
   return (
-    <FlatList
-      data={state.reviews}
-      renderItem={({ item, index }) => (
-        <MemoizedFriendReviewCard
-          review={item} 
-          onPress={() => handleReviewPress(item)}
-        />
-      )}
-      keyExtractor={getUniqueKey}
-      contentContainerStyle={styles.container}
-      style={[styles.flatList, { backgroundColor: edenTheme.colors.background }]}
-      onEndReached={handleLoadMore}
-      onEndReachedThreshold={0.5}
-      refreshing={state.refreshing}
-      onRefresh={handleRefresh}
-      showsVerticalScrollIndicator={false}
-      removeClippedSubviews={false}
-      keyboardShouldPersistTaps="handled"
-      maxToRenderPerBatch={3}
-      windowSize={5}
-      ListFooterComponent={
-        state.isLoadingMore ? (
-          <ActivityIndicator size="small" color={edenTheme.colors.primary} style={styles.loadMoreIndicator} />
-        ) : state.hasMore ? (
-          <Button
-            label="Load More"
-            variant="tertiary"
-            onPress={handleLoadMore}
-            style={styles.loadMoreButton}
+    <RealtimeErrorBoundary
+      onError={(error, errorInfo) => {
+        console.error('FriendsReviewsFeed Error:', { error, errorInfo });
+        // You could also log to crash reporting service here
+      }}
+    >
+      <FlatList
+        data={state.reviews}
+        renderItem={({ item, index }) => (
+          <MemoizedFriendReviewCard
+            review={item} 
+            onPress={() => handleReviewPress(item)}
           />
-        ) : state.reviews.length > 0 ? (
-          <BodyText color={edenTheme.colors.textSecondary} style={styles.endOfListText}>
-            You've reached the end
-          </BodyText>
-        ) : null
-      }
-    />
+        )}
+        keyExtractor={getUniqueKey}
+        contentContainerStyle={styles.container}
+        style={[styles.flatList, { backgroundColor: edenTheme.colors.background }]}
+        onEndReached={handleLoadMore}
+        onEndReachedThreshold={0.5}
+        refreshing={state.refreshing}
+        onRefresh={handleRefresh}
+        showsVerticalScrollIndicator={false}
+        removeClippedSubviews={false}
+        keyboardShouldPersistTaps="handled"
+        maxToRenderPerBatch={3}
+        windowSize={5}
+        ListFooterComponent={
+          state.isLoadingMore ? (
+            <ActivityIndicator size="small" color={edenTheme.colors.primary} style={styles.loadMoreIndicator} />
+          ) : state.hasMore ? (
+            <Button
+              label="Load More"
+              variant="tertiary"
+              onPress={handleLoadMore}
+              style={styles.loadMoreButton}
+            />
+          ) : state.reviews.length > 0 ? (
+            <BodyText color={edenTheme.colors.textSecondary} style={styles.endOfListText}>
+              You've reached the end
+            </BodyText>
+          ) : null
+        }
+      />
+    </RealtimeErrorBoundary>
   );
 });
 

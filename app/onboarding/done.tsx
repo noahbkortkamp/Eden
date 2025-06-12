@@ -63,7 +63,7 @@ export default function DoneScreen() {
           if (reviewCount === 0 && !hasCompletedFirstReview) {
             // Navigate to the first review screen
             console.log('User needs to complete first review, navigating to first-review screen');
-            router.replace('/(auth)/first-review');
+            router.replace('/auth/first-review');
             return;
           }
         } catch (error) {
@@ -72,8 +72,8 @@ export default function DoneScreen() {
         }
       }
       
-      // If we couldn't check reviews or user has reviews/completed first review, go to login
-      router.replace('/auth/login');
+      // If we couldn't check reviews or user has reviews/completed first review, go to main app
+      router.replace('/(tabs)/lists');
     } catch (error) {
       console.error('Error completing onboarding:', error);
     } finally {

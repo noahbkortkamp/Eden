@@ -11,10 +11,11 @@ export default function WelcomeScreen() {
   const { height } = useWindowDimensions();
   
   const handleGetStarted = () => {
-    router.push('/(auth)/onboarding-signup');
+    console.log('Get started button pressed');
+    router.push('/auth/onboarding-signup');
   };
   
-  const handleLogin = () => {
+  const handleSignIn = () => {
     router.push('/auth/login');
   };
   
@@ -51,7 +52,7 @@ export default function WelcomeScreen() {
         
         <TouchableOpacity 
           style={styles.loginButton}
-          onPress={handleLogin}
+          onPress={handleSignIn}
         >
           <Text style={[theme.typography.buttonSecondary, styles.loginText]}>
             Already have an account? Log in
