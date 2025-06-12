@@ -17,7 +17,7 @@
     ],
     "ios": {
       "supportsTablet": true,
-      "buildNumber": "34",
+      "buildNumber": "35",
       "infoPlist": {
         "NSCameraUsageDescription": "Golf Course Review needs access to your camera to take profile pictures.",
         "NSPhotoLibraryUsageDescription": "Golf Course Review needs access to your photo library to select profile pictures.",
