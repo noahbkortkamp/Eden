@@ -35,11 +35,21 @@ export function useOptimizedSubscription({
   const maxRetries = 3;
   const retryDelay = 2000; // 2 seconds
 
-  // Create stable channel name with unique identifier
-  const stableChannelName = useCallback(() => {
-    const timestamp = Date.now();
-    const random = Math.random().toString(36).substring(7);
-    return `${channelName}_${userId || 'anonymous'}_${timestamp}_${random}`;
+  // Create stable channel name with unique identifier - only generate once per session
+  const stableChannelNameRef = useRef<string | null>(null);
+  
+  const getStableChannelName = useCallback(() => {
+    if (!stableChannelNameRef.current) {
+      const timestamp = Date.now();
+      const random = Math.random().toString(36).substring(7);
+      stableChannelNameRef.current = `${channelName}_${userId || 'anonymous'}_${timestamp}_${random}`;
+    }
+    return stableChannelNameRef.current;
+  }, [channelName, userId]);
+
+  // Reset channel name when userId or channelName changes
+  useEffect(() => {
+    stableChannelNameRef.current = null;
   }, [channelName, userId]);
 
   // Cleanup function
@@ -66,7 +76,7 @@ export function useOptimizedSubscription({
     console.log(`🔄 Setting up optimized subscription: ${channelName}`);
     
     try {
-      const uniqueChannelName = stableChannelName();
+      const uniqueChannelName = getStableChannelName();
       const channel = supabase.channel(uniqueChannelName);
       
       // Add all subscription configs to the channel
@@ -112,7 +122,7 @@ export function useOptimizedSubscription({
       console.error(`Failed to setup subscription ${channelName}:`, error);
       handleSubscriptionError(error as Error);
     }
-  }, [enabled, userId, channelName, subscriptions, stableChannelName]);
+  }, [enabled, userId, channelName, subscriptions, getStableChannelName]);
 
   // Handle subscription errors with retry logic
   const handleSubscriptionError = useCallback((error: Error) => {

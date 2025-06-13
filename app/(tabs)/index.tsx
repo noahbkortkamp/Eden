@@ -3,7 +3,7 @@ import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Search, Trophy, Bell, Menu, Users, TrendingUp } from 'lucide-react-native';
 import { useFonts, Inter_400Regular, Inter_600SemiBold, Inter_700Bold } from '@expo-google-fonts/inter';
 import { LinearGradient } from 'expo-linear-gradient';
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { getNearbyCoursesWithinRadius } from '../utils/courses';
 import { Database } from '../utils/database.types';
 import { FriendsReviewsFeed, FriendsReviewsFeedRef } from '../components/FriendsReviewsFeed';
@@ -68,10 +68,10 @@ export default function HomeScreen() {
     setActiveTab(tab);
   };
 
-  const handleFindFriendsPress = () => {
+  const handleFindFriendsPress = useCallback(() => {
     // Instead of navigating, show the find friends modal
     setShowFindFriends(true);
-  };
+  }, []);
   
   // Add a function to handle follows/unfollows
   const handleFollowChanged = (userId: string, isFollowing: boolean) => {

@@ -8,10 +8,8 @@ import { useRouter } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Users } from 'lucide-react-native';
 import { colors } from '../theme/tokens';
-import { Heading2, BodyText, Button, EmptyTabState } from '../components/eden';
+import { Heading2, BodyText, Button } from '../components/eden';
 import { RealtimeErrorBoundary } from './RealtimeErrorBoundary';
-import { useOptimizedSubscription } from '../hooks/useOptimizedSubscription';
-import { usePerformanceMonitor } from '../hooks/usePerformanceMonitor';
 
 // How long to keep cache valid (in milliseconds)
 const CACHE_EXPIRY_TIME = 15 * 60 * 1000; // Increased to 15 minutes for better performance
@@ -158,52 +156,24 @@ const MemoizedFriendReviewCard = memo(SimpleFriendReviewCard);
 // Convert to forwardRef
 export const FriendsReviewsFeed = forwardRef<FriendsReviewsFeedRef, FriendsReviewsFeedProps>((props, ref) => {
   const { onFindFriendsPress } = props;
-  const theme = useTheme();
-  const edenTheme = useEdenTheme();
-  const router = useRouter();
   const { user } = useAuth();
-  const [state, dispatch] = useReducer(reviewsReducer, initialState);
-  // Add a ref to store the current state for use in subscriptions
-  const stateRef = useRef(state);
+  const router = useRouter();
+  const edenTheme = useEdenTheme();
+  
+  // Stable refs that don't cause re-renders
   const userRef = useRef(user);
+  const stateRef = useRef<ReviewsState>(initialState);
   
-  // Performance monitoring for development
-  const { trackError, logManual } = usePerformanceMonitor({
-    componentName: 'FriendsReviewsFeed',
-    enabled: __DEV__,
-  });
+  // Initialize reducer
+  const [state, dispatch] = useReducer(reviewsReducer, initialState);
   
-  // Update refs whenever state/user changes
-  useEffect(() => {
-    stateRef.current = state;
-  }, [state]);
-  
+  // Update refs when state or user changes (but don't cause re-render)
   useEffect(() => {
     userRef.current = user;
-  }, [user]);
-  
-  // More efficient caching strategy
-  const loadCachedData = useCallback(async () => {
-    try {
-      const cachedData = await AsyncStorage.getItem(CACHE_KEY);
-      if (cachedData) {
-        const { timestamp, data, version } = JSON.parse(cachedData);
-        const isExpired = Date.now() - timestamp > CACHE_EXPIRY_TIME;
-        
-        if (!isExpired && Array.isArray(data) && data.length > 0) {
-          // Use cached data while fetching fresh data in background
-          dispatch({ type: 'FETCH_SUCCESS', data, isFirstPage: true, hasMore: true });
-          return true;
-        }
-      }
-      return false;
-    } catch (err) {
-      console.error('Error loading cached data:', err);
-      return false;
-    }
-  }, []);
-  
-  // Update cache with new data
+    stateRef.current = state;
+  }, [user, state]);
+
+  // STABLE: Update cache with new data
   const updateCache = useCallback(async (data: any[]) => {
     if (data.length > 0) {
       try {
@@ -216,74 +186,77 @@ export const FriendsReviewsFeed = forwardRef<FriendsReviewsFeedRef, FriendsRevie
         console.error('Error updating cache:', err);
       }
     }
-  }, []);
+  }, []); // No dependencies, this is stable
 
-  // Function to fetch fresh data from API (stable reference)
+  // STABLE: Load cached data
+  const loadCachedData = useCallback(async (): Promise<boolean> => {
+    try {
+      const cachedData = await AsyncStorage.getItem(CACHE_KEY);
+      if (!cachedData) return false;
+
+      const { timestamp, data, version } = JSON.parse(cachedData);
+      
+      // Check if cache is still valid (15 minutes)
+      if (Date.now() - timestamp > CACHE_EXPIRY_TIME) {
+        return false;
+      }
+
+      // Version check for cache compatibility
+      if (version !== '1.0') {
+        await AsyncStorage.removeItem(CACHE_KEY);
+        return false;
+      }
+
+      if (data && data.length > 0) {
+        const deduplicatedData = deduplicateReviews(data);
+        dispatch({ 
+          type: 'FETCH_SUCCESS', 
+          data: deduplicatedData, 
+          isFirstPage: true, 
+          hasMore: data.length === 10 
+        });
+        return true;
+      }
+    } catch (err) {
+      console.error('Error loading cached data:', err);
+      await AsyncStorage.removeItem(CACHE_KEY);
+    }
+    return false;
+  }, []); // No dependencies, this is stable
+
+  // STABLE: Fetch fresh data from API
   const fetchFreshData = useCallback(async (currentPage: number, pageSize: number, isBackground = false) => {
     const currentUser = userRef.current;
     if (!currentUser) return;
     
     try {
-      // Only show loading indicator if not background refresh
       if (!isBackground && currentPage > 1) {
         dispatch({ type: 'LOAD_MORE_START' });
       }
       
-      console.log(`Fetching friends reviews for page ${currentPage}, background=${isBackground}`);
+      const reviewsData = await getFriendsReviews(currentUser.id, currentPage, pageSize);
+      const deduplicatedData = deduplicateReviews(reviewsData);
       
-      try {
-        const reviewsData = await getFriendsReviews(currentUser.id, currentPage, pageSize);
-        
-        // Update state with new data
-        const isFirstPage = currentPage === 1;
-        const hasMore = reviewsData.length === pageSize;
-        
-        dispatch({ 
-          type: 'FETCH_SUCCESS', 
-          data: reviewsData, 
-          isFirstPage, 
-          hasMore 
-        });
-        
-        // Update cache for first page data
-        if (isFirstPage) {
-          updateCache(reviewsData);
-        }
-      } catch (err) {
-        // Handle error from getFriendsReviews
-        console.error('Error in getFriendsReviews:', err);
-        
-        if (!isBackground) {
-          // Try once more with a simplified approach if there was an error
-          if (err instanceof TypeError && err.toString().includes('is not a function')) {
-            console.warn('Encountered TypeError, switching to fallback method');
-            // No need to implement fallback here as we've fixed the underlying issue
-          }
-          
-          // Show user-friendly error
-          let errorMessage = 'Failed to load reviews';
-          
-          if (err && typeof err === 'object') {
-            if ('message' in err) {
-              errorMessage = `Error loading reviews: ${err.message}`;
-            } else if (err instanceof TypeError) {
-              errorMessage = 'We encountered a data loading issue. Please try again later.';
-            }
-          }
-          
-          dispatch({ type: 'FETCH_ERROR', error: errorMessage });
-        }
+      dispatch({ 
+        type: 'FETCH_SUCCESS', 
+        data: deduplicatedData, 
+        isFirstPage: currentPage === 1, 
+        hasMore: reviewsData.length === pageSize 
+      });
+
+      // Update cache only for first page and non-background requests
+      if (currentPage === 1 && !isBackground) {
+        await updateCache(deduplicatedData);
       }
     } catch (err) {
-      console.error('Unexpected error in fetchFreshData:', err);
-      
+      console.error('Error in fetchFreshData:', err);
       if (!isBackground) {
         dispatch({ type: 'FETCH_ERROR', error: 'An unexpected error occurred' });
       }
     }
-  }, [updateCache]);
-  
-  // Fetch reviews with proper memoization (stable reference)
+  }, [updateCache]); // Stable dependencies only
+
+  // STABLE: Main fetch function with fixed dependencies
   const fetchReviews = useCallback(async (refresh = false) => {
     const currentUser = userRef.current;
     const currentState = stateRef.current;
@@ -292,15 +265,14 @@ export const FriendsReviewsFeed = forwardRef<FriendsReviewsFeedRef, FriendsRevie
     const currentPage = refresh ? 1 : currentState.page;
     const pageSize = 10;
     
-    // Set loading states
     dispatch({ type: 'FETCH_START', refresh });
     
     try {
-      // Stale-while-revalidate pattern: load cache first, then fetch fresh data
+      // Only use cache for initial load, not refreshes
       if (currentPage === 1 && !refresh) {
         const hasCachedData = await loadCachedData();
         if (hasCachedData) {
-          // If we have cached data, refresh in background
+          // Background refresh with cached data
           fetchFreshData(currentPage, pageSize, true);
           return;
         }
@@ -310,115 +282,23 @@ export const FriendsReviewsFeed = forwardRef<FriendsReviewsFeedRef, FriendsRevie
     } catch (err) {
       dispatch({ type: 'FETCH_ERROR', error: 'Failed to load reviews' });
     }
-  }, [loadCachedData, fetchFreshData]);
-  
-  // Note: Removed refreshFeedStable to prevent subscription re-creation issues
-  // Real-time subscriptions now handle refresh directly without dependencies
-  
-  // Initial data load
-  useEffect(() => {
-    fetchReviews();
-  }, [fetchReviews]);
-  
-  // Handle refresh (called when user pulls to refresh)
+  }, [loadCachedData, fetchFreshData]); // Fixed stable dependencies
+
+  // STABLE: Handle refresh
   const handleRefresh = useCallback(() => {
     dispatch({ type: 'SET_PAGE', page: 1 });
     fetchReviews(true);
   }, [fetchReviews]);
-  
-  // Expose methods via ref
-  useImperativeHandle(ref, () => ({
-    handleRefresh
-  }));
-  
-  // Optimized real-time subscriptions using new hook
-  const { isActive, retryCount, manualRetry } = useOptimizedSubscription({
-    channelName: 'friends_reviews_feed',
-    userId: user?.id,
-    subscriptions: [
-      {
-        table: 'followed_users_reviews',
-        event: 'INSERT',
-        onPayload: async (payload) => {
-          try {
-            // Add new review directly to the feed
-            if (payload.new) {
-              dispatch({ type: 'ADD_REAL_TIME_REVIEW', review: payload.new });
-              
-              // Update cache in background
-              try {
-                const cachedData = await AsyncStorage.getItem(CACHE_KEY);
-                if (cachedData) {
-                  const { timestamp, data: cachedReviews, version } = JSON.parse(cachedData);
-                  await AsyncStorage.setItem(CACHE_KEY, JSON.stringify({
-                    timestamp,
-                    data: [payload.new, ...cachedReviews.slice(0, 9)], // Keep cache size reasonable
-                    version,
-                  }));
-                }
-              } catch (cacheErr) {
-                console.warn('Error updating cache with new review:', cacheErr);
-              }
-            }
-          } catch (err) {
-            console.error('Error processing new review:', err);
-          }
-        },
-        onError: (error) => {
-          console.error('Reviews subscription error:', error);
-          trackError(error);
-          dispatch({ type: 'RESET_ERROR' }); // Clear any existing errors
-        },
-      },
-      {
-        table: 'follows',
-        event: 'INSERT',
-        filter: `follower_id=eq.${user?.id}`,
-        onPayload: async (payload) => {
-          try {
-            if (payload.new && payload.new.follower_id === user?.id) {
-              console.log('User followed someone new, refreshing feed');
-              // Trigger a fresh data fetch
-              const currentUser = userRef.current;
-              if (currentUser) {
-                dispatch({ type: 'SET_PAGE', page: 1 });
-                dispatch({ type: 'FETCH_START', refresh: true });
-                
-                try {
-                  const reviewsData = await getFriendsReviews(currentUser.id, 1, 10);
-                  dispatch({ 
-                    type: 'FETCH_SUCCESS', 
-                    data: reviewsData, 
-                    isFirstPage: true, 
-                    hasMore: reviewsData.length === 10 
-                  });
-                } catch (refreshErr) {
-                  console.error('Error refreshing feed after new follow:', refreshErr);
-                  dispatch({ type: 'FETCH_ERROR', error: 'Failed to refresh feed' });
-                }
-              }
-            }
-          } catch (err) {
-            console.error('Error processing new follow:', err);
-          }
-        },
-        onError: (error) => {
-          console.error('Follows subscription error:', error);
-          trackError(error);
-        },
-      },
-    ],
-  });
-  
-  // Function to handle "load more" when reaching the end of the list
+
+  // STABLE: Handle load more
   const handleLoadMore = useCallback(() => {
     if (!state.isLoadingMore && state.hasMore) {
       dispatch({ type: 'SET_PAGE', page: state.page + 1 });
       fetchReviews();
     }
   }, [state.isLoadingMore, state.hasMore, state.page, fetchReviews]);
-  
-  // Handle review press
+
+  // STABLE: Handle review press
   const handleReviewPress = useCallback((review: any) => {
     if (!review || !review.id) return;
     
@@ -427,17 +307,61 @@ export const FriendsReviewsFeed = forwardRef<FriendsReviewsFeedRef, FriendsRevie
       params: { reviewId: review.id }
     });
   }, [router]);
-  
-  // Create a more robust key extractor function
+
+  // STABLE: Key extractor
   const getUniqueKey = useCallback((item: any, index: number) => {
-    // Create a normalized timestamp by removing special characters
     const timestamp = item.created_at ? 
       item.created_at.replace(/[-:\.]/g, '').replace(/[^a-zA-Z0-9]/g, '') : 
       Date.now().toString();
     
-    // Combine id, timestamp and index for maximum uniqueness
     return `review-${item.id || 'unknown'}-${timestamp}-${index}`;
   }, []);
+
+  // Expose methods via ref
+  useImperativeHandle(ref, () => ({
+    handleRefresh
+  }), [handleRefresh]);
+
+  // ONE-TIME EFFECT: Initial data load
+  useEffect(() => {
+    let mounted = true;
+    
+    const initializeData = async () => {
+      if (mounted) {
+        await fetchReviews();
+      }
+    };
+    
+    initializeData();
+    
+    return () => {
+      mounted = false;
+    };
+  }, []); // NO dependencies - this runs only once
+
+  // MOVE EmptyFeedState OUTSIDE of render to prevent recreation
+  const EmptyFeedState = useCallback<React.FC<{
+    icon?: React.ReactNode;
+    title: string;
+    description: string;
+    actionButton?: React.ReactNode;
+  }>>(({ icon, title, description, actionButton }) => {
+    return (
+      <View style={[styles.emptyStateContainer, { backgroundColor: edenTheme.colors.background }]}>
+        {icon && <View style={styles.emptyStateIcon}>{icon}</View>}
+        <Heading2 style={[styles.emptyStateTitle, { color: edenTheme.colors.text }]}>
+          {title}
+        </Heading2>
+        <BodyText 
+          style={[styles.emptyStateDescription, { color: edenTheme.colors.textSecondary }]}
+          center
+        >
+          {description}
+        </BodyText>
+        {actionButton && <View style={styles.emptyStateAction}>{actionButton}</View>}
+      </View>
+    );
+  }, [edenTheme.colors.background, edenTheme.colors.text, edenTheme.colors.textSecondary]);
   
   // Rendering logic based on state
   if (state.loading && !state.refreshing && !state.isLoadingMore) {
@@ -464,7 +388,7 @@ export const FriendsReviewsFeed = forwardRef<FriendsReviewsFeedRef, FriendsRevie
   
   if (state.reviews.length === 0 && !state.loading) {
     return (
-      <EmptyTabState
+      <EmptyFeedState
         icon={<Users size={48} color={edenTheme.colors.textSecondary} />}
         title="No Friend Reviews Yet"
         description="Follow friends to see their reviews here"
@@ -572,5 +496,27 @@ const styles = StyleSheet.create({
     flex: 1,
     height: '100%',
     width: '100%',
+  },
+  emptyStateContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 32,
+    paddingVertical: 48,
+  },
+  emptyStateIcon: {
+    marginBottom: 16,
+  },
+  emptyStateTitle: {
+    marginBottom: 8,
+    textAlign: 'center',
+  },
+  emptyStateDescription: {
+    marginBottom: 24,
+    textAlign: 'center',
+    lineHeight: 22,
+  },
+  emptyStateAction: {
+    marginTop: 8,
   },
 }); 
