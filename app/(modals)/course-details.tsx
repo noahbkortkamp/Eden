@@ -7,6 +7,7 @@ import {
   ActivityIndicator,
   SafeAreaView,
   Platform,
+  ScrollView,
 } from 'react-native';
 import { Image } from 'expo-image';
 import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
@@ -21,6 +22,7 @@ import { Card } from '../components/eden/Card';
 import { Heading1, Heading2, Heading3, BodyText, SmallText, Caption } from '../components/eden/Typography';
 import { Button } from '../components/eden/Button';
 import { Icon } from '../components/eden/Icon';
+import { courseRankingsService } from '../services/courseRankingsService';
 
 type Course = Database['public']['Tables']['courses']['Row'];
 
@@ -53,6 +55,19 @@ function CourseDetailsContent() {
   const [error, setError] = useState<string | null>(null);
   const [isBookmarked, setIsBookmarked] = useState(false);
   const [bookmarkLoading, setBookmarkLoading] = useState(false);
+  const [courseStats, setCourseStats] = useState<{
+    averageScore: number;
+    totalRankings: number;
+    currentUserScore?: number;
+  } | null>(null);
+  const [statsLoading, setStatsLoading] = useState(false);
+  const [reviewNotes, setReviewNotes] = useState<Array<{
+    notes: string;
+    datePlayed: string;
+    userName: string;
+    avatarUrl?: string;
+  }>>([]);
+  const [notesLoading, setNotesLoading] = useState(false);
 
   // Load course data
   useEffect(() => {
@@ -105,6 +120,79 @@ function CourseDetailsContent() {
       isMounted = false;
     };
   }, [courseId, user, course]);
+
+  // Load course statistics from rankings
+  useEffect(() => {
+    let isMounted = true;
+
+    async function loadCourseStats() {
+      if (!courseId) return;
+
+      setStatsLoading(true);
+      try {
+        const stats = await courseRankingsService.getCourseStatistics(
+          courseId as string,
+          user?.id
+        );
+        if (!isMounted) return;
+        setCourseStats(stats);
+      } catch (err) {
+        console.error('Error loading course statistics:', err);
+        // Set default stats on error
+        setCourseStats({
+          averageScore: 0,
+          totalRankings: 0
+        });
+      } finally {
+        if (isMounted) {
+          setStatsLoading(false);
+        }
+      }
+    }
+
+    if (course) {
+      loadCourseStats();
+    }
+
+    return () => {
+      isMounted = false;
+    };
+  }, [courseId, user, course]);
+
+  // Load review notes from users
+  useEffect(() => {
+    let isMounted = true;
+
+    async function loadReviewNotes() {
+      if (!courseId) return;
+
+      setNotesLoading(true);
+      try {
+        const notes = await courseRankingsService.getCourseReviewNotes(
+          courseId as string,
+          8 // Load up to 8 recent review notes
+        );
+        if (!isMounted) return;
+        setReviewNotes(notes);
+      } catch (err) {
+        console.error('Error loading review notes:', err);
+        // Set empty array on error
+        setReviewNotes([]);
+      } finally {
+        if (isMounted) {
+          setNotesLoading(false);
+        }
+      }
+    }
+
+    if (course) {
+      loadReviewNotes();
+    }
+
+    return () => {
+      isMounted = false;
+    };
+  }, [courseId, course]);
 
   const handleToggleBookmark = async () => {
     if (!user || !courseId || !course) return;
@@ -209,11 +297,15 @@ function CourseDetailsContent() {
           <Card style={styles.statsContainer}>
             <View style={styles.statItem}>
               <Star size={18} color={theme.colors.primary} />
-              <Heading3 style={styles.statValue}>
-                {(course.rating ?? 0).toFixed(1)}
-              </Heading3>
+              {statsLoading ? (
+                <ActivityIndicator size="small" color={theme.colors.primary} />
+              ) : (
+                <Heading3 style={styles.statValue}>
+                  {courseStats?.averageScore ? courseStats.averageScore.toFixed(1) : '0.0'}
+                </Heading3>
+              )}
               <SmallText color={theme.colors.textSecondary}>
-                Rating
+                out of 10
               </SmallText>
             </View>
 
@@ -221,47 +313,88 @@ function CourseDetailsContent() {
 
             <View style={styles.statItem}>
               <Users size={18} color={theme.colors.primary} />
-              <Heading3 style={styles.statValue}>
-                {course.total_ratings ?? 0}
-              </Heading3>
+              {statsLoading ? (
+                <ActivityIndicator size="small" color={theme.colors.primary} />
+              ) : (
+                <Heading3 style={styles.statValue}>
+                  {courseStats?.totalRankings ?? 0}
+                </Heading3>
+              )}
               <SmallText color={theme.colors.textSecondary}>
                 Reviews
               </SmallText>
             </View>
           </Card>
 
-          {/* Course Details */}
-          <View style={styles.sectionHeader}>
-            <BodyText bold>Details</BodyText>
-          </View>
-          
-          <Card style={styles.detailsGrid}>
-            <View style={styles.detailsRow}>
-              <View style={styles.detailItem}>
-                <SmallText color={theme.colors.textSecondary}>Type</SmallText>
-                <BodyText>{course.type ?? 'N/A'}</BodyText>
-              </View>
-              
-              <View style={styles.detailItem}>
-                <SmallText color={theme.colors.textSecondary}>Par</SmallText>
-                <BodyText>{course.par ?? 'N/A'}</BodyText>
-              </View>
-            </View>
-            
-            <View style={styles.detailsRow}>
-              <View style={styles.detailItem}>
-                <SmallText color={theme.colors.textSecondary}>Yardage</SmallText>
-                <BodyText>{course.yardage ? `${course.yardage} yards` : 'N/A'}</BodyText>
-              </View>
-              
-              <View style={styles.detailItem}>
-                <SmallText color={theme.colors.textSecondary}>Price</SmallText>
-                <BodyText>
-                  {course.price_level ? '$'.repeat(course.price_level) : 'N/A'}
+          {/* Current User Score (if available) */}
+          {courseStats?.currentUserScore && (
+            <Card style={[styles.statsContainer, { marginBottom: 8 }]}>
+              <View style={[styles.statItem, { flex: 1, alignItems: 'flex-start', padding: 16 }]}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 4 }}>
+                  <Icon name="User" size="inline" color={theme.colors.primary} />
+                  <SmallText color={theme.colors.textSecondary} style={{ marginLeft: 8 }}>
+                    Your ranking:
+                  </SmallText>
+                </View>
+                <BodyText style={{ color: theme.colors.primary, fontWeight: 'bold' }}>
+                  {courseStats.currentUserScore.toFixed(1)} out of 10
                 </BodyText>
               </View>
-            </View>
-          </Card>
+            </Card>
+          )}
+
+          {/* Review Notes */}
+          <View style={styles.sectionHeader}>
+            <BodyText bold>Recent Reviews</BodyText>
+          </View>
+          
+          {notesLoading ? (
+            <Card style={[styles.notesCard, { alignItems: 'center', padding: 20 }]}>
+              <ActivityIndicator size="small" color={theme.colors.primary} />
+              <SmallText color={theme.colors.textSecondary} style={{ marginTop: 8 }}>
+                Loading reviews...
+              </SmallText>
+            </Card>
+          ) : reviewNotes.length > 0 ? (
+            <ScrollView style={styles.notesContainer} showsVerticalScrollIndicator={false}>
+              {reviewNotes.map((note, index) => (
+                <Card key={index} style={styles.noteCard}>
+                  <View style={styles.noteHeader}>
+                    <View style={styles.userInfo}>
+                      {note.avatarUrl ? (
+                        <Image
+                          source={{ uri: note.avatarUrl }}
+                          style={styles.avatar}
+                          contentFit="cover"
+                        />
+                      ) : (
+                        <View style={[styles.avatar, { backgroundColor: theme.colors.surface }]}>
+                          <Icon name="User" size="inline" color={theme.colors.textSecondary} />
+                        </View>
+                      )}
+                      <View style={styles.userDetails}>
+                        <BodyText style={styles.userName}>{note.userName}</BodyText>
+                        <SmallText color={theme.colors.textSecondary}>
+                          {note.datePlayed ? new Date(note.datePlayed).toLocaleDateString() : 'Date not available'}
+                        </SmallText>
+                      </View>
+                    </View>
+                  </View>
+                  <BodyText style={styles.noteText}>{note.notes}</BodyText>
+                </Card>
+              ))}
+            </ScrollView>
+          ) : (
+            <Card style={[styles.notesCard, { alignItems: 'center', padding: 20 }]}>
+              <Icon name="MessageSquare" size="large" color={theme.colors.textSecondary} />
+              <BodyText color={theme.colors.textSecondary} style={{ marginTop: 8, textAlign: 'center' }}>
+                No review notes yet
+              </BodyText>
+              <SmallText color={theme.colors.textSecondary} style={{ marginTop: 4, textAlign: 'center' }}>
+                Be the first to share your experience!
+              </SmallText>
+            </Card>
+          )}
 
           {/* Action Button */}
           <View style={styles.buttonContainer}>
@@ -353,16 +486,42 @@ const styles = StyleSheet.create({
   sectionHeader: {
     marginBottom: 8,
   },
-  detailsGrid: {
+  notesContainer: {
+    maxHeight: 300, // Limit height to make it scrollable
     marginBottom: 16,
   },
-  detailsRow: {
-    flexDirection: 'row',
-    paddingVertical: 8,
+  notesCard: {
+    padding: 16,
+    marginBottom: 16,
   },
-  detailItem: {
+  noteCard: {
+    padding: 16,
+    marginBottom: 12,
+  },
+  noteHeader: {
+    marginBottom: 12,
+  },
+  userInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  avatar: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    marginRight: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  userDetails: {
     flex: 1,
-    padding: 8,
+  },
+  userName: {
+    fontWeight: '600',
+    marginBottom: 2,
+  },
+  noteText: {
+    lineHeight: 20,
   },
   buttonContainer: {
     marginTop: 'auto',

@@ -264,31 +264,32 @@ class RankingService {
     sentiment: SentimentRating,
     rankPosition?: number
   ): Promise<CourseRanking> {
-    // Get existing rankings to determine course count
+    // Get existing rankings to determine the next position
     const existingRankings = await this.getUserRankings(userId, sentiment);
-    
-    // Calculate middle position if not explicitly provided
-    if (!rankPosition) {
-      const totalCourses = existingRankings.length;
-      if (totalCourses === 0) {
-        // If no courses, position is 1
-        rankPosition = 1;
-      } else {
-        // Calculate middle position (rounds up for odd numbers of courses)
-        rankPosition = Math.ceil((totalCourses + 1) / 2);
-      }
-    }
-    
-    console.log(`[RankingService] Adding new ranking for course ${courseId} at position ${rankPosition} (middle placement)`);
+    const nextPosition = existingRankings.length > 0 
+      ? Math.max(...existingRankings.map(r => r.rank_position)) + 1 
+      : 1;
 
-    // Use the database function to shift ranks and insert at position
-    const { data, error } = await supabase.rpc('insert_course_at_position', {
-      user_id_param: userId,
-      course_id_param: courseId,
-      sentiment_param: sentiment,
-      position_param: rankPosition,
-      score_param: SENTIMENT_RANGES[sentiment].max // Temporary score
-    });
+    console.log(`[RankingService] Adding new ranking for course ${courseId} at position ${nextPosition}`);
+
+    // Calculate initial score based on position
+    const range = SENTIMENT_RANGES[sentiment];
+    const initialScore = range.max - (nextPosition - 1) * 0.1;
+    const clampedScore = Math.max(range.min, Math.min(range.max, initialScore));
+
+    // Insert the new ranking
+    const { data, error } = await supabase
+      .from('course_rankings')
+      .insert({
+        user_id: userId,
+        course_id: courseId,
+        sentiment_category: sentiment,
+        rank_position: nextPosition,
+        relative_score: clampedScore,
+        comparison_count: 0
+      })
+      .select()
+      .single();
 
     if (error) {
       console.error('[RankingService] Error adding new ranking:', error);

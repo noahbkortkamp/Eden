@@ -7,6 +7,8 @@ import { createReview, getReviewsForUser, getAllTags } from '../../utils/reviews
 import { format } from 'date-fns';
 import { reviewService } from '../../services/reviewService';
 import { rankingService } from '../../services/rankingService';
+
+
 import { supabase } from '../../utils/supabase';
 import { getCourse } from '../../utils/courses';
 import { userService } from '../../services/userService';
@@ -361,20 +363,8 @@ export const ReviewProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         totalRankings: rankings.length
       });
 
-      if (!existingRanking) {
-        // Add initial ranking for the new course only if it doesn't exist
-        // Let the rankingService calculate the middle position automatically
-        try {
-          await rankingService.addCourseRanking(
-            user.id,
-            review.course_id,
-            review.rating
-          );
-        } catch (rankingError) {
-          console.error('Error adding initial ranking, continuing anyway:', rankingError);
-          // Continue with the flow anyway
-        }
-      }
+      // Note: Course rankings are created separately through the comparison/ranking flow
+      // For now, course statistics will only show data for courses that have been ranked
 
       // Filter out the current course from potential comparison courses
       const otherCoursesWithSentiment = reviewedCoursesWithSentiment.filter(
