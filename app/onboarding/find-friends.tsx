@@ -234,7 +234,7 @@ export default function FindFriendsScreen() {
         return false; // Allow event to propagate to children
       }}>
         <Text style={styles.header}>Build your weekly foursome</Text>
-        <Text style={styles.subheader}>Add friends on Eden to see their reviews and compare rankings</Text>
+        <Text style={styles.subheader}>Follow other users on Eden to see their reviews and compare rankings</Text>
 
         <View style={styles.searchBar}>
           <Search size={20} color={edenTheme.colors.textSecondary} />
