@@ -17,6 +17,7 @@ export const CourseComparisonScreen: React.FC<CourseComparisonProps> = ({
   courseB,
   previousCourseId,
   previousCourseRating,
+  totalReviewCount,
   originalSentiment = 'liked', // Default to liked if not provided
   onSelect,
   onSkip,
@@ -203,6 +204,8 @@ export const CourseComparisonScreen: React.FC<CourseComparisonProps> = ({
     courseB: courseB.name,
     previousCourseId,
     previousCourseRating,
+    totalReviewCount,
+    shouldShowScores: totalReviewCount >= 10,
     originalSentiment,
     ratingColor: getRatingColor(),
     isACourseReviewed,
@@ -235,7 +238,7 @@ export const CourseComparisonScreen: React.FC<CourseComparisonProps> = ({
                 {courseA.name}
               </Text>
             </View>
-            {isACourseReviewed && previousCourseRating !== undefined ? (
+            {isACourseReviewed && previousCourseRating !== undefined && totalReviewCount >= 10 ? (
               <Text style={styles.courseLocation}>
                 <Text>{courseA.location}</Text>
                 <Text> • </Text>
@@ -269,7 +272,7 @@ export const CourseComparisonScreen: React.FC<CourseComparisonProps> = ({
                 {courseB.name}
               </Text>
             </View>
-            {isBCourseReviewed && previousCourseRating !== undefined ? (
+            {isBCourseReviewed && previousCourseRating !== undefined && totalReviewCount >= 10 ? (
               <Text style={styles.courseLocation}>
                 <Text>{courseB.location}</Text>
                 <Text> • </Text>

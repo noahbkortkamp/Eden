@@ -858,6 +858,12 @@ export const ReviewProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     }
 
     try {
+      // Store the skip result for persistence (prevents re-showing this comparison)
+      setComparisonResults(prev => [
+        ...prev,
+        { preferredId: courseAId, otherId: courseBId }
+      ]);
+      
       const newComparisonsRemaining = comparisonsRemaining - 1;
       setComparisonsRemaining(newComparisonsRemaining);
       

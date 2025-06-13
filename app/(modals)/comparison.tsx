@@ -32,6 +32,7 @@ export default function ComparisonModal() {
   const [error, setError] = useState<string | null>(null);
   const [previousCourseId, setPreviousCourseId] = useState<string | undefined>(undefined);
   const [previousCourseRating, setPreviousCourseRating] = useState<number | undefined>(undefined);
+  const [totalReviewCount, setTotalReviewCount] = useState<number>(0);
   
   // Show loading message with more detailed state
   const [loadingMessage, setLoadingMessage] = useState<string>('Loading courses');
@@ -49,9 +50,16 @@ export default function ComparisonModal() {
       
       try {
         const sentiment = originalSentiment as SentimentRating;
-        // Use the refresh method to ensure we get the latest rankings
-        console.log(`Refreshing latest rankings for user ${user.id} with sentiment ${sentiment}`);
-        const rankings = await rankingService.refreshRankings(user.id, sentiment);
+        
+        // Fetch both the rankings and total review count in parallel
+        const [rankings, userReviews] = await Promise.all([
+          rankingService.refreshRankings(user.id, sentiment),
+          getReviewsForUser(user.id)
+        ]);
+        
+        // Set total review count for score visibility logic
+        setTotalReviewCount(userReviews.length);
+        console.log(`User has ${userReviews.length} total reviews`);
         
         // Since we're consistently keeping courseA as the originalReviewedCourse,
         // we always want to show the rating for courseB if it exists
@@ -293,16 +301,11 @@ export default function ComparisonModal() {
         courseBId: courseB?.id
       });
       
-      // Early navigation for better user experience
-      const skipPromise = skipComparison(courseA?.id || '', courseB?.id || '');
-      
       // Give the animation some time to start before continuing
       await new Promise(resolve => setTimeout(resolve, 50));
       
-      // Continue with skip handling in the background
-      skipPromise.catch(error => {
-        console.error('Error in comparison skip:', error);
-      });
+      // Call skipComparison - it doesn't return a Promise, so we don't need to handle .catch()
+      skipComparison(courseA?.id || '', courseB?.id || '');
     } catch (error) {
       console.error('Error in comparison skip:', error);
       setError(error instanceof Error ? error.message : 'Failed to skip comparison');
@@ -407,6 +410,7 @@ export default function ComparisonModal() {
         courseB={courseB}
         previousCourseId={previousCourseId}
         previousCourseRating={previousCourseRating}
+        totalReviewCount={totalReviewCount}
         originalSentiment={originalSentiment as SentimentRating}
         onSelect={handleSelect}
         onSkip={handleSkip}

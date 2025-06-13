@@ -69,6 +69,7 @@ export interface CourseComparisonProps {
   courseB: Course;
   previousCourseId?: string;
   previousCourseRating?: number;
+  totalReviewCount: number;
   originalSentiment?: SentimentRating;
   onSelect: (selectedId: string, notSelectedId: string) => void;
   onSkip: (courseAId: string, courseBId: string) => void;
