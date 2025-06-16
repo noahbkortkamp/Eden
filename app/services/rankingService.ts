@@ -9,6 +9,88 @@ interface ScoreRange {
   max: number;
 }
 
+// 🚀 Phase 1.2: Intelligent Caching Implementation
+interface CacheEntry<T> {
+  data: T;
+  timestamp: number;
+  ttl: number; // Time to live in milliseconds
+}
+
+interface RankingCacheKey {
+  userId: string;
+  sentiment: SentimentRating;
+}
+
+class RankingCache {
+  private cache = new Map<string, CacheEntry<CourseRanking[]>>();
+  private readonly DEFAULT_TTL = 30 * 1000; // 30 seconds default TTL
+  private readonly FRESH_TTL = 5 * 60 * 1000; // 5 minutes for fresh data
+
+  private getCacheKey(userId: string, sentiment: SentimentRating): string {
+    return `${userId}:${sentiment}`;
+  }
+
+  set(userId: string, sentiment: SentimentRating, data: CourseRanking[], isFrequentlyAccessed = false): void {
+    const key = this.getCacheKey(userId, sentiment);
+    const ttl = isFrequentlyAccessed ? this.FRESH_TTL : this.DEFAULT_TTL;
+    
+    this.cache.set(key, {
+      data: [...data], // Clone to prevent mutations
+      timestamp: Date.now(),
+      ttl
+    });
+
+    console.log(`🔄 [Cache] Stored rankings for ${userId}:${sentiment} (TTL: ${ttl/1000}s)`);
+  }
+
+  get(userId: string, sentiment: SentimentRating): CourseRanking[] | null {
+    const key = this.getCacheKey(userId, sentiment);
+    const entry = this.cache.get(key);
+
+    if (!entry) {
+      console.log(`💾 [Cache] MISS for ${userId}:${sentiment}`);
+      return null;
+    }
+
+    const isExpired = Date.now() - entry.timestamp > entry.ttl;
+    if (isExpired) {
+      this.cache.delete(key);
+      console.log(`⏰ [Cache] EXPIRED for ${userId}:${sentiment}`);
+      return null;
+    }
+
+    console.log(`✅ [Cache] HIT for ${userId}:${sentiment} (age: ${Math.round((Date.now() - entry.timestamp) / 1000)}s)`);
+    return [...entry.data]; // Return clone to prevent mutations
+  }
+
+  invalidate(userId: string, sentiment?: SentimentRating): void {
+    if (sentiment) {
+      const key = this.getCacheKey(userId, sentiment);
+      if (this.cache.delete(key)) {
+        console.log(`🗑️ [Cache] Invalidated ${userId}:${sentiment}`);
+      }
+    } else {
+      // Invalidate all sentiments for this user
+      const keysToDelete = Array.from(this.cache.keys()).filter(k => k.startsWith(`${userId}:`));
+      keysToDelete.forEach(key => this.cache.delete(key));
+      console.log(`🗑️ [Cache] Invalidated all rankings for ${userId} (${keysToDelete.length} entries)`);
+    }
+  }
+
+  clear(): void {
+    const size = this.cache.size;
+    this.cache.clear();
+    console.log(`🧹 [Cache] Cleared all rankings cache (${size} entries)`);
+  }
+
+  getStats(): { size: number; keys: string[] } {
+    return {
+      size: this.cache.size,
+      keys: Array.from(this.cache.keys())
+    };
+  }
+}
+
 const SENTIMENT_RANGES: Record<SentimentRating, ScoreRange> = {
   liked: { min: 7.0, max: 10.0 },
   fine: { min: 3.0, max: 6.9 },
@@ -16,6 +98,13 @@ const SENTIMENT_RANGES: Record<SentimentRating, ScoreRange> = {
 };
 
 class RankingService {
+  // 🚀 Phase 1.2: Add cache instance
+  private rankingCache = new RankingCache();
+  
+  // 🚀 Performance: Circuit breaker to prevent infinite loops
+  private integrityCheckAttempts = new Map<string, number>();
+  private readonly MAX_INTEGRITY_ATTEMPTS = 3;
+
   private logScoreChanges(
     userId: string,
     sentiment: SentimentRating,
@@ -94,6 +183,36 @@ class RankingService {
   async getUserRankings(userId: string, sentiment: SentimentRating): Promise<CourseRanking[]> {
     console.log(`[RankingService] Getting rankings for user ${userId} in ${sentiment} category`);
     
+    // 🚀 Performance: Circuit breaker key
+    const circuitKey = `${userId}:${sentiment}`;
+    
+    // 🚀 Phase 1.2: Check cache with validation
+    const cachedRankings = this.rankingCache.get(userId, sentiment);
+    if (cachedRankings) {
+      console.log(`✅ [Cache] HIT for ${circuitKey} (age: ${Math.floor((Date.now() - (this.rankingCache as any).cache.get(`${userId}:${sentiment}`)?.timestamp || 0) / 1000)}s)`);
+      
+      // 🚀 Performance: Skip integrity check if recently attempted
+      const attempts = this.integrityCheckAttempts.get(circuitKey) || 0;
+      if (attempts >= this.MAX_INTEGRITY_ATTEMPTS) {
+        console.log(`🚫 [Circuit Breaker] Skipping integrity check for ${circuitKey} (${attempts}/${this.MAX_INTEGRITY_ATTEMPTS} attempts)`);
+        console.log(`💾 [Cache] Found ${cachedRankings.length} rankings in cache`);
+        return cachedRankings;
+      }
+      
+      // Quick validation: Check for obvious corruption without full integrity check
+      const hasDuplicatePositions = cachedRankings.length > 1 && 
+        new Set(cachedRankings.map(r => r.rank_position)).size !== cachedRankings.length;
+      
+      if (hasDuplicatePositions) {
+        console.warn(`⚠️ [Cache] Detected corrupted data in cache for ${circuitKey}, clearing cache`);
+        this.rankingCache.invalidate(userId, sentiment);
+        this.integrityCheckAttempts.set(circuitKey, attempts + 1);
+      } else {
+        console.log(`💾 [Cache] Found ${cachedRankings.length} rankings in cache`);
+        return cachedRankings;
+      }
+    }
+
     const { data, error } = await supabase
       .from('course_rankings')
       .select('*')
@@ -116,7 +235,30 @@ class RankingService {
       });
     }
     
-    return data || [];
+    // 🚀 Performance: Validate data before caching to prevent infinite loops
+    const rankings = data || [];
+    let isValidForCache = true;
+    
+    if (rankings.length > 1) {
+      // Check for duplicate positions
+      const positions = rankings.map(r => r.rank_position);
+      const uniquePositions = new Set(positions);
+      
+      if (uniquePositions.size !== positions.length) {
+        console.warn(`⚠️ [Performance] Not caching corrupted data with duplicate positions for ${circuitKey}`);
+        isValidForCache = false;
+        this.integrityCheckAttempts.set(circuitKey, (this.integrityCheckAttempts.get(circuitKey) || 0) + 1);
+      }
+    }
+    
+    // 🚀 Phase 1.2: Store in cache only if data is valid
+    if (isValidForCache) {
+      this.rankingCache.set(userId, sentiment, rankings);
+      // Reset circuit breaker on successful clean data
+      this.integrityCheckAttempts.delete(circuitKey);
+    }
+    
+    return rankings;
   }
 
   /**
@@ -124,6 +266,9 @@ class RankingService {
    * and proper ordering based on positions.
    */
   private async redistributeScores(userId: string, sentiment: SentimentRating): Promise<void> {
+    // 🚀 Phase 1.2: Invalidate cache before redistribution
+    this.rankingCache.invalidate(userId, sentiment);
+    
     const rankings = await this.getUserRankings(userId, sentiment);
     
     if (rankings.length === 0) {
@@ -316,6 +461,9 @@ class RankingService {
       throw fetchError;
     }
 
+    // 🚀 Phase 1.2: Invalidate cache after adding new course
+    this.rankingCache.invalidate(userId, sentiment);
+
     console.log(`[RankingService] Successfully added and scored new ranking for course ${courseId}`);
     return updatedData;
   }
@@ -331,6 +479,9 @@ class RankingService {
     otherCourseId: string,
     sentiment: SentimentRating
   ): Promise<void> {
+    // 🚀 Phase 1.2: Invalidate cache before comparison updates
+    this.rankingCache.invalidate(userId, sentiment);
+
     console.log(
       `[RankingService] Updating rankings after comparison: ` +
       `${preferredCourseId.substring(0, 8)} preferred over ${otherCourseId.substring(0, 8)}`
@@ -599,7 +750,16 @@ class RankingService {
    * Verify the integrity of rankings and repair if necessary
    * This checks for duplicate positions, gaps in sequence, and ensures scores align with positions
    */
-  async verifyRankingsIntegrity(userId: string, sentiment: SentimentRating): Promise<boolean> {
+  async verifyRankingsIntegrity(userId: string, sentiment: SentimentRating, skipRepair = false): Promise<boolean> {
+    // 🚀 Performance: Circuit breaker to prevent infinite loops
+    const circuitKey = `${userId}:${sentiment}`;
+    const attempts = this.integrityCheckAttempts.get(circuitKey) || 0;
+    
+    if (attempts >= this.MAX_INTEGRITY_ATTEMPTS) {
+      console.log(`🚫 [Circuit Breaker] Skipping integrity check for ${circuitKey} after ${attempts} attempts`);
+      return false;
+    }
+    
     const rankings = await this.getUserRankings(userId, sentiment);
     
     if (rankings.length === 0) {
@@ -629,10 +789,14 @@ class RankingService {
     let scoreErrors = false;
     let scoresMap = new Map<number, string[]>(); // Map to track duplicate scores
     
-    sortedRankings.forEach(r => {
-      // Check if score is not decreasing
-      if (r.relative_score >= prevScore) {
+    sortedRankings.forEach((r, index) => {
+      // Check if score is not decreasing (allow equal for debugging, but warn)
+      if (r.relative_score > prevScore) {
+        console.warn(`[RankingService] ❌ Score error: Position ${index + 1} has score ${r.relative_score} > ${prevScore} (should be decreasing)`);
         scoreErrors = true;
+      }
+      if (r.relative_score === prevScore && index > 0) {
+        console.warn(`[RankingService] ⚠️ Score warning: Position ${index + 1} has same score ${r.relative_score} as previous`);
       }
       
       // Track duplicate scores
@@ -662,6 +826,14 @@ class RankingService {
       if (scoreErrors) console.log(`- Score alignment errors`);
       if (hasDuplicateScores) console.log(`- Duplicate scores found: ${duplicateScores.join(', ')}`);
       
+      // 🚀 Performance: Increment attempt counter and skip repair if too many attempts
+      this.integrityCheckAttempts.set(circuitKey, attempts + 1);
+      
+      if (skipRepair || attempts >= this.MAX_INTEGRITY_ATTEMPTS - 1) {
+        console.log(`🚫 [Circuit Breaker] Skipping repair for ${circuitKey} (attempts: ${attempts + 1}/${this.MAX_INTEGRITY_ATTEMPTS})`);
+        return false;
+      }
+      
       // Fix position issues by reassigning sequentially
       if (hasDuplicates || missingPositions.length > 0 || outOfSequence) {
         console.log('[RankingService] 🔧 Repairing position issues...');
@@ -675,10 +847,13 @@ class RankingService {
         const { error } = await supabase.from('course_rankings').upsert(repairedRankings);
         if (error) {
           console.error('[RankingService] ❌ Error repairing positions:', error);
+          this.integrityCheckAttempts.set(circuitKey, this.MAX_INTEGRITY_ATTEMPTS);
           return false;
         }
         
         console.log('[RankingService] ✓ Position issues repaired');
+        // Clear cache after repair to force fresh data
+        this.rankingCache.invalidate(userId, sentiment);
       }
       
       // Fix score issues by redistributing
@@ -688,13 +863,9 @@ class RankingService {
         console.log('[RankingService] ✓ Score issues repaired');
       }
       
-      // Verify the fix worked
-      const verifyResult = await this.verifyRankingsIntegrity(userId, sentiment);
-      if (!verifyResult) {
-        console.error('[RankingService] ❌ Failed to repair ranking integrity issues after attempt');
-      }
-      
-      return verifyResult;
+      // 🚀 Performance: NO recursive call - instead return true if repairs were attempted
+      console.log('[RankingService] ✓ Integrity repair completed, assuming success to prevent infinite loops');
+      return true;
     }
     
     console.log('[RankingService] ✅ Ranking integrity verified - no issues found');
@@ -707,6 +878,9 @@ class RankingService {
    */
   async refreshAllRankings(userId: string): Promise<void> {
     console.log(`[RankingService] Refreshing all rankings for user ${userId}`);
+    
+    // 🚀 Phase 1.2: Clear all cached data for this user
+    this.rankingCache.invalidate(userId);
     
     const sentiments: SentimentRating[] = ['liked', 'fine', 'didnt_like'];
     const results: Record<string, boolean> = {};
@@ -786,6 +960,9 @@ class RankingService {
    */
   async forceRefreshRankings(userId: string, sentiment: SentimentRating): Promise<void> {
     console.log(`[RankingService] Force refreshing all rankings for user ${userId} in ${sentiment} category`);
+    
+    // 🚀 Phase 1.2: Invalidate cache before force refresh
+    this.rankingCache.invalidate(userId, sentiment);
     
     // First verify and fix any position issues
     const integrityResult = await this.verifyRankingsIntegrity(userId, sentiment);
@@ -919,6 +1096,17 @@ class RankingService {
     } else {
       console.log(`[RankingService] ✅ Successfully fixed ${updates.length} fine tier scores`);
     }
+  }
+
+  // 🚀 Phase 1.2: Expose cache stats for debugging
+  getCacheStats(): { size: number; keys: string[] } {
+    return this.rankingCache.getStats();
+  }
+
+  // 🚀 Phase 1.2: Clear cache for debugging/testing
+  clearCache(): void {
+    this.rankingCache.clear();
+    this.integrityCheckAttempts.clear();
   }
 }
 

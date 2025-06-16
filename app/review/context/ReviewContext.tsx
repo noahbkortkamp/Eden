@@ -94,8 +94,13 @@ export const ReviewProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [comparisonsRemaining, setComparisonsRemaining] = useState(3); // Default to 3
+  const [totalComparisonsCount, setTotalComparisonsCount] = useState(3); // Track the total
   const [originalReviewedCourseId, setOriginalReviewedCourseId] = useState<string | null>(null);
   const [comparisonResults, setComparisonResults] = useState<Array<{ preferredId: string, otherId: string }>>([]);
+
+  // 🚀 Phase 1.2: Simple cache for profile verification to reduce database hits
+  const [profileCache] = useState(new Map<string, { verified: boolean; timestamp: number }>());
+  const PROFILE_CACHE_TTL = 10 * 60 * 1000; // 10 minutes
 
   const submitReview = useCallback(async (
     review: Omit<CourseReview, 'review_id' | 'user_id' | 'created_at' | 'updated_at'> & { 
@@ -130,20 +135,24 @@ export const ReviewProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     setError(null);
 
     try {
-      // Start profile verification in parallel with other operations
-      const profileVerificationPromise = verifyUserProfile(user.id);
-      
-      // Create the review
-      const createdReview = await createReview(
-        user.id,
-        review.course_id,
-        review.rating,
-        review.notes,
-        review.favorite_holes,
-        review.photos,
-        review.date_played.toISOString(),
-        review.tags || []
-      );
+      // PHASE 1.1 OPTIMIZATION: Parallel execution of independent operations
+      console.log('🚀 [Optimization] Starting parallel database operations...');
+      const startTime = Date.now();
+
+      // Group 1: Core review creation and profile verification (can run in parallel)
+      const [createdReview, profileExists] = await Promise.all([
+        createReview(
+          user.id,
+          review.course_id,
+          review.rating,
+          review.notes,
+          review.favorite_holes,
+          review.photos,
+          review.date_played.toISOString(),
+          review.tags || []
+        ),
+        cachedVerifyUserProfile(user.id)
+      ]);
 
       console.log('ReviewContext: Review created successfully:', {
         reviewId: createdReview.id,
@@ -151,56 +160,73 @@ export const ReviewProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         rating: createdReview.rating
       });
 
-      // Remove the course from want_to_play_courses if it exists there
-      try {
-        const { error: removeBookmarkError } = await supabase
+      if (!profileExists) {
+        console.log('Profile verification completed after review submission');
+      }
+
+      // Group 2: Post-review operations that can run in parallel
+      const parallelOperationsPromises = [
+        // Remove from bookmarks (non-critical, can fail)
+        supabase
           .from('want_to_play_courses')
           .delete()
           .match({ 
             user_id: user.id, 
             course_id: review.course_id 
-          });
+          })
+          .then(({ error }) => {
+            if (error) {
+              console.warn('Failed to remove course from bookmarks:', error);
+            } else {
+              console.log('Successfully removed reviewed course from bookmarks');
+            }
+            return { success: !error, operation: 'bookmark_removal' };
+          })
+          .catch(err => {
+            console.warn('Error removing bookmarked course, continuing anyway:', err);
+            return { success: false, operation: 'bookmark_removal' };
+          }),
 
-        if (removeBookmarkError) {
-          console.warn('Failed to remove course from bookmarks:', removeBookmarkError);
-          // Continue with the flow anyway
-        } else {
-          console.log('Successfully removed reviewed course from bookmarks');
-        }
-      } catch (bookmarkError) {
-        console.warn('Error removing bookmarked course, continuing anyway:', bookmarkError);
-        // Continue with the flow anyway
-      }
+        // Get review count
+        reviewService.getUserReviewCount(user.id)
+          .then(count => {
+            console.log(`User review count after submission: ${count}`);
+            if (count === 10) {
+              console.log('🎉 User has reached 10 reviews! Score visibility is now ENABLED');
+            }
+            return count;
+          })
+          .catch(err => {
+            console.error('Error getting review count:', err);
+            return 1; // Fallback to assume this isn't first review
+          }),
 
-      // Await profile verification result (should be done by now)
-      const profileExists = await profileVerificationPromise;
-      if (!profileExists) {
-        console.log('Profile verification completed after review submission');
-      }
-
-      // Start these non-blocking operations in parallel
-      const promises = [
-        // Check review count
-        reviewService.getUserReviewCount(user.id).then(count => {
-          console.log(`User review count after submission: ${count}`);
-          if (count === 10) {
-            console.log('🎉 User has reached 10 reviews! Score visibility is now ENABLED');
-          }
-          return count;
-        }),
-        
-        // Mark played courses as needing refresh
-        (async () => {
+        // Mark played courses as needing refresh (immediate, non-async)
+        Promise.resolve().then(() => {
           setNeedsRefresh();
           console.log('ReviewContext: Marked played courses for refresh');
-        })(),
-        
-        // Get user's reviewed courses with matching sentiment for comparison
+          return { success: true, operation: 'refresh_marker' };
+        }),
+
+        // Get user's reviewed courses for comparison logic
         getReviewsForUser(user.id)
+          .catch(err => {
+            console.error('Error fetching user reviews:', err);
+            return []; // Fallback to empty array
+          })
       ];
 
-      // Wait for all parallel operations to complete
-      const [reviewCount, _, userReviews] = await Promise.all(promises);
+      // Wait for all parallel operations with individual error handling
+      const parallelResults = await Promise.allSettled(parallelOperationsPromises);
+      
+      // Extract results with error handling
+      const bookmarkResult = parallelResults[0].status === 'fulfilled' ? parallelResults[0].value : { success: false };
+      const reviewCount = parallelResults[1].status === 'fulfilled' ? parallelResults[1].value : 1;
+      const refreshResult = parallelResults[2].status === 'fulfilled' ? parallelResults[2].value : { success: true };
+      const userReviews = parallelResults[3].status === 'fulfilled' ? parallelResults[3].value : [];
+
+      const optimizationTime = Date.now() - startTime;
+      console.log(`🚀 [Optimization] Parallel operations completed in ${optimizationTime}ms`);
       
       console.log(`🔍 CRITICAL DEBUG: Review count = ${reviewCount}, isFromOnboarding = ${isFromOnboarding}`);
       
@@ -212,134 +238,97 @@ export const ReviewProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         let isNavigating = false;
         
         try {
-          // Preload course details as early as possible
+          // Group 3: First review success preparation (can run in parallel)
+          const [courseDetails] = await Promise.allSettled([
+            getCourse(review.course_id).catch(err => {
+              console.warn('Error pre-fetching course details, will use defaults:', err);
+              return null;
+            })
+          ]);
+
           let courseName = 'Course';
           let courseLocation = '';
           
-          // Start fetching course details immediately (in parallel with other operations)
-          const courseDetailsPromise = getCourse(review.course_id).catch(err => {
-            console.warn('Error pre-fetching course details, will use defaults:', err);
-            return null;
-          });
-          
-          // First, update user metadata in a single atomic operation
-          const { data: userUpdate, error: updateError } = await supabase.auth.updateUser({
-            data: { 
-              has_completed_first_review: true,
-              firstReviewCompleted: true,
-              firstReviewTimestamp: new Date().toISOString(),
-              onboardingComplete: true // Ensure onboarding is marked as complete
-            }
-          });
-          
-          if (updateError) {
-            console.error('Error updating user metadata:', updateError);
-            // Continue anyway - we'll try the legacy method as fallback
+          if (courseDetails.status === 'fulfilled' && courseDetails.value) {
+            courseName = courseDetails.value.name || 'Course';
+            courseLocation = courseDetails.value.location || '';
+            console.log('Got course details for success screen:', {
+              name: courseName,
+              location: courseLocation
+            });
           } else {
-            console.log('Successfully updated user metadata:', userUpdate?.user?.user_metadata);
+            console.warn('getCourse returned null or failed for course ID:', review.course_id);
           }
           
-          // Call the legacy service method for backward compatibility
-          try {
-            const markResult = await userService.markFirstReviewComplete(user.id);
-            console.log(`Marked user as having completed first review: ${markResult ? 'success' : 'failed'}`);
-          } catch (legacyErr) {
-            console.error('Error in legacy markFirstReviewComplete call:', legacyErr);
-            // Continue anyway since we already updated the metadata via Supabase
-          }
-          
-          // Get course details (should be ready from the earlier promise)
-          try {
-            const courseDetails = await courseDetailsPromise;
-            if (courseDetails) {
-              courseName = courseDetails.name || 'Course';
-              courseLocation = courseDetails.location || '';
-              console.log('Got course details for success screen:', {
-                name: courseName,
-                location: courseLocation
-              });
-            } else {
-              console.warn('getCourse returned null or undefined for course ID:', review.course_id);
-            }
-          } catch (courseError) {
-            console.error('Error fetching course details:', courseError);
-            // Continue with default values
-          }
-          
-          // First, close any open modals or flows to ensure clean navigation
-          try {
-            // Create a stable copy of navigation params
-            const safeNavigationParams = {
-              courseName: encodeURIComponent(courseName),
-              courseLocation: courseLocation ? encodeURIComponent(courseLocation) : undefined,
-              datePlayed: encodeURIComponent(review.date_played.toISOString()),
-              timestamp: Date.now().toString()
-            };
-            
-            // Log navigation intent
-            console.log('🚀 Starting first review success navigation sequence');
-            console.log('Navigation params:', JSON.stringify(safeNavigationParams, null, 2));
-            
-            // Flag to track if we're already in the navigation process
-            isNavigating = true;
-            
-            // Use a more reliable navigation pattern with better transition management
-            setTimeout(() => {
-              try {
-                // First ensure any current modals are closed by navigating to tabs
-                // This step prevents screen stack issues
-                console.log('🚀 Step 1: Clearing navigation stack');
-                router.replace('/(tabs)');
-                
-                // Give the UI time to stabilize before showing the success screen
-                setTimeout(() => {
-                  try {
-                    console.log('🚀 Step 2: Preparing to show success screen');
-                    
-                    // Use push with specific animation options for a clean modal presentation
-                    router.push({
-                      pathname: '/(modals)/onboarding-first-review-success',
-                      params: safeNavigationParams
-                    });
-                    
-                    console.log('🚀 Success screen navigation executed');
-                  } catch (finalNavError) {
-                    console.error('Error during final navigation step:', finalNavError);
-                    // Last resort - go to lists tab
-                    router.replace('/(tabs)/lists');
-                  }
-                }, 100); // Reduced from 400ms to 100ms for faster display
-              } catch (innerNavError) {
-                console.error('Error during initial navigation step:', innerNavError);
-                router.replace('/(tabs)/lists');
+          // Group 4: User metadata updates (can run in parallel)
+          const metadataPromises = [
+            supabase.auth.updateUser({
+              data: { 
+                has_completed_first_review: true,
+                firstReviewCompleted: true,
+                firstReviewTimestamp: new Date().toISOString(),
+                onboardingComplete: true
               }
-            }, 50); // Reduced from 200ms to 50ms for faster initial navigation
+            }).then(({ data: userUpdate, error: updateError }) => {
+              if (updateError) {
+                console.error('Error updating user metadata:', updateError);
+                return { success: false, operation: 'metadata_update' };
+              } else {
+                console.log('Successfully updated user metadata:', userUpdate?.user?.user_metadata);
+                return { success: true, operation: 'metadata_update' };
+              }
+            }),
+
+            userService.markFirstReviewComplete(user.id)
+              .then(markResult => {
+                console.log(`Marked user as having completed first review: ${markResult ? 'success' : 'failed'}`);
+                return { success: markResult, operation: 'legacy_mark' };
+              })
+              .catch(legacyErr => {
+                console.error('Error in legacy markFirstReviewComplete call:', legacyErr);
+                return { success: false, operation: 'legacy_mark' };
+              })
+          ];
+
+          // Wait for metadata updates (don't block navigation on these)
+          Promise.allSettled(metadataPromises).then(results => {
+            console.log('User metadata updates completed:', results);
+          });
+          
+          // Prepare navigation parameters
+          const safeNavigationParams = {
+            courseName: encodeURIComponent(courseName),
+            courseLocation: courseLocation ? encodeURIComponent(courseLocation) : undefined,
+            datePlayed: encodeURIComponent(review.date_played.toISOString()),
+            timestamp: Date.now().toString()
+          };
+          
+          // Simplified navigation logic (removed nested timeouts)
+          console.log('🚀 Starting optimized first review success navigation');
+          isNavigating = true;
+          
+          try {
+            // Single navigation attempt with one fallback
+            router.replace('/(tabs)');
+            
+            setTimeout(() => {
+              router.push({
+                pathname: '/(modals)/onboarding-first-review-success',
+                params: safeNavigationParams
+              });
+              console.log('🚀 Success screen navigation executed');
+            }, 100);
+            
           } catch (navError) {
             console.error('Navigation error:', navError);
-            
-            // Last resort fallback - try a direct push after a delay
-            setTimeout(() => {
-              try {
-                router.push({
-                  pathname: '/(modals)/onboarding-first-review-success',
-                  params: safeNavigationParams
-                });
-              } catch (finalError) {
-                console.error('Final navigation attempt failed:', finalError);
-                // If all else fails, go to lists tab
-                router.replace('/(tabs)/lists');
-              }
-            }, 100); // Reduced from 500ms to 100ms for faster fallback
+            router.replace('/(tabs)/lists');
           }
           
           return;
         } catch (err) {
           console.error('Error in first review success flow:', err);
           
-          // Only attempt fallback navigation if we haven't already started navigating
           if (!isNavigating) {
-            console.log('Attempting fallback navigation to lists tab');
-            // Fallback - navigate directly to lists tab
             router.replace('/(tabs)/lists');
           }
         }
@@ -347,6 +336,7 @@ export const ReviewProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         return;
       }
       
+      // Continue with comparison flow for non-first reviews
       const reviewedCoursesWithSentiment = userReviews.filter(r => r.rating === review.rating);
 
       console.log('ReviewContext: Found matching sentiment reviews:', {
@@ -354,17 +344,18 @@ export const ReviewProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         sentiment: review.rating
       });
 
-      // Check if course already has a ranking
-      const rankings = await rankingService.getUserRankings(user.id, review.rating);
+      // Group 5: Comparison preparation (parallel ranking and course data fetch)
+      const [rankingsResult] = await Promise.allSettled([
+        rankingService.getUserRankings(user.id, review.rating)
+      ]);
+
+      const rankings = rankingsResult.status === 'fulfilled' ? rankingsResult.value : [];
       const existingRanking = rankings.find(r => r.course_id === review.course_id);
 
       console.log('ReviewContext: Checking existing ranking:', {
         hasExistingRanking: !!existingRanking,
         totalRankings: rankings.length
       });
-
-      // Note: Course rankings are created separately through the comparison/ranking flow
-      // For now, course statistics will only show data for courses that have been ranked
 
       // Filter out the current course from potential comparison courses
       const otherCoursesWithSentiment = reviewedCoursesWithSentiment.filter(
@@ -384,6 +375,7 @@ export const ReviewProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         // Set comparisons remaining to either maxComparisons or the number of available courses
         const totalComparisons = Math.min(otherCoursesWithSentiment.length, maxComparisons);
         setComparisonsRemaining(totalComparisons);
+        setTotalComparisonsCount(totalComparisons);
 
         console.log(`Setting up comparison flow with ${totalComparisons} total comparisons out of ${otherCoursesWithSentiment.length} available courses`);
         console.log(`Will compare the just-reviewed course (${review.course_id}) with other courses in the same sentiment tier`);
@@ -403,7 +395,7 @@ export const ReviewProvider: React.FC<{ children: React.ReactNode }> = ({ childr
           comparisonCourseId = medianCourse.course_id;
         }
         
-        // Preload the courses data in the background
+        // Preload the courses data in the background (non-blocking)
         Promise.all([
           getCourse(review.course_id),
           getCourse(comparisonCourseId)
@@ -424,6 +416,7 @@ export const ReviewProvider: React.FC<{ children: React.ReactNode }> = ({ childr
             courseAId: review.course_id,
             courseBId: comparisonCourseId,
             remainingComparisons: totalComparisons,
+            totalComparisons: totalComparisons,
             originalSentiment: review.rating,
             originalReviewedCourseId: review.course_id
           },
@@ -541,6 +534,7 @@ export const ReviewProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         
         // Update the state with the calculated max comparisons
         setComparisonsRemaining(maxComparisons);
+        setTotalComparisonsCount(maxComparisons);
 
         // Store course A as the "original" for this session
         setOriginalReviewedCourseId(courseA.course_id);
@@ -552,6 +546,7 @@ export const ReviewProvider: React.FC<{ children: React.ReactNode }> = ({ childr
             courseAId: courseA.course_id,
             courseBId: courseB.course_id,
             remainingComparisons: maxComparisons,
+            totalComparisons: maxComparisons,
             originalSentiment: rating,
             originalReviewedCourseId: courseA.course_id
           },
@@ -655,6 +650,7 @@ export const ReviewProvider: React.FC<{ children: React.ReactNode }> = ({ childr
                 courseAId: originalReviewedCourseId,
                 courseBId: randomCourse.course_id,
                 remainingComparisons: newComparisonsRemaining,
+                totalComparisons: totalComparisonsCount,
                 originalSentiment: sentiment,
                 originalReviewedCourseId: originalReviewedCourseId
               },
@@ -736,6 +732,7 @@ export const ReviewProvider: React.FC<{ children: React.ReactNode }> = ({ childr
                   courseAId: originalReviewedCourseId,
                   courseBId: topCourse.course_id,
                   remainingComparisons: comparisonsRemaining, // Don't decrement yet
+                  totalComparisons: totalComparisonsCount,
                   originalSentiment: sentiment,
                   originalReviewedCourseId: originalReviewedCourseId
                 },
@@ -754,6 +751,7 @@ export const ReviewProvider: React.FC<{ children: React.ReactNode }> = ({ childr
                   courseAId: originalReviewedCourseId,
                   courseBId: bottomCourse.course_id,
                   remainingComparisons: comparisonsRemaining, // Don't decrement yet
+                  totalComparisons: totalComparisonsCount,
                   originalSentiment: sentiment,
                   originalReviewedCourseId: originalReviewedCourseId
                 },
@@ -811,6 +809,7 @@ export const ReviewProvider: React.FC<{ children: React.ReactNode }> = ({ childr
                 courseAId: originalReviewedCourseId,
                 courseBId: randomCourse.course_id,
                 remainingComparisons: newComparisonsRemaining,
+                totalComparisons: totalComparisonsCount,
                 originalSentiment: sentiment,
                 originalReviewedCourseId: originalReviewedCourseId
               },
@@ -907,6 +906,7 @@ export const ReviewProvider: React.FC<{ children: React.ReactNode }> = ({ childr
                     courseAId: originalReviewedCourseId,
                     courseBId: randomCourse.course_id,
                     remainingComparisons: newComparisonsRemaining,
+                    totalComparisons: totalComparisonsCount,
                     originalSentiment: originalReview.rating,
                     originalReviewedCourseId: originalReviewedCourseId
                   },
@@ -1021,6 +1021,22 @@ export const ReviewProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       return false;
     }
   }, []);
+
+  // 🚀 Phase 1.2: Cached version of profile verification
+  const cachedVerifyUserProfile = useCallback(async (userId: string): Promise<boolean> => {
+    const cached = profileCache.get(userId);
+    const now = Date.now();
+    
+    if (cached && (now - cached.timestamp) < PROFILE_CACHE_TTL) {
+      console.log('🚀 [Cache] Using cached profile verification');
+      return cached.verified;
+    }
+    
+    const verified = await verifyUserProfile(userId);
+    profileCache.set(userId, { verified, timestamp: now });
+    console.log('🚀 [Cache] Cached profile verification result');
+    return verified;
+  }, [verifyUserProfile, profileCache, PROFILE_CACHE_TTL]);
 
   const createUserProfile = useCallback(async (userId: string) => {
     try {

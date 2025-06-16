@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { View, Text, StyleSheet, Dimensions, ActivityIndicator, Pressable } from 'react-native';
 import { CourseComparisonProps, SentimentRating } from '../../types/review';
 import { useTheme } from '../../theme/ThemeProvider';
@@ -12,23 +12,49 @@ const SENTIMENT_COLORS = {
   didnt_like: '#DC3545' // Red
 };
 
-export const CourseComparisonScreen: React.FC<CourseComparisonProps> = ({
+// 🚀 Phase 1.3: Memoized CourseComparisonScreen to prevent unnecessary re-renders
+export const CourseComparisonScreen: React.FC<CourseComparisonProps> = React.memo(({
   courseA,
   courseB,
   previousCourseId,
   previousCourseRating,
   totalReviewCount,
   originalSentiment = 'liked', // Default to liked if not provided
+  remainingComparisons,
+  totalComparisons,
   onSelect,
   onSkip,
 }) => {
   const theme = useTheme();
   const [isSelecting, setIsSelecting] = useState(false);
   
-  // Get the appropriate color based on sentiment
-  const getRatingColor = () => {
+  // 🚀 Phase 1.3: Memoize color calculation to prevent recalculation on every render
+  const ratingColor = useMemo(() => {
     return SENTIMENT_COLORS[originalSentiment] || SENTIMENT_COLORS.liked;
-  };
+  }, [originalSentiment]);
+
+  // 🚀 Phase 1.3: Memoize course review status to prevent recalculation
+  const courseReviewStatus = useMemo(() => {
+    return {
+      isACourseReviewed: previousCourseId === courseA?.id,
+      isBCourseReviewed: previousCourseId === courseB?.id,
+      shouldShowScores: totalReviewCount >= 10
+    };
+  }, [previousCourseId, courseA?.id, courseB?.id, totalReviewCount]);
+
+  // 🚀 Calculate progress for progress bar
+  const progressData = useMemo(() => {
+    if (!remainingComparisons || !totalComparisons) return null;
+    
+    const current = totalComparisons - remainingComparisons + 1; // Current comparison number (1st, 2nd, 3rd, etc.)
+    const progress = current / totalComparisons;
+    
+    return {
+      current,
+      total: totalComparisons,
+      progress: Math.max(0, Math.min(1, progress)) // Clamp between 0 and 1
+    };
+  }, [remainingComparisons, totalComparisons]);
 
   // Reset selecting state when courses change
   useEffect(() => {
@@ -37,25 +63,21 @@ export const CourseComparisonScreen: React.FC<CourseComparisonProps> = ({
     }
   }, [courseA?.id, courseB?.id]);
 
-  if (!courseA || !courseB) {
-    return (
-      <View style={[styles.container, styles.centered]}>
-        <ActivityIndicator size="large" color={theme.colors.primary} />
-      </View>
-    );
-  }
-
-  const handleSelect = async (selectedId: string, notSelectedId: string) => {
+  // 🚀 Phase 1.3: Optimize handler functions with useCallback to prevent re-renders
+  const handleSelect = useCallback(async (selectedId: string, notSelectedId: string) => {
     try {
       // Prevent double-selection
       if (isSelecting) return;
       
       setIsSelecting(true);
       
-      console.log('Selecting course:', {
-        selectedId,
-        notSelectedId,
-      });
+      // 🚀 Phase 1.3: Reduced logging - only log important comparisons
+      if (process.env.NODE_ENV === 'development') {
+        console.log('🎯 Comparison:', {
+          selected: selectedId.substring(0, 8),
+          rejected: notSelectedId.substring(0, 8),
+        });
+      }
       
       // Directly call onSelect which will navigate to the next comparison
       await onSelect(selectedId, notSelectedId);
@@ -63,27 +85,30 @@ export const CourseComparisonScreen: React.FC<CourseComparisonProps> = ({
       console.error('Failed to submit comparison:', error);
       setIsSelecting(false);
     }
-  };
+  }, [isSelecting, onSelect]);
 
-  const handleSkip = async () => {
+  const handleSkip = useCallback(async () => {
     try {
       if (isSelecting) return;
       
       setIsSelecting(true);
       
-      console.log('Skipping comparison:', {
-        courseAId: courseA?.id,
-        courseBId: courseB?.id,
-      });
+      if (process.env.NODE_ENV === 'development') {
+        console.log('⏭️ Skipped comparison:', {
+          courseA: courseA?.id?.substring(0, 8),
+          courseB: courseB?.id?.substring(0, 8),
+        });
+      }
       
-      await onSkip(courseA.id, courseB.id);
+      await onSkip(courseA!.id, courseB!.id);
     } catch (error) {
       console.error('Failed to skip comparison:', error);
       setIsSelecting(false);
     }
-  };
+  }, [isSelecting, onSkip, courseA, courseB]);
 
-  const styles = StyleSheet.create({
+  // 🚀 Phase 1.3: Memoize styles to prevent recalculation
+  const styles = useMemo(() => StyleSheet.create({
     container: {
       flex: 1,
       padding: theme.spacing.md,
@@ -108,6 +133,28 @@ export const CourseComparisonScreen: React.FC<CourseComparisonProps> = ({
       color: theme.colors.textSecondary,
       textAlign: 'center',
       marginTop: theme.spacing.xs,
+    },
+    progressContainer: {
+      alignItems: 'center',
+      marginTop: theme.spacing.md,
+    },
+    progressBar: {
+      width: 200,
+      height: 6,
+      backgroundColor: 'rgba(0,0,0,0.1)',
+      borderRadius: 3,
+      overflow: 'hidden',
+      marginBottom: theme.spacing.xs,
+    },
+    progressFill: {
+      height: '100%',
+      borderRadius: 3,
+      transition: 'width 0.3s ease',
+    },
+    progressText: {
+      fontSize: 14,
+      color: theme.colors.textSecondary,
+      textAlign: 'center',
     },
     coursesContainer: {
       flex: 1,
@@ -184,8 +231,8 @@ export const CourseComparisonScreen: React.FC<CourseComparisonProps> = ({
       paddingHorizontal: theme.spacing.lg,
       borderRadius: theme.borderRadius.lg,
       alignSelf: 'center',
-      marginBottom: theme.spacing.md,
-      marginTop: theme.spacing.xl,
+      marginBottom: theme.spacing.xl * 2, // More space from bottom
+      marginTop: theme.spacing.xl * 2,    // More space from course cards above
       backgroundColor: 'rgba(0,0,0,0.05)',
     },
     skipButtonText: {
@@ -193,24 +240,15 @@ export const CourseComparisonScreen: React.FC<CourseComparisonProps> = ({
       fontWeight: '500',
       color: theme.colors.textSecondary,
     }
-  });
+  }), [theme]); // Only recalculate when theme changes
 
-  // Determine if each course has been previously reviewed
-  const isACourseReviewed = previousCourseId === courseA.id;
-  const isBCourseReviewed = previousCourseId === courseB.id;
-
-  console.log(`CourseComparisonScreen rendering with rating display:`, {
-    courseA: courseA.name,
-    courseB: courseB.name,
-    previousCourseId,
-    previousCourseRating,
-    totalReviewCount,
-    shouldShowScores: totalReviewCount >= 10,
-    originalSentiment,
-    ratingColor: getRatingColor(),
-    isACourseReviewed,
-    isBCourseReviewed
-  });
+  if (!courseA || !courseB) {
+    return (
+      <View style={[styles.container, styles.centered]}>
+        <ActivityIndicator size="large" color={theme.colors.primary} />
+      </View>
+    );
+  }
 
   return (
     <View style={styles.container}>
@@ -218,7 +256,26 @@ export const CourseComparisonScreen: React.FC<CourseComparisonProps> = ({
         <Text style={styles.title}>
           Which course do you prefer?
         </Text>
-        <Text style={styles.subtitle}>Tap on your favorite</Text>
+        {progressData ? (
+          <View style={styles.progressContainer}>
+            <View style={styles.progressBar}>
+              <View 
+                style={[
+                  styles.progressFill, 
+                  { 
+                    width: `${progressData.progress * 100}%`,
+                    backgroundColor: theme.colors.primary 
+                  }
+                ]} 
+              />
+            </View>
+            <Text style={styles.progressText}>
+              {progressData.current} of {progressData.total} comparisons
+            </Text>
+          </View>
+        ) : (
+          <Text style={styles.subtitle}>Tap on your favorite</Text>
+        )}
       </View>
       
       <View style={styles.coursesContainer}>
@@ -238,11 +295,11 @@ export const CourseComparisonScreen: React.FC<CourseComparisonProps> = ({
                 {courseA.name}
               </Text>
             </View>
-            {isACourseReviewed && previousCourseRating !== undefined && totalReviewCount >= 10 ? (
+            {courseReviewStatus.isACourseReviewed && previousCourseRating !== undefined && !isNaN(Number(previousCourseRating)) && courseReviewStatus.shouldShowScores ? (
               <Text style={styles.courseLocation}>
                 <Text>{courseA.location}</Text>
                 <Text> • </Text>
-                <Text style={[styles.ratingText, { color: getRatingColor() }]}>{previousCourseRating.toFixed(1)}</Text>
+                <Text style={[styles.ratingText, { color: ratingColor }]}>{Number(previousCourseRating).toFixed(1)}</Text>
               </Text>
             ) : (
               <Text style={styles.courseLocation}>
@@ -272,11 +329,11 @@ export const CourseComparisonScreen: React.FC<CourseComparisonProps> = ({
                 {courseB.name}
               </Text>
             </View>
-            {isBCourseReviewed && previousCourseRating !== undefined && totalReviewCount >= 10 ? (
+            {courseReviewStatus.isBCourseReviewed && previousCourseRating !== undefined && !isNaN(Number(previousCourseRating)) && courseReviewStatus.shouldShowScores ? (
               <Text style={styles.courseLocation}>
                 <Text>{courseB.location}</Text>
                 <Text> • </Text>
-                <Text style={[styles.ratingText, { color: getRatingColor() }]}>{previousCourseRating.toFixed(1)}</Text>
+                <Text style={[styles.ratingText, { color: ratingColor }]}>{Number(previousCourseRating).toFixed(1)}</Text>
               </Text>
             ) : (
               <Text style={styles.courseLocation}>
@@ -301,4 +358,18 @@ export const CourseComparisonScreen: React.FC<CourseComparisonProps> = ({
       </Pressable>
     </View>
   );
-}; 
+}, (prevProps, nextProps) => {
+  // 🚀 Phase 1.3: Custom comparison function for React.memo to prevent unnecessary re-renders
+  return (
+    prevProps.courseA?.id === nextProps.courseA?.id &&
+    prevProps.courseB?.id === nextProps.courseB?.id &&
+    prevProps.previousCourseId === nextProps.previousCourseId &&
+    prevProps.previousCourseRating === nextProps.previousCourseRating &&
+    prevProps.totalReviewCount === nextProps.totalReviewCount &&
+    prevProps.originalSentiment === nextProps.originalSentiment &&
+    prevProps.remainingComparisons === nextProps.remainingComparisons &&
+    prevProps.totalComparisons === nextProps.totalComparisons &&
+    prevProps.onSelect === nextProps.onSelect &&
+    prevProps.onSkip === nextProps.onSkip
+  );
+}); 
