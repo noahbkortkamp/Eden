@@ -1,15 +1,16 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { View, Text, StyleSheet, Dimensions, ActivityIndicator, Pressable } from 'react-native';
 import { CourseComparisonProps, SentimentRating } from '../../types/review';
-import { useTheme } from '../../theme/ThemeProvider';
+import { useEdenTheme } from '../../theme/ThemeProvider';
+import { Button } from '../../components/eden/Button';
 
 const { width } = Dimensions.get('window');
 
-// Define sentiment colors
+// 🎨 EDEN DESIGN SYSTEM: Define sentiment colors using Eden feedback colors
 const SENTIMENT_COLORS = {
-  liked: '#3CB371', // Green
-  fine: '#FFA500',  // Orange/Yellow
-  didnt_like: '#DC3545' // Red
+  liked: '#9ACE8E',   // Eden positive feedback color
+  fine: '#F2E7C9',    // Eden neutral feedback color
+  didnt_like: '#F6D3D1' // Eden negative feedback color
 };
 
 // 🚀 Phase 1.3: Memoized CourseComparisonScreen to prevent unnecessary re-renders
@@ -25,7 +26,7 @@ export const CourseComparisonScreen: React.FC<CourseComparisonProps> = React.mem
   onSelect,
   onSkip,
 }) => {
-  const theme = useTheme();
+  const theme = useEdenTheme();
   const [isSelecting, setIsSelecting] = useState(false);
   
   // 🚀 Phase 1.3: Memoize color calculation to prevent recalculation on every render
@@ -46,7 +47,9 @@ export const CourseComparisonScreen: React.FC<CourseComparisonProps> = React.mem
   const progressData = useMemo(() => {
     if (!remainingComparisons || !totalComparisons) return null;
     
-    const current = totalComparisons - remainingComparisons + 1; // Current comparison number (1st, 2nd, 3rd, etc.)
+    // Calculate current comparison number based on how many we've completed
+    // remainingComparisons represents how many are left AFTER the current one
+    const current = totalComparisons - remainingComparisons + 1;
     const progress = current / totalComparisons;
     
     return {
@@ -107,7 +110,7 @@ export const CourseComparisonScreen: React.FC<CourseComparisonProps> = React.mem
     }
   }, [isSelecting, onSkip, courseA, courseB]);
 
-  // 🚀 Phase 1.3: Memoize styles to prevent recalculation
+  // 🎨 EDEN DESIGN SYSTEM: Updated styles to use proper Eden tokens
   const styles = useMemo(() => StyleSheet.create({
     container: {
       flex: 1,
@@ -123,13 +126,12 @@ export const CourseComparisonScreen: React.FC<CourseComparisonProps> = React.mem
       marginBottom: theme.spacing.xl,
     },
     title: {
-      fontSize: 28,
-      fontWeight: '700',
+      ...theme.typography.h1, // 🎨 Use Eden h1 typography
       textAlign: 'center',
       color: theme.colors.text,
     },
     subtitle: {
-      fontSize: 16,
+      ...theme.typography.body, // 🎨 Use Eden body typography
       color: theme.colors.textSecondary,
       textAlign: 'center',
       marginTop: theme.spacing.xs,
@@ -141,18 +143,18 @@ export const CourseComparisonScreen: React.FC<CourseComparisonProps> = React.mem
     progressBar: {
       width: 200,
       height: 6,
-      backgroundColor: 'rgba(0,0,0,0.1)',
-      borderRadius: 3,
+      backgroundColor: theme.colors.border, // 🎨 Use Eden border color
+      borderRadius: theme.borderRadius.xs, // 🎨 Use Eden border radius
       overflow: 'hidden',
       marginBottom: theme.spacing.xs,
     },
     progressFill: {
       height: '100%',
-      borderRadius: 3,
-      transition: 'width 0.3s ease',
+      borderRadius: theme.borderRadius.xs, // 🎨 Use Eden border radius
+      // Note: React Native doesn't support CSS transitions
     },
     progressText: {
-      fontSize: 14,
+      ...theme.typography.bodySmall, // 🎨 Use Eden bodySmall typography
       color: theme.colors.textSecondary,
       textAlign: 'center',
     },
@@ -164,16 +166,12 @@ export const CourseComparisonScreen: React.FC<CourseComparisonProps> = React.mem
     },
     courseCard: {
       width: width - 32,
-      borderRadius: theme.borderRadius.lg,
+      borderRadius: theme.borderRadius.lg, // 🎨 Use Eden border radius
       padding: theme.spacing.lg,
-      elevation: 3,
-      shadowColor: '#000',
-      shadowOffset: { width: 0, height: 2 },
-      shadowOpacity: 0.1,
-      shadowRadius: 8,
+      ...theme.shadows.md, // 🎨 Use Eden shadow
       backgroundColor: theme.colors.surface,
       borderWidth: 1,
-      borderColor: 'rgba(0,0,0,0.05)',
+      borderColor: theme.colors.border, // 🎨 Use Eden border color
       alignItems: 'center',
       justifyContent: 'center',
     },
@@ -181,7 +179,7 @@ export const CourseComparisonScreen: React.FC<CourseComparisonProps> = React.mem
       borderColor: theme.colors.primary,
       borderWidth: 2,
       transform: [{ scale: 0.98 }],
-      backgroundColor: `${theme.colors.primary}10`,
+      backgroundColor: `${theme.colors.primary}10`, // 🎨 Use Eden primary with opacity
     },
     courseNameContainer: {
       flexDirection: 'row',
@@ -190,55 +188,45 @@ export const CourseComparisonScreen: React.FC<CourseComparisonProps> = React.mem
       gap: 8,
     },
     courseName: {
-      fontSize: 26,
-      fontWeight: '700',
+      ...theme.typography.h2, // 🎨 Use Eden h2 typography instead of hardcoded values
       color: theme.colors.text,
       textAlign: 'center',
       marginVertical: theme.spacing.md,
     },
     courseLocation: {
-      fontSize: 16,
+      ...theme.typography.body, // 🎨 Use Eden body typography
       color: theme.colors.textSecondary,
       textAlign: 'center',
       marginTop: 4,
     },
     ratingText: {
-      fontSize: 20,
-      fontWeight: '600',
+      ...theme.typography.body, // 🎨 Use Eden body typography
+      fontWeight: theme.typography.h3.fontWeight, // 🎨 Use Eden semibold weight
+      fontSize: 16, // Make rating text larger and more visible
+      fontWeight: '600', // Make it bold for better visibility
     },
     vsContainer: {
       width: 40,
       height: 40,
-      borderRadius: 20,
+      borderRadius: theme.borderRadius.full, // 🎨 Use Eden full border radius for circle
       backgroundColor: theme.colors.primary,
       justifyContent: 'center',
       alignItems: 'center',
       marginVertical: -theme.spacing.lg,
       zIndex: 1,
-      shadowColor: '#000',
-      shadowOffset: { width: 0, height: 2 },
-      shadowOpacity: 0.1,
-      shadowRadius: 4,
-      elevation: 2,
+      ...theme.shadows.sm, // 🎨 Use Eden shadow
     },
     vsText: {
-      fontSize: 16,
-      fontWeight: '700',
-      color: '#ffffff',
+      ...theme.typography.button, // 🎨 Use Eden button typography
+      color: '#FFFFFF', // Change to white for better visibility
+      fontWeight: '600', // Make it bold
     },
-    skipButton: {
-      paddingVertical: theme.spacing.md,
-      paddingHorizontal: theme.spacing.lg,
-      borderRadius: theme.borderRadius.lg,
+    // 🎨 EDEN DESIGN SYSTEM: Updated skip button container for Eden Button component
+    skipButtonContainer: {
       alignSelf: 'center',
-      marginBottom: theme.spacing.xl * 2, // More space from bottom
-      marginTop: theme.spacing.xl * 2,    // More space from course cards above
-      backgroundColor: 'rgba(0,0,0,0.05)',
-    },
-    skipButtonText: {
-      fontSize: 16,
-      fontWeight: '500',
-      color: theme.colors.textSecondary,
+      marginBottom: theme.spacing.xl, // Reduced from xxl to move button higher
+      marginTop: theme.spacing.lg, // Reduced from xxl to move button higher
+      // Removed conflicting background styling to prevent button flashing
     }
   }), [theme]); // Only recalculate when theme changes
 
@@ -344,18 +332,15 @@ export const CourseComparisonScreen: React.FC<CourseComparisonProps> = React.mem
         </Pressable>
       </View>
       
-      <Pressable 
-        style={({pressed}) => [
-          styles.skipButton,
-          pressed && { opacity: 0.8 }
-        ]} 
-        onPress={handleSkip}
-        disabled={isSelecting}
-      >
-        <Text style={styles.skipButtonText}>
-          Too tough to choose
-        </Text>
-      </Pressable>
+      {/* 🎨 EDEN DESIGN SYSTEM: Use Eden Button component for consistent styling */}
+      <View style={styles.skipButtonContainer}>
+        <Button
+          label="Too tough to choose"
+          variant="primary" // Changed to primary variant for better visibility
+          onPress={handleSkip}
+          disabled={isSelecting}
+        />
+      </View>
     </View>
   );
 }, (prevProps, nextProps) => {

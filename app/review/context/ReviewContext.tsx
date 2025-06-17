@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useCallback } from 'react';
+import React, { createContext, useContext, useState, useCallback, useRef } from 'react';
 import { CourseReview, Course, SentimentRating } from '../../types/review';
 import { useRouter } from 'expo-router';
 import { useAuth } from '../../context/AuthContext';
@@ -70,20 +70,7 @@ const getBottomRankedCourseInTier = async (userId: string, sentiment: SentimentR
 /**
  * Get the median-ranked course in a sentiment tier
  */
-const getMedianRankedCourseInTier = async (userId: string, sentiment: SentimentRating) => {
-  const rankings = await rankingService.getUserRankings(userId, sentiment);
-  if (!rankings || rankings.length === 0) return null;
-  
-  // Sort by position (lowest position is highest rank)
-  const sortedRankings = [...rankings].sort((a, b) => a.rank_position - b.rank_position);
-  
-  // Find the middle index
-  const middleIndex = Math.floor(sortedRankings.length / 2);
-  
-  // Return the median-ranked course
-  console.log(`[getMedianRankedCourseInTier] Found median course at position ${sortedRankings[middleIndex].rank_position} out of ${sortedRankings.length} courses`);
-  return sortedRankings[middleIndex];
-};
+// Moved inside ReviewProvider to access cached reviews
 
 const ReviewContext = createContext<ReviewContextType | undefined>(undefined);
 
@@ -91,16 +78,92 @@ export const ReviewProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const router = useRouter();
   const { user } = useAuth();
   const { setNeedsRefresh } = usePlayedCourses();
+
+  // State management
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [comparisonsRemaining, setComparisonsRemaining] = useState(3); // Default to 3
-  const [totalComparisonsCount, setTotalComparisonsCount] = useState(3); // Track the total
+  const [comparisonsRemaining, setComparisonsRemaining] = useState(3);
+  const [totalComparisonsCount, setTotalComparisonsCount] = useState(3);
   const [originalReviewedCourseId, setOriginalReviewedCourseId] = useState<string | null>(null);
-  const [comparisonResults, setComparisonResults] = useState<Array<{ preferredId: string, otherId: string }>>([]);
+  const [comparisonResults, setComparisonResults] = useState<Array<{ preferredId: string; otherId: string }>>([]);
 
-  // 🚀 Phase 1.2: Simple cache for profile verification to reduce database hits
-  const [profileCache] = useState(new Map<string, { verified: boolean; timestamp: number }>());
-  const PROFILE_CACHE_TTL = 10 * 60 * 1000; // 10 minutes
+  // 🚀 Phase 1.2: Cache configurations
+  const CACHE_TTL = 30000; // 30 seconds for rankings
+  const EXTENDED_TTL = 300000; // 5 minutes for frequently accessed data
+  const PROFILE_CACHE_TTL = 600000; // 10 minutes for profile verification
+  const USER_REVIEWS_CACHE_TTL = 180000; // 3 minutes for user reviews cache
+  
+  // 🚀 Phase 1.2: Cache storage
+  const rankingsCache = useRef<Map<string, { data: any; timestamp: number; accessCount: number }>>(new Map());
+  const profileCache = useRef<Map<string, { verified: boolean; timestamp: number }>>(new Map());
+  const userReviewsCache = useRef<Map<string, { reviews: any[]; timestamp: number }>>(new Map());
+
+  // 🚀 QUICK WIN 1: Cached getReviewsForUser with auto-invalidation and robust error handling
+  const getCachedUserReviews = useCallback(async (userId: string): Promise<any[]> => {
+    // Safety check: ensure userId is valid
+    if (!userId || typeof userId !== 'string') {
+      console.error('🚀 [Cache] ERROR - Invalid userId provided:', userId);
+      return [];
+    }
+    
+    const cached = userReviewsCache.current.get(userId);
+    const now = Date.now();
+    
+    if (cached && (now - cached.timestamp) < USER_REVIEWS_CACHE_TTL) {
+      console.log('🚀 [Cache] HIT - Using cached user reviews');
+      // Safety check: ensure cached reviews is an array
+      return Array.isArray(cached.reviews) ? cached.reviews : [];
+    }
+    
+    console.log('🚀 [Cache] MISS - Fetching fresh user reviews');
+    try {
+      const reviews = await getReviewsForUser(userId);
+      // Safety check: ensure reviews is an array before caching
+      const safeReviews = Array.isArray(reviews) ? reviews : [];
+      userReviewsCache.current.set(userId, { reviews: safeReviews, timestamp: now });
+      console.log(`🚀 [Cache] Cached ${safeReviews.length} user reviews`);
+      return safeReviews;
+    } catch (error) {
+      console.error('🚀 [Cache] ERROR - Failed to fetch user reviews:', error);
+      
+      // Fallback 1: Try to use stale cache if available (better than nothing)
+      if (cached) {
+        console.log('🚀 [Cache] FALLBACK - Using stale cached reviews due to fetch error');
+        return cached.reviews;
+      }
+      
+      // Fallback 2: Return empty array and let the calling functions handle gracefully
+      console.log('🚀 [Cache] FALLBACK - Returning empty reviews array due to fetch error and no cache');
+      return [];
+    }
+  }, [USER_REVIEWS_CACHE_TTL]);
+
+  // 🚀 QUICK WIN 1: Helper to invalidate reviews cache after new review submission
+  const invalidateUserReviewsCache = useCallback((userId: string) => {
+    if (!userId || typeof userId !== 'string') {
+      console.warn('🚀 [Cache] WARNING - Invalid userId provided for cache invalidation:', userId);
+      return;
+    }
+    
+    const wasDeleted = userReviewsCache.current.delete(userId);
+    console.log(`🚀 [Cache] Invalidated user reviews cache ${wasDeleted ? 'successfully' : '(cache was empty)'} after new review submission`);
+  }, []);
+
+  // 🚀 QUICK WIN 1: Updated getMedianRankedCourseInTier to use cached reviews  
+  const getMedianRankedCourseInTier = useCallback(async (userId: string, sentiment: SentimentRating) => {
+    const rankings = await rankingService.getUserRankings(userId, sentiment);
+    if (!rankings || rankings.length === 0) return null;
+    
+    // Sort by position (lowest position is highest rank)
+    const sortedRankings = [...rankings].sort((a, b) => a.rank_position - b.rank_position);
+    
+    // Find the middle index
+    const middleIndex = Math.floor(sortedRankings.length / 2);
+    
+    // Return the median-ranked course
+    console.log(`[getMedianRankedCourseInTier] Found median course at position ${sortedRankings[middleIndex].rank_position} out of ${sortedRankings.length} courses`);
+    return sortedRankings[middleIndex];
+  }, []);
 
   const submitReview = useCallback(async (
     review: Omit<CourseReview, 'review_id' | 'user_id' | 'created_at' | 'updated_at'> & { 
@@ -159,6 +222,9 @@ export const ReviewProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         courseId: createdReview.course_id,
         rating: createdReview.rating
       });
+      
+      // 🚀 QUICK WIN 1: Invalidate user reviews cache immediately after successful review creation
+      invalidateUserReviewsCache(user.id);
 
       if (!profileExists) {
         console.log('Profile verification completed after review submission');
@@ -209,7 +275,7 @@ export const ReviewProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         }),
 
         // Get user's reviewed courses for comparison logic
-        getReviewsForUser(user.id)
+        getCachedUserReviews(user.id)
           .catch(err => {
             console.error('Error fetching user reviews:', err);
             return []; // Fallback to empty array
@@ -440,7 +506,7 @@ export const ReviewProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     } finally {
       setIsSubmitting(false);
     }
-  }, [router, user, setNeedsRefresh]);
+      }, [router, user, setNeedsRefresh, getCachedUserReviews, invalidateUserReviewsCache, getMedianRankedCourseInTier]);
 
   const startComparisons = useCallback(async (rating: SentimentRating) => {
     if (!user) {
@@ -450,7 +516,7 @@ export const ReviewProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
     try {
       // Get user's reviewed courses with matching sentiment for comparison
-      const userReviews = await getReviewsForUser(user.id);
+      const userReviews = await getCachedUserReviews(user.id);
       const reviewedCoursesWithSentiment = userReviews.filter(r => r.rating === rating);
       
       if (reviewedCoursesWithSentiment.length >= 2) {
@@ -578,7 +644,7 @@ export const ReviewProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to start comparisons');
     }
-  }, [comparisonsRemaining, router, user]);
+      }, [comparisonsRemaining, router, user, getCachedUserReviews, getMedianRankedCourseInTier]);
 
   const handleComparison = useCallback(async (
     preferredCourseId: string,
@@ -601,7 +667,7 @@ export const ReviewProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         
         if (newComparisonsRemaining <= 0) {
           // End comparison flow if no more comparisons needed
-          const userReviews = await getReviewsForUser(user.id);
+          const userReviews = await getCachedUserReviews(user.id);
           const originalReview = userReviews.find(r => r.course_id === originalReviewedCourseId);
           
           if (originalReview) {
@@ -619,7 +685,7 @@ export const ReviewProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         }
         
         // Otherwise, try to set up the next comparison
-        const userReviews = await getReviewsForUser(user.id);
+        const userReviews = await getCachedUserReviews(user.id);
         const originalReview = userReviews.find(r => r.course_id === originalReviewedCourseId);
         
         if (originalReview) {
@@ -671,7 +737,7 @@ export const ReviewProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       ]);
 
       // Get the original review to know the sentiment category
-      const userReviews = await getReviewsForUser(user.id);
+      const userReviews = await getCachedUserReviews(user.id);
       const originalReview = userReviews.find(r => r.course_id === originalReviewedCourseId);
       
       if (originalReview) {
@@ -712,6 +778,10 @@ export const ReviewProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         if (isFirstComparison) {
           console.log('This was the first comparison (against the median course)');
           
+          // Decrement the comparisons counter after the first comparison as well
+          const newComparisonsRemaining = comparisonsRemaining - 1;
+          setComparisonsRemaining(newComparisonsRemaining);
+          
           // Sort rankings by position to find top and bottom courses
           const sortedRankings = [...rankings].sort((a, b) => a.rank_position - b.rank_position);
           const topCourse = sortedRankings.length > 0 ? sortedRankings[0] : null;
@@ -731,7 +801,7 @@ export const ReviewProvider: React.FC<{ children: React.ReactNode }> = ({ childr
                 params: {
                   courseAId: originalReviewedCourseId,
                   courseBId: topCourse.course_id,
-                  remainingComparisons: comparisonsRemaining, // Don't decrement yet
+                  remainingComparisons: newComparisonsRemaining, // Use decremented value
                   totalComparisons: totalComparisonsCount,
                   originalSentiment: sentiment,
                   originalReviewedCourseId: originalReviewedCourseId
@@ -750,7 +820,7 @@ export const ReviewProvider: React.FC<{ children: React.ReactNode }> = ({ childr
                 params: {
                   courseAId: originalReviewedCourseId,
                   courseBId: bottomCourse.course_id,
-                  remainingComparisons: comparisonsRemaining, // Don't decrement yet
+                  remainingComparisons: newComparisonsRemaining, // Use decremented value
                   totalComparisons: totalComparisonsCount,
                   originalSentiment: sentiment,
                   originalReviewedCourseId: originalReviewedCourseId
@@ -848,7 +918,7 @@ export const ReviewProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         router.replace('/(tabs)/lists');
       }, 2000);
     }
-  }, [user, router, comparisonsRemaining, comparisonResults, originalReviewedCourseId]);
+  }, [user, router, comparisonsRemaining, comparisonResults, originalReviewedCourseId, getCachedUserReviews]);
 
   const skipComparison = useCallback((courseAId: string, courseBId: string) => {
     if (!user || !originalReviewedCourseId) {
@@ -868,7 +938,7 @@ export const ReviewProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       
       if (newComparisonsRemaining > 0) {
         // Get next pair of reviewed courses with matching sentiment
-        getReviewsForUser(user.id).then(async userReviews => {
+        getCachedUserReviews(user.id).then(async userReviews => {
           try {
             const originalReview = userReviews.find(r => r.course_id === originalReviewedCourseId);
             
@@ -950,7 +1020,7 @@ export const ReviewProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         });
       } else {
         // End of comparison flow, go to success screen instead of feed
-        getReviewsForUser(user.id).then(async userReviews => {
+        getCachedUserReviews(user.id).then(async userReviews => {
           try {
             const originalReview = userReviews.find(r => r.course_id === originalReviewedCourseId);
             
@@ -991,7 +1061,7 @@ export const ReviewProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       setComparisonResults([]);
       router.replace('/(tabs)/lists');
     }
-  }, [comparisonsRemaining, router, user, originalReviewedCourseId, comparisonResults]);
+  }, [comparisonsRemaining, router, user, originalReviewedCourseId, comparisonResults, getCachedUserReviews]);
 
   const verifyUserProfile = useCallback(async (userId: string) => {
     if (!userId) return false;
@@ -1024,7 +1094,7 @@ export const ReviewProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
   // 🚀 Phase 1.2: Cached version of profile verification
   const cachedVerifyUserProfile = useCallback(async (userId: string): Promise<boolean> => {
-    const cached = profileCache.get(userId);
+    const cached = profileCache.current.get(userId);
     const now = Date.now();
     
     if (cached && (now - cached.timestamp) < PROFILE_CACHE_TTL) {
@@ -1033,7 +1103,7 @@ export const ReviewProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     }
     
     const verified = await verifyUserProfile(userId);
-    profileCache.set(userId, { verified, timestamp: now });
+    profileCache.current.set(userId, { verified, timestamp: now });
     console.log('🚀 [Cache] Cached profile verification result');
     return verified;
   }, [verifyUserProfile, profileCache, PROFILE_CACHE_TTL]);

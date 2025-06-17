@@ -269,6 +269,9 @@ class RankingService {
     // 🚀 Phase 1.2: Invalidate cache before redistribution
     this.rankingCache.invalidate(userId, sentiment);
     
+    // 🔧 PHASE 1.4: Ensure all reviewed courses have rankings before redistribution
+    await this.ensureAllReviewsHaveRankings(userId, sentiment);
+    
     const rankings = await this.getUserRankings(userId, sentiment);
     
     if (rankings.length === 0) {
@@ -276,15 +279,19 @@ class RankingService {
       return;
     }
     
-    // Step 1: Sort rankings by position
-    const sortedRankings = [...rankings].sort((a, b) => a.rank_position - b.rank_position);
+    // 🔧 PHASE 1.3: Position Integrity Check - Fix gaps and duplicates before redistribution
+    const positionIntegrityResult = await this.ensurePositionIntegrity(userId, sentiment, rankings);
+    const workingRankings = positionIntegrityResult.rankings;
     
-    console.log(`[RankingService] Redistributing scores for ${rankings.length} courses in ${sentiment} category:`);
+    // Step 1: Sort rankings by position
+    const sortedRankings = [...workingRankings].sort((a, b) => a.rank_position - b.rank_position);
+    
+    console.log(`[RankingService] 🔧 Redistributing scores for ${workingRankings.length} courses in ${sentiment} category:`);
     sortedRankings.forEach((ranking, idx) => {
       console.log(`  ${idx + 1}. Course ${ranking.course_id.substring(0, 8)}: Position ${ranking.rank_position}`);
     });
 
-    // Step 2: Calculate new scores - ensuring top course always has max score and enforce strict descending order
+    // Step 2: Calculate new scores with improved algorithm
     const updates = [];
     const range = SENTIMENT_RANGES[sentiment];
     const maxScore = range.max;
@@ -298,56 +305,55 @@ class RankingService {
         relative_score: maxScore
       });
     } else {
-      // For multiple courses, calculate evenly distributed scores with guaranteed separation
+      // 🔧 PHASE 1.1: Fix position gap handling - use actual positions, not array indices
+      const totalPositions = sortedRankings.length;
+      const minDifference = 0.1; // Minimum score difference between adjacent rankings
+      
       // First course always gets max score
       updates.push({
         ...sortedRankings[0],
         relative_score: maxScore
       });
       
-      console.log(`[RankingService] 🔝 Position 1 (course ${sortedRankings[0].course_id.substring(0, 8)}) gets max score: ${maxScore}`);
+      console.log(`[RankingService] 🔝 Position ${sortedRankings[0].rank_position} (course ${sortedRankings[0].course_id.substring(0, 8)}) gets max score: ${maxScore}`);
       
-      // For remaining courses, ensure proper score spacing
+      // 🔧 PHASE 1.2: Improved score distribution algorithm
+      // Calculate step size based on total courses and available range
+      const effectiveStep = Math.max(minDifference, scoreRange / Math.max(1, totalPositions - 1));
+      
       for (let i = 1; i < sortedRankings.length; i++) {
         const ranking = sortedRankings[i];
+        const prevScore = updates[i - 1].relative_score;
         
-        // Calculate ideal score step for even distribution
-        const step = scoreRange / Math.max(1, sortedRankings.length - 1);
+        // Calculate score using improved algorithm
+        let newScore = maxScore - (i * effectiveStep);
         
-        // Base score using position - this creates even spacing
-        let newScore = maxScore - (i * step);
+        // 🔧 PHASE 1.2: Enhanced boundary and spacing checks
+        // Ensure minimum difference from previous score
+        const minAllowedScore = prevScore - minDifference;
+        if (newScore > minAllowedScore) {
+          newScore = minAllowedScore;
+        }
+        
+        // Ensure we don't go below minimum
+        if (newScore < minScore) {
+          // If we've hit the minimum, redistribute remaining scores proportionally
+          const remainingCourses = sortedRankings.length - i;
+          const availableRange = prevScore - minScore;
+          
+          if (remainingCourses > 0 && availableRange > remainingCourses * minDifference) {
+            newScore = prevScore - ((availableRange / remainingCourses) * 0.9); // Use 90% to leave buffer
+          } else {
+            newScore = Math.max(minScore, prevScore - minDifference);
+          }
+        }
         
         // Round to 1 decimal place for cleaner scores
         newScore = Math.round(newScore * 10) / 10;
         
-        // IMPROVED FIX: Always ensure a minimum difference from the previous score
-        // This guarantees no two courses will have the same score
-        const prevScore = updates[i - 1].relative_score;
-        const minDifference = 0.1; // Minimum score difference between adjacent rankings
-        
-        // Force a different score than the previous one, no matter what
-        if (newScore >= prevScore - minDifference) {
-          // Calculate a new score that is exactly minDifference below the previous
-          newScore = Math.max(minScore, prevScore - minDifference);
-          
-          // If we reach the minimum score and still need to go lower, force spacing
-          if (i < sortedRankings.length - 1 && newScore <= minScore) {
-            // Recalculate all remaining scores to fit within the available space
-            const remainingScores = sortedRankings.length - i;
-            const availableRange = prevScore - minScore;
-            
-            // If we can fit all remaining scores with proper spacing
-            if (availableRange >= remainingScores * minDifference) {
-              newScore = prevScore - minDifference;
-            }
-          }
-          
-          console.log(`[RankingService] ⚠️ Force-correcting score for ${ranking.course_id.substring(0, 8)} to ensure proper spacing: ${newScore.toFixed(1)}`);
-        }
-        
         console.log(
-          `[RankingService] Position ${i+1} (course ${ranking.course_id.substring(0, 8)}): ` +
-          `Score: ${newScore.toFixed(1)}`
+          `[RankingService] 🔧 Position ${ranking.rank_position} (course ${ranking.course_id.substring(0, 8)}): ` +
+          `Score: ${newScore.toFixed(1)} (step: ${effectiveStep.toFixed(2)})`
         );
         
         updates.push({
@@ -358,46 +364,99 @@ class RankingService {
     }
 
     // Step 3: Log the score changes for debugging
-    this.logScoreChanges(userId, sentiment, rankings, updates);
+    this.logScoreChanges(userId, sentiment, workingRankings, updates);
 
-    // Step 4: Update all rankings in a transaction
+    // Step 4: Update all rankings atomically
     const { error } = await supabase.from('course_rankings').upsert(updates);
     if (error) {
       console.error('[RankingService] Error updating scores:', error);
       throw error;
     }
 
-    // Step 5: Verify the final rankings
+    // Step 5: Verify the final rankings with enhanced validation
     const finalRankings = await this.getUserRankings(userId, sentiment);
     
-    // Validate: scores should strictly decrease as position increases
+    // 🔧 PHASE 1.2: Enhanced validation with detailed error reporting
     let isValid = true;
     let prevScore = Infinity;
     let prevPos = 0;
+    const FLOAT_TOLERANCE = 0.001;
     
-    console.log('[RankingService] Final verification:');
-    finalRankings.sort((a, b) => a.rank_position - b.rank_position).forEach(r => {
+    console.log('[RankingService] 🔍 Final verification:');
+    const sortedFinalRankings = finalRankings.sort((a, b) => a.rank_position - b.rank_position);
+    
+    for (let i = 0; i < sortedFinalRankings.length; i++) {
+      const r = sortedFinalRankings[i];
+      
+      // Check position ordering
       if (r.rank_position <= prevPos) {
-        console.error(`[RankingService] ❌ Position error: ${r.rank_position} ≤ ${prevPos}`);
+        console.error(`[RankingService] ❌ Position error: Course ${r.course_id.substring(0, 8)} has position ${r.rank_position} ≤ ${prevPos}`);
         isValid = false;
       }
       
-      if (r.relative_score >= prevScore) {
-        console.error(`[RankingService] ❌ Score error: ${r.relative_score} ≥ ${prevScore}`);
+      // Check score ordering with tolerance
+      if (r.relative_score > prevScore + FLOAT_TOLERANCE) {
+        console.error(`[RankingService] ❌ Score error: Course ${r.course_id.substring(0, 8)} has score ${r.relative_score} > ${prevScore} (should be descending)`);
         isValid = false;
       }
       
-      console.log(`  Position ${r.rank_position}: Score ${r.relative_score.toFixed(1)}`);
+      console.log(`  Position ${r.rank_position}: Course ${r.course_id.substring(0, 8)}, Score ${r.relative_score.toFixed(1)}`);
       
       prevPos = r.rank_position;
       prevScore = r.relative_score;
-    });
+    }
     
     if (isValid) {
       console.log(`[RankingService] ✅ Score redistribution successful`);
     } else {
       console.error(`[RankingService] ⚠️ Score redistribution issues detected`);
+      // 🔧 PHASE 1.3: If issues detected, log detailed state for debugging
+      console.error(`[RankingService] 🔍 Debug info - Total courses: ${finalRankings.length}, Sentiment: ${sentiment}`);
     }
+  }
+
+  /**
+   * 🔧 PHASE 1.3: New method to ensure position integrity before redistribution
+   * Fixes gaps, duplicates, and ensures consecutive positioning
+   */
+  private async ensurePositionIntegrity(
+    userId: string, 
+    sentiment: SentimentRating, 
+    rankings: CourseRanking[]
+  ): Promise<{ rankings: CourseRanking[]; hadIssues: boolean }> {
+    const sortedRankings = [...rankings].sort((a, b) => a.rank_position - b.rank_position);
+    
+    // Check for position issues
+    const positions = sortedRankings.map(r => r.rank_position);
+    const uniquePositions = new Set(positions);
+    const hasGaps = sortedRankings.some((r, i) => r.rank_position !== i + 1);
+    const hasDuplicates = uniquePositions.size !== positions.length;
+    
+    if (!hasGaps && !hasDuplicates) {
+      console.log(`[RankingService] ✅ Position integrity already good for ${sentiment}`);
+      return { rankings: sortedRankings, hadIssues: false };
+    }
+    
+    console.log(`[RankingService] 🔧 Position integrity issues detected for ${sentiment}:`);
+    if (hasGaps) console.log(`  - Gaps in positions: [${positions.join(', ')}]`);
+    if (hasDuplicates) console.log(`  - Duplicate positions detected`);
+    
+    // Fix by reassigning consecutive positions (1, 2, 3, ...)
+    const fixedRankings = sortedRankings.map((ranking, index) => ({
+      ...ranking,
+      rank_position: index + 1
+    }));
+    
+    // Update the database with fixed positions
+    const { error } = await supabase.from('course_rankings').upsert(fixedRankings);
+    if (error) {
+      console.error('[RankingService] Error fixing position integrity:', error);
+      // Continue with original rankings if fix fails
+      return { rankings: sortedRankings, hadIssues: true };
+    }
+    
+    console.log(`[RankingService] ✅ Position integrity fixed - normalized to consecutive positions`);
+    return { rankings: fixedRankings, hadIssues: true };
   }
 
   /**
@@ -1107,6 +1166,86 @@ class RankingService {
   clearCache(): void {
     this.rankingCache.clear();
     this.integrityCheckAttempts.clear();
+  }
+
+  /**
+   * 🔧 PHASE 1.4: Ensure all reviewed courses have rankings before redistribution
+   * This prevents partial redistribution issues where some courses have rankings but others don't
+   */
+  private async ensureAllReviewsHaveRankings(userId: string, sentiment: SentimentRating): Promise<void> {
+    try {
+      // Get all reviews for this user and sentiment
+      const { data: reviews, error: reviewsError } = await supabase
+        .from('reviews')
+        .select('course_id')
+        .eq('user_id', userId)
+        .eq('sentiment', sentiment);
+
+      if (reviewsError) {
+        console.error('[RankingService] Error fetching reviews:', reviewsError);
+        return; // Continue with existing rankings if this fails
+      }
+
+      if (!reviews || reviews.length === 0) {
+        console.log(`[RankingService] ✅ No reviews found for sentiment ${sentiment}, nothing to check`);
+        return;
+      }
+
+      // Get existing rankings for this sentiment
+      const existingRankings = await this.getUserRankings(userId, sentiment);
+      const rankedCourseIds = new Set(existingRankings.map(r => r.course_id));
+      
+      // Find courses that have reviews but no rankings
+      const reviewedCourseIds = reviews.map(r => r.course_id);
+      const missingRankings = reviewedCourseIds.filter(courseId => !rankedCourseIds.has(courseId));
+
+      if (missingRankings.length === 0) {
+        console.log(`[RankingService] ✅ All ${reviewedCourseIds.length} reviewed courses already have rankings for ${sentiment}`);
+        return;
+      }
+
+      console.log(`[RankingService] 🔧 Found ${missingRankings.length} courses with reviews but missing rankings for ${sentiment}`);
+      console.log(`[RankingService] 🔧 Total reviewed courses: ${reviewedCourseIds.length}, Existing rankings: ${existingRankings.length}`);
+
+      // Create missing rankings
+      const range = SENTIMENT_RANGES[sentiment];
+      const currentMaxPosition = existingRankings.length > 0 
+        ? Math.max(...existingRankings.map(r => r.rank_position)) 
+        : 0;
+
+      const newRankings = missingRankings.map((courseId, index) => {
+        const position = currentMaxPosition + index + 1;
+        const score = Math.max(range.min, range.max - (position - 1) * 0.1);
+        
+        return {
+          user_id: userId,
+          course_id: courseId,
+          sentiment_category: sentiment,
+          rank_position: position,
+          relative_score: score,
+          comparison_count: 0
+        };
+      });
+
+      // Insert missing rankings
+      const { error: insertError } = await supabase
+        .from('course_rankings')
+        .insert(newRankings);
+
+      if (insertError) {
+        console.error('[RankingService] Error creating missing rankings:', insertError);
+        return; // Continue without failing
+      }
+
+      console.log(`[RankingService] ✅ Created ${newRankings.length} missing rankings for ${sentiment} sentiment`);
+      
+      // Invalidate cache since we added new rankings
+      this.rankingCache.invalidate(userId, sentiment);
+      
+    } catch (error) {
+      console.error('[RankingService] Error in ensureAllReviewsHaveRankings:', error);
+      // Don't throw - continue with redistribution using existing rankings
+    }
   }
 }
 

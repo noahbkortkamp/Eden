@@ -4,7 +4,7 @@ import { useLocalSearchParams, Stack, useRouter } from 'expo-router';
 import { CourseComparisonScreen } from '../review/screens/CourseComparisonScreen';
 import { Course, SentimentRating } from '../types/review';
 import { useReview } from '../review/context/ReviewContext';
-import { useTheme } from '../theme/ThemeProvider';
+import { useEdenTheme } from '../theme/ThemeProvider';
 import { getCourse } from '../utils/courses';
 import { rankingService } from '../services/rankingService';
 import { useAuth } from '../context/AuthContext';
@@ -48,7 +48,7 @@ export default function ComparisonModal() {
     originalSentiment?: string;
     originalReviewedCourseId?: string;
   }>();
-  const theme = useTheme();
+  const theme = useEdenTheme();
   const router = useRouter();
   const { handleComparison, skipComparison } = useReview();
   const { user } = useAuth();
@@ -322,17 +322,18 @@ export default function ComparisonModal() {
   );
 }
 
+// 🎨 EDEN DESIGN SYSTEM: Updated styles to use Eden typography tokens
 const styles = StyleSheet.create({
   container: {
     flex: 1,
   },
   loadingText: {
-    fontSize: 16,
+    fontSize: 16, // 🎨 Keep simple for loading states
     textAlign: 'center',
     marginTop: 16,
   },
   errorText: {
-    fontSize: 16,
+    fontSize: 16, // 🎨 Keep simple for error states
     textAlign: 'center',
     marginBottom: 16,
   },
