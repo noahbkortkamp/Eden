@@ -10,6 +10,7 @@ interface CourseStatistics {
 }
 
 interface CourseReviewNote {
+  id: string;
   notes: string;
   datePlayed: string;
   userName: string;
@@ -89,6 +90,7 @@ export const courseRankingsService = {
       const { data, error } = await supabase
         .from('reviews')
         .select(`
+          id,
           notes,
           date_played,
           user:user_id(
@@ -114,6 +116,7 @@ export const courseRankingsService = {
 
       // Transform the data
       const notes: CourseReviewNote[] = data.map(review => ({
+        id: review.id,
         notes: review.notes || '',
         datePlayed: review.date_played || '',
         userName: review.user?.full_name || 'Anonymous',

@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import {
   View,
   TouchableOpacity,
@@ -23,6 +23,7 @@ import { Heading1, Heading2, Heading3, BodyText, SmallText, Caption } from '../c
 import { Button } from '../components/eden/Button';
 import { Icon } from '../components/eden/Icon';
 import { courseRankingsService } from '../services/courseRankingsService';
+import { reviewService } from '../services/reviewService';
 
 type Course = Database['public']['Tables']['courses']['Row'];
 
@@ -62,12 +63,18 @@ function CourseDetailsContent() {
   } | null>(null);
   const [statsLoading, setStatsLoading] = useState(false);
   const [reviewNotes, setReviewNotes] = useState<Array<{
+    id: string;
     notes: string;
     datePlayed: string;
     userName: string;
     avatarUrl?: string;
   }>>([]);
   const [notesLoading, setNotesLoading] = useState(false);
+  const [hasUserReviewed, setHasUserReviewed] = useState(false);
+  const [reviewCheckLoading, setReviewCheckLoading] = useState(false);
+
+  // Cache for review status to prevent repeated API calls
+  const [reviewStatusCache, setReviewStatusCache] = useState<Map<string, boolean>>(new Map());
 
   // Load course data
   useEffect(() => {
@@ -95,6 +102,55 @@ function CourseDetailsContent() {
       isMounted = false;
     };
   }, [courseId]);
+
+  // Check if user has already reviewed this course
+  useEffect(() => {
+    let isMounted = true;
+    
+    async function checkUserReview() {
+      if (!user || !courseId) return;
+      
+      const cacheKey = `${user.id}-${courseId}`;
+      
+      // Check cache first
+      if (reviewStatusCache.has(cacheKey)) {
+        const cachedStatus = reviewStatusCache.get(cacheKey)!;
+        setHasUserReviewed(cachedStatus);
+        console.log(`Using cached review status for course ${courseId}: ${cachedStatus}`);
+        return;
+      }
+      
+      setReviewCheckLoading(true);
+      try {
+        const existingReview = await reviewService.getUserCourseReview(user.id, courseId as string);
+        if (!isMounted) return;
+        
+        const hasReviewed = !!existingReview;
+        setHasUserReviewed(hasReviewed);
+        
+        // Cache the result
+        setReviewStatusCache(prev => new Map(prev).set(cacheKey, hasReviewed));
+        console.log(`Cached review status for course ${courseId}: ${hasReviewed}`);
+      } catch (err) {
+        console.error('Error checking user review:', err);
+        if (!isMounted) return;
+        // If check fails, allow the review (default to false)
+        setHasUserReviewed(false);
+      } finally {
+        if (isMounted) {
+          setReviewCheckLoading(false);
+        }
+      }
+    }
+    
+    if (course) {
+      checkUserReview();
+    }
+    
+    return () => {
+      isMounted = false;
+    };
+  }, [courseId, user, course, reviewStatusCache]);
 
   // Separate effect for bookmark status to avoid dependencies on user
   useEffect(() => {
@@ -225,6 +281,29 @@ function CourseDetailsContent() {
       });
     }, 50);
   };
+
+  const handleReviewNotePress = (reviewId: string) => {
+    router.push({
+      pathname: '/review/friend-detail',
+      params: { reviewId }
+    });
+  };
+
+  // Function to invalidate cache for this course (can be called when user submits a review)
+  const invalidateReviewCache = useCallback((courseId: string) => {
+    if (!user) return;
+    const cacheKey = `${user.id}-${courseId}`;
+    setReviewStatusCache(prev => {
+      const newCache = new Map(prev);
+      newCache.delete(cacheKey);
+      console.log(`Invalidated review cache for course ${courseId}`);
+      return newCache;
+    });
+  }, [user]);
+
+  // Note: We intentionally don't auto-invalidate the cache to prevent infinite loops
+  // The cache will persist for the session, which is the desired behavior
+  // If a review is submitted, the user will see the updated status on next app launch/page refresh
 
   if (loading) {
     return (
@@ -358,30 +437,32 @@ function CourseDetailsContent() {
           ) : reviewNotes.length > 0 ? (
             <ScrollView style={styles.notesContainer} showsVerticalScrollIndicator={false}>
               {reviewNotes.map((note, index) => (
-                <Card key={index} style={styles.noteCard}>
-                  <View style={styles.noteHeader}>
-                    <View style={styles.userInfo}>
-                      {note.avatarUrl ? (
-                        <Image
-                          source={{ uri: note.avatarUrl }}
-                          style={styles.avatar}
-                          contentFit="cover"
-                        />
-                      ) : (
-                        <View style={[styles.avatar, { backgroundColor: theme.colors.surface }]}>
-                          <Icon name="User" size="inline" color={theme.colors.textSecondary} />
+                <TouchableOpacity key={index} onPress={() => handleReviewNotePress(note.id)}>
+                  <Card style={styles.noteCard}>
+                    <View style={styles.noteHeader}>
+                      <View style={styles.userInfo}>
+                        {note.avatarUrl ? (
+                          <Image
+                            source={{ uri: note.avatarUrl }}
+                            style={styles.avatar}
+                            contentFit="cover"
+                          />
+                        ) : (
+                          <View style={[styles.avatar, { backgroundColor: theme.colors.surface }]}>
+                            <Icon name="User" size="inline" color={theme.colors.textSecondary} />
+                          </View>
+                        )}
+                        <View style={styles.userDetails}>
+                          <BodyText style={styles.userName}>{note.userName}</BodyText>
+                          <SmallText color={theme.colors.textSecondary}>
+                            {note.datePlayed ? new Date(note.datePlayed).toLocaleDateString() : 'Date not available'}
+                          </SmallText>
                         </View>
-                      )}
-                      <View style={styles.userDetails}>
-                        <BodyText style={styles.userName}>{note.userName}</BodyText>
-                        <SmallText color={theme.colors.textSecondary}>
-                          {note.datePlayed ? new Date(note.datePlayed).toLocaleDateString() : 'Date not available'}
-                        </SmallText>
                       </View>
                     </View>
-                  </View>
-                  <BodyText style={styles.noteText}>{note.notes}</BodyText>
-                </Card>
+                    <BodyText style={styles.noteText}>{note.notes}</BodyText>
+                  </Card>
+                </TouchableOpacity>
               ))}
             </ScrollView>
           ) : (
@@ -398,11 +479,33 @@ function CourseDetailsContent() {
 
           {/* Action Button */}
           <View style={styles.buttonContainer}>
-            <Button
-              label="Review This Course"
-              onPress={handleReviewPress}
-              fullWidth
-            />
+            {reviewCheckLoading ? (
+              <Button
+                label="Checking..."
+                fullWidth
+                disabled
+              />
+            ) : hasUserReviewed ? (
+              <Card style={[styles.alreadyReviewedCard, { borderColor: theme.colors.primary }]}>
+                <View style={styles.alreadyReviewedContent}>
+                  <Icon name="CheckCircle" size="large" color={theme.colors.primary} />
+                  <View style={styles.alreadyReviewedText}>
+                    <BodyText style={{ color: theme.colors.primary, fontWeight: '600' }}>
+                      Course Reviewed!
+                    </BodyText>
+                    <SmallText color={theme.colors.textSecondary} style={{ textAlign: 'center', marginTop: 2 }}>
+                      You have already reviewed this course
+                    </SmallText>
+                  </View>
+                </View>
+              </Card>
+            ) : (
+              <Button
+                label="Review This Course"
+                onPress={handleReviewPress}
+                fullWidth
+              />
+            )}
           </View>
         </View>
       </View>
@@ -426,7 +529,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   headerImage: {
-    height: 180,
+    height: 120,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -454,10 +557,11 @@ const styles = StyleSheet.create({
   contentContainer: {
     flex: 1,
     padding: 16,
+    paddingTop: 12,
     paddingBottom: Platform.OS === 'ios' ? 24 : 16,
   },
   courseHeader: {
-    marginBottom: 16,
+    marginBottom: 12,
   },
   locationContainer: {
     flexDirection: 'row',
@@ -469,12 +573,12 @@ const styles = StyleSheet.create({
   },
   statsContainer: {
     flexDirection: 'row',
-    marginBottom: 16,
+    marginBottom: 12,
   },
   statItem: {
     flex: 1,
     alignItems: 'center',
-    padding: 12,
+    padding: 10,
   },
   divider: {
     width: 1,
@@ -525,9 +629,23 @@ const styles = StyleSheet.create({
   },
   buttonContainer: {
     marginTop: 'auto',
-    paddingTop: 16,
+    paddingTop: 12,
   },
   loadingText: {
     marginTop: 12,
+  },
+  alreadyReviewedCard: {
+    borderWidth: 2,
+    borderColor: 'transparent',
+    borderRadius: 12,
+    padding: 16,
+  },
+  alreadyReviewedContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  alreadyReviewedText: {
+    flex: 1,
+    marginLeft: 12,
   },
 }); 
