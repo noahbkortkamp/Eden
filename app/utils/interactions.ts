@@ -33,6 +33,20 @@ export const unlikeReview = async (reviewId: string, userId: string): Promise<vo
   }
 };
 
+// Function to toggle like status on a review
+export const toggleLikeReview = async (reviewId: string, userId: string, currentlyLiked: boolean): Promise<void> => {
+  try {
+    if (currentlyLiked) {
+      await unlikeReview(reviewId, userId);
+    } else {
+      await likeReview(reviewId, userId);
+    }
+  } catch (error) {
+    console.error('Error toggling like on review:', error);
+    throw error;
+  }
+};
+
 // Function to check if a user has liked a review
 export const hasUserLikedReview = async (reviewId: string, userId: string): Promise<boolean> => {
   try {

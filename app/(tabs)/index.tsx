@@ -10,13 +10,15 @@ import { FriendsReviewsFeed, FriendsReviewsFeedRef } from '../components/Friends
 import { UserSearch } from '../components/UserSearch';
 import { useTheme, useEdenTheme } from '../theme/ThemeProvider';
 import EDEN_COLORS from '../theme/edenColors';
+import { LazyTabWrapper } from '../components/LazyTabWrapper';
+import { useTabLazyLoadingContext } from '../context/TabLazyLoadingContext';
 
 type Course = Database['public']['Tables']['courses']['Row'];
 
 // Define tab types for the feed
 type FeedTab = 'friends' | 'trending';
 
-export default function HomeScreen() {
+function HomeScreenContent() {
   const router = useRouter();
   const params = useLocalSearchParams();
   const [fontsLoaded] = useFonts({
@@ -331,3 +333,25 @@ const styles = StyleSheet.create({
     fontSize: 12,
   },
 });
+
+// Export the lazy-loaded version
+export default function HomeScreen() {
+  const { isTabActivated } = useTabLazyLoadingContext();
+  const tabName = 'index';
+  
+  const handleFirstActivation = () => {
+    console.log('🚀 Feed tab: First activation - will load feed data');
+    // The feed data loading will be triggered by the component mount
+  };
+  
+  return (
+    <LazyTabWrapper
+      isActive={true} // This tab is controlled by the navigation
+      hasBeenActive={isTabActivated(tabName)}
+      onFirstActivation={handleFirstActivation}
+      tabName="Feed"
+    >
+      <HomeScreenContent />
+    </LazyTabWrapper>
+  );
+}

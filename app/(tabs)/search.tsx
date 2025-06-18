@@ -39,6 +39,9 @@ import { User } from '../types/index';
 import { bookmarkService } from '../services/bookmarkService';
 import { usePlayedCourses } from '../context/PlayedCoursesContext';
 import { Card, Button, BodyText, SmallText, Heading3, FeedbackBadge } from '../components/eden';
+import { LazyTabWrapper } from '../components/LazyTabWrapper';
+import { useTabLazyLoadingContext } from '../context/TabLazyLoadingContext';
+import { useSmartTabFocus } from '../hooks/useSmartTabFocus';
 
 // Enhanced Course type with search relevance score
 interface EnhancedCourse extends Omit<Course, 'type'> {
@@ -163,7 +166,7 @@ const CourseItem = React.memo(({
   );
 });
 
-export default function SearchScreen() {
+function SearchScreenContent() {
   const router = useRouter();
   const params = useLocalSearchParams();
   const theme = useEdenTheme();
@@ -193,6 +196,9 @@ export default function SearchScreen() {
   
   // Refs to track ongoing requests that might need cancellation
   const loadingOperationsRef = useRef<{cancel?: () => void}>({});
+  
+  // Add ref to throttle status refreshes
+  const lastStatusRefresh = useRef<number>(0);
   
   // Add cache state
   const [coursesCache, setCoursesCache] = useState<{
@@ -295,13 +301,12 @@ export default function SearchScreen() {
     }
   }, [coursesCache, isCacheValid]);
 
-  // Modify the main data loading effect to handle the fromReviewSuccess parameter
+  // Optimized data loading - cache courses, only refresh status
   useEffect(() => {
-    if (activeTab === 'courses') {
-      setInitialLoadComplete(false);
-      
-      // Load all data in parallel, but defer if coming from review success
+    if (activeTab === 'courses' && !initialLoadComplete) {
       const loadAllData = async () => {
+        console.log('🔄 Search: Loading course data...');
+        
         // Cancel any previous loading operations
         if (loadingOperationsRef.current.cancel) {
           loadingOperationsRef.current.cancel();
@@ -310,33 +315,38 @@ export default function SearchScreen() {
         const cancelTokens: {cancel?: () => void}[] = [];
         loadingOperationsRef.current = { cancel: () => cancelTokens.forEach(t => t.cancel?.()) };
         
-        if (isFromReviewSuccess) {
-          // If coming from review success, first show cached data if available
-          if (isCacheValid(coursesCache)) {
-            setCourses(coursesCache!.data);
+        try {
+          // Always load courses first (uses cache if available)
+          await loadCourses();
+          
+          if (isFromReviewSuccess) {
+            console.log('💾 Search: Coming from review - only refreshing status data');
+            // Only refresh the status data, not the courses themselves
+            setInitialLoadComplete(true);
+            
+            // Refresh status data in background without blocking UI
+            setTimeout(() => {
+              Promise.all([
+                loadReviewedCourses(),
+                loadBookmarkedCourses()
+              ]).then(() => {
+                console.log('✅ Search: Status data refreshed');
+              }).catch(error => {
+                console.error('❌ Search: Error refreshing status data:', error);
+              });
+            }, 100);
+          } else {
+            console.log('🚀 Search: Normal load - getting status data');
+            // Normal flow - load status data
+            await Promise.all([
+              loadReviewedCourses(),
+              loadBookmarkedCourses()
+            ]);
+            setInitialLoadComplete(true);
           }
-          
-          // Critical: Ensure UI is responsive even during data loading
-          // Mark as initially loaded to enable interaction
-          setInitialLoadComplete(true);
-          
-          // Then defer and load in sequence instead of parallel
-          setTimeout(async () => {
-            // Use requestAnimationFrame to optimize when we run heavy operations
-            requestAnimationFrame(async () => {
-              await loadCourses({ defer: true });
-              await loadReviewedCourses();
-              await loadBookmarkedCourses();
-            });
-          }, 300);
-        } else {
-          // Normal flow - load in parallel
-          await Promise.all([
-            loadCourses(),
-            loadReviewedCourses(),
-            loadBookmarkedCourses()
-          ]);
-          setInitialLoadComplete(true);
+        } catch (error) {
+          console.error('❌ Search: Error loading data:', error);
+          setInitialLoadComplete(true); // Still set to true to prevent infinite loading
         }
       };
       
@@ -349,7 +359,7 @@ export default function SearchScreen() {
         }
       };
     }
-  }, [activeTab, loadCourses, loadReviewedCourses, loadBookmarkedCourses, isFromReviewSuccess, isCacheValid, coursesCache]);
+  }, [activeTab, initialLoadComplete]); // Removed function dependencies to prevent loops
   
   // Add a useEffect to clean the fromReviewSuccess param
   useEffect(() => {
@@ -645,34 +655,58 @@ export default function SearchScreen() {
     }
   };
 
-  // Check and refresh the following status for all displayed users when screen comes into focus
+  // Smart focus effect - only refresh status data, not courses
   useFocusEffect(
     useCallback(() => {
-      const refreshFollowingStatus = async () => {
-        if (!user || users.length === 0) return;
-        
-        try {
-          const statusPromises = users.map(async (userResult) => {
-            const status = await isFollowing(user.id, userResult.id);
-            return { userId: userResult.id, isFollowing: status };
-          });
-          
-          const statuses = await Promise.all(statusPromises);
-          const statusMap = statuses.reduce((acc, curr) => {
-            acc[curr.userId] = curr.isFollowing;
-            return acc;
-          }, {} as {[key: string]: boolean});
-          
-          setFollowingStatus(statusMap);
-        } catch (error) {
-          console.error('Error refreshing following status:', error);
+      console.log('📱 Search tab focused');
+      
+      const refreshStatusData = async () => {
+        if (activeTab === 'courses') {
+          // For courses tab, only refresh played/bookmarked status
+          console.log('🔄 Search: Refreshing course status data only');
+          try {
+            await Promise.all([
+              loadReviewedCourses(),
+              loadBookmarkedCourses()
+            ]);
+            console.log('✅ Search: Course status refreshed');
+          } catch (error) {
+            console.error('Error refreshing course status:', error);
+          }
+        } else if (activeTab === 'members' && users.length > 0) {
+          // For members tab, refresh following status
+          console.log('🔄 Search: Refreshing following status');
+          try {
+            const statusPromises = users.map(async (userResult) => {
+              const status = await isFollowing(user.id, userResult.id);
+              return { userId: userResult.id, isFollowing: status };
+            });
+            
+            const statuses = await Promise.all(statusPromises);
+            const statusMap = statuses.reduce((acc, curr) => {
+              acc[curr.userId] = curr.isFollowing;
+              return acc;
+            }, {} as {[key: string]: boolean});
+            
+            setFollowingStatus(statusMap);
+            console.log('✅ Search: Following status refreshed');
+          } catch (error) {
+            console.error('Error refreshing following status:', error);
+          }
         }
       };
       
-      if (activeTab === 'members') {
-        refreshFollowingStatus();
+      // Throttle to prevent excessive refreshes
+      const now = Date.now();
+      const timeSinceLastRefresh = now - (lastStatusRefresh.current || 0);
+      
+      if (timeSinceLastRefresh > 3000) { // 3 second throttle
+        lastStatusRefresh.current = now;
+        refreshStatusData();
+      } else {
+        console.log(`⏭️ Search: Skipping status refresh - too soon (${timeSinceLastRefresh}ms)`);
       }
-    }, [user, users, activeTab])
+    }, [activeTab, users.length, user, loadReviewedCourses, loadBookmarkedCourses])
   );
 
   // Add this memoized renderItem function before the return statement
@@ -1093,4 +1127,31 @@ const styles = StyleSheet.create({
     marginBottom: 8,
     paddingHorizontal: 2, // Small padding to accommodate pressed state effects
   },
-}); 
+});
+
+// Export the lazy-loaded version
+export default function SearchScreen() {
+  const { isTabActivated, markTabAsActivated } = useTabLazyLoadingContext();
+  const tabName = 'search';
+  
+  const handleFirstActivation = () => {
+    console.log('🚀 Search tab: First activation - will load course data');
+    markTabAsActivated(tabName);
+  };
+  
+  // Always mark as activated when the screen mounts to fix loading issues
+  React.useEffect(() => {
+    markTabAsActivated(tabName);
+  }, [markTabAsActivated, tabName]);
+  
+  return (
+    <LazyTabWrapper
+      isActive={true} // This tab is controlled by the navigation
+      hasBeenActive={true} // Force to true to prevent loading screen issues
+      onFirstActivation={handleFirstActivation}
+      tabName="Search"
+    >
+      <SearchScreenContent />
+    </LazyTabWrapper>
+  );
+} 

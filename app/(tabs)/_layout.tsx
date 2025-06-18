@@ -2,9 +2,19 @@ import { Tabs } from 'expo-router';
 import { useEdenTheme } from '../theme/ThemeProvider';
 import { Home, List, PlusCircle, Trophy, User } from 'lucide-react-native';
 import { Platform, View } from 'react-native';
+import { useState } from 'react';
+import { TabLazyLoadingProvider, useTabLazyLoadingContext } from '../context/TabLazyLoadingContext';
 
-export default function TabLayout() {
+function TabLayoutContent() {
   const theme = useEdenTheme();
+  const [activeTab, setActiveTab] = useState('lists'); // Start with lists tab as default
+  const { markTabAsActivated, isTabActivated } = useTabLazyLoadingContext();
+
+  const handleTabPress = (tabName: string) => {
+    console.log(`📱 TabLayout: Tab pressed - ${tabName}`);
+    setActiveTab(tabName);
+    markTabAsActivated(tabName);
+  };
 
   return (
     <View style={{ flex: 1 }}>
@@ -37,6 +47,15 @@ export default function TabLayout() {
             fontSize: 18,
             fontWeight: '600',
             color: theme.colors.text,
+          },
+        }}
+        screenListeners={{
+          tabPress: (e) => {
+            // Extract tab name from the route name
+            const routeName = e.target?.split('-')[0] || '';
+            if (routeName) {
+              handleTabPress(routeName);
+            }
           },
         }}
         initialRouteName="lists">
@@ -111,5 +130,13 @@ export default function TabLayout() {
       />
     </Tabs>
     </View>
+  );
+}
+
+export default function TabLayout() {
+  return (
+    <TabLazyLoadingProvider>
+      <TabLayoutContent />
+    </TabLazyLoadingProvider>
   );
 }

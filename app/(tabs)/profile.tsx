@@ -25,6 +25,8 @@ import {
   Icon
 } from '../components/eden';
 import { useEdenTheme } from '../theme';
+import { LazyTabWrapper } from '../components/LazyTabWrapper';
+import { useTabLazyLoadingContext } from '../context/TabLazyLoadingContext';
 
 type Course = Database['public']['Tables']['courses']['Row'];
 type Review = Database['public']['Tables']['reviews']['Row'];
@@ -48,7 +50,7 @@ const fallbackScores = {
   'didnt_like': 3.0
 };
 
-export default function ProfileScreen() {
+function ProfileScreenContent() {
   const { user, signOut } = useAuth();
   const router = useRouter();
   const [reviews, setReviews] = useState<ReviewWithCourse[]>([]);
@@ -434,4 +436,26 @@ const styles = StyleSheet.create({
   exploreButton: {
     marginTop: 16,
   }
-}); 
+});
+
+// Export the lazy-loaded version
+export default function ProfileScreen() {
+  const { isTabActivated } = useTabLazyLoadingContext();
+  const tabName = 'profile';
+  
+  const handleFirstActivation = () => {
+    console.log('🚀 Profile tab: First activation - will load profile data');
+    // The profile data loading will be triggered by the component mount
+  };
+  
+  return (
+    <LazyTabWrapper
+      isActive={true} // This tab is controlled by the navigation
+      hasBeenActive={isTabActivated(tabName)}
+      onFirstActivation={handleFirstActivation}
+      tabName="Profile"
+    >
+      <ProfileScreenContent />
+    </LazyTabWrapper>
+  );
+} 

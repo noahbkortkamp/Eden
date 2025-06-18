@@ -16,6 +16,9 @@ import BasicWantToPlayList from '../components/BasicWantToPlayList';
 import { MapPin, X, Bookmark as BookmarkIcon, Search, Star, Plus } from 'lucide-react-native';
 import { Heading1, BodyText, Heading2 } from '../components/eden/Typography';
 import { Icon } from '../components/eden/Icon';
+import { LazyTabWrapper } from '../components/LazyTabWrapper';
+import { useTabLazyLoadingContext } from '../context/TabLazyLoadingContext';
+import { useSmartTabFocus } from '../hooks/useSmartTabFocus';
 
 // Define the SentimentRating type directly
 type SentimentRating = 'liked' | 'fine' | 'didnt_like';
@@ -27,7 +30,8 @@ interface EnhancedCourse extends Course {
   showScores?: boolean;
 }
 
-export default function ListsScreen() {
+// Main content component that contains the heavy data logic
+function ListsScreenContent() {
   const theme = useTheme();
   const { user } = useAuth();
   const { initialTab } = useLocalSearchParams<{ initialTab?: 'played' | 'want-to-play' }>();
@@ -159,71 +163,33 @@ export default function ListsScreen() {
     }
   }, [user, hasLoadedCourses, isCoursesLoading]);
 
-  // Modified useFocusEffect to check for updated timestamp with debouncing
+  // Optimized useFocusEffect with simple debouncing instead of complex smart caching for now
   useFocusEffect(
     useCallback(() => {
-      console.log('Lists tab is now focused, usingTestData:', usingTestData);
-      
-      // Track if user review count has changed to determine if we need to refresh played courses
-      let reviewCountChanged = false;
-      
-      // Refresh user review count on tab focus
-      if (user) {
-        reviewService.getUserReviewCount(user.id)
-          .then(count => {
-            console.log(`🔢 Tab focused: User has ${count} reviews. Score visibility: ${count >= 10 ? 'ENABLED' : 'DISABLED'}`);
-            // Check if review count has changed since last time
-            if (userReviewCount !== count) {
-              console.log('🔄 Review count changed, will refresh played courses');
-              reviewCountChanged = true;
-            }
-            setUserReviewCount(count);
-          })
-          .catch(err => {
-            console.error('Error refreshing user review count on tab focus:', err);
-          });
-      }
+      console.log('📱 Lists tab focused - simple optimization');
       
       const now = Date.now();
       const timeSinceLastRefresh = now - lastRefreshTime.current;
       
-      // Prevent refreshing too frequently
+      // Only reload if enough time has passed (simple throttling)
       if (timeSinceLastRefresh < REFRESH_THROTTLE_MS) {
-        console.log(`THROTTLING: Refresh attempted too soon (${timeSinceLastRefresh}ms since last refresh)`);
+        console.log(`⏭️ Lists: Skipping refresh - too soon (${timeSinceLastRefresh}ms since last)`);
         return;
       }
       
-      // Only reload if:
-      // 1. Not using test data AND
-      // 2. Either:
-      //    a. No courses loaded yet OR
-      //    b. The data has been marked for refresh due to a review count change
-      if (!usingTestData && (!hasLoadedCourses || reviewCountChanged)) {
-        console.log('Triggering data reload on focus - courses not loaded or review count changed');
+      // Only reload if not using test data and don't have courses loaded
+      if (!usingTestData && !hasLoadedCourses) {
+        console.log('🚀 Lists: Loading data on focus');
         lastRefreshTime.current = now;
         loadData();
-      } else if (!usingTestData && currentTimestampRef.current !== lastUpdateTimestamp) {
-        // If only the timestamp changed but reviews didn't change, 
-        // just refresh want-to-play and recommended, not played courses
-        console.log('PARTIAL REFRESH: Refreshing only want-to-play and recommended sections');
-        
-        // Update timestamp ref to prevent repeated refreshes
-        currentTimestampRef.current = lastUpdateTimestamp;
-        
-        // Only refresh Want-to-Play courses
-        if (fetchWantToPlayCoursesRef.current) {
-          fetchWantToPlayCoursesRef.current();
-        }
       } else {
-        console.log('SKIPPING automatic data reload since we',
-          usingTestData ? 'ARE using test data' : 
-            (hasLoadedCourses ? 'already loaded courses and review count is unchanged' : 'are currently loading or have courses'));
+        console.log('💾 Lists: Skipping reload - data already loaded or using test data');
       }
       
       return () => {
-        console.log('Lists tab lost focus');
+        console.log('📱 Lists tab lost focus');
       };
-    }, [usingTestData, hasLoadedCourses, isCoursesLoading, lastUpdateTimestamp, user, setNeedsRefresh, userReviewCount])
+    }, [usingTestData, hasLoadedCourses, loadData])
   );
 
   // Watch for changes in userReviewCount and update showScores property for all courses
@@ -1108,4 +1074,24 @@ const edenStyles = StyleSheet.create({
   },
 });
 
-// ... rest of the existing styles ... 
+// Export the lazy-loaded version
+export default function ListsScreen() {
+  const { isTabActivated } = useTabLazyLoadingContext();
+  const tabName = 'lists';
+  
+  const handleFirstActivation = () => {
+    console.log('🚀 Lists tab: First activation - will load heavy data');
+    // The heavy data loading will be triggered by the component mount
+  };
+  
+  return (
+    <LazyTabWrapper
+      isActive={true} // This tab is controlled by the navigation
+      hasBeenActive={isTabActivated(tabName)}
+      onFirstActivation={handleFirstActivation}
+      tabName="Your Courses"
+    >
+      <ListsScreenContent />
+    </LazyTabWrapper>
+  );
+} 

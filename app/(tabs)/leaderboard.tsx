@@ -5,8 +5,10 @@ import { useEdenTheme } from '../theme';
 import { Heading1, Heading2, BodyText, Card, Icon } from '../components/eden';
 import { LeaderboardItem } from '../components/LeaderboardItem';
 import { leaderboardService, type LeaderboardUser } from '../services/leaderboardService';
+import { LazyTabWrapper } from '../components/LazyTabWrapper';
+import { useTabLazyLoadingContext } from '../context/TabLazyLoadingContext';
 
-export default function LeaderboardScreen() {
+function LeaderboardScreenContent() {
   const theme = useEdenTheme();
   const [users, setUsers] = useState<LeaderboardUser[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -155,4 +157,26 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingBottom: 100, // Space for tab bar
   },
-}); 
+});
+
+// Export the lazy-loaded version
+export default function LeaderboardScreen() {
+  const { isTabActivated } = useTabLazyLoadingContext();
+  const tabName = 'leaderboard';
+  
+  const handleFirstActivation = () => {
+    console.log('🚀 Leaderboard tab: First activation - will load leaderboard data');
+    // The leaderboard data loading will be triggered by the component mount
+  };
+  
+  return (
+    <LazyTabWrapper
+      isActive={true} // This tab is controlled by the navigation
+      hasBeenActive={isTabActivated(tabName)}
+      onFirstActivation={handleFirstActivation}
+      tabName="Leaderboard"
+    >
+      <LeaderboardScreenContent />
+    </LazyTabWrapper>
+  );
+} 

@@ -111,49 +111,8 @@ class RankingService {
     oldRankings: CourseRanking[],
     newRankings: CourseRanking[]
   ): void {
-    console.log(`\n[RankingService] Redistributing scores for user ${userId} in ${sentiment} category`);
-    console.log(`Total rankings: ${newRankings.length}`);
-    
-    // Sort old and new rankings by position for better comparison
-    const sortedOldRankings = [...oldRankings].sort((a, b) => a.rank_position - b.rank_position);
-    const sortedNewRankings = [...newRankings].sort((a, b) => a.rank_position - b.rank_position);
-    
-    console.log('\n[RankingService] Score changes summary:');
-    console.log('Position | Course ID | Old Score → New Score');
-    console.log('---------|-----------|-------------------');
-    
-    // Log score changes for each course in position order
-    sortedNewRankings.forEach(newRanking => {
-      const oldRanking = sortedOldRankings.find(r => r.course_id === newRanking.course_id);
-      
-      if (oldRanking) {
-        const scoreChanged = oldRanking.relative_score !== newRanking.relative_score;
-        const positionChanged = oldRanking.rank_position !== newRanking.rank_position;
-        
-        // Only display changes
-        if (scoreChanged || positionChanged) {
-          const positionInfo = positionChanged 
-            ? `${oldRanking.rank_position} → ${newRanking.rank_position}` 
-            : `${newRanking.rank_position}`;
-            
-          console.log(
-            `${positionInfo.padEnd(9)} | ` +
-            `${newRanking.course_id.substring(0, 8)}... | ` +
-            `${oldRanking.relative_score} → ${newRanking.relative_score} ` +
-            `${scoreChanged ? '(changed)' : ''}`
-          );
-        }
-      } else {
-        // New courses that weren't in old rankings
-        console.log(
-          `${newRanking.rank_position.toString().padEnd(9)} | ` +
-          `${newRanking.course_id.substring(0, 8)}... | ` +
-          `NEW: ${newRanking.relative_score}`
-        );
-      }
-    });
-    
-    console.log('\n');
+    // Only log summary - removed verbose per-course logging for performance
+    console.log(`[RankingService] Score redistribution complete: ${newRankings.length} ${sentiment} courses`);
   }
 
   /**
@@ -181,21 +140,15 @@ class RankingService {
    * Get all course rankings for a user in a specific sentiment category
    */
   async getUserRankings(userId: string, sentiment: SentimentRating): Promise<CourseRanking[]> {
-    console.log(`[RankingService] Getting rankings for user ${userId} in ${sentiment} category`);
-    
     // 🚀 Performance: Circuit breaker key
     const circuitKey = `${userId}:${sentiment}`;
     
     // 🚀 Phase 1.2: Check cache with validation
     const cachedRankings = this.rankingCache.get(userId, sentiment);
     if (cachedRankings) {
-      console.log(`✅ [Cache] HIT for ${circuitKey} (age: ${Math.floor((Date.now() - (this.rankingCache as any).cache.get(`${userId}:${sentiment}`)?.timestamp || 0) / 1000)}s)`);
-      
       // 🚀 Performance: Skip integrity check if recently attempted
       const attempts = this.integrityCheckAttempts.get(circuitKey) || 0;
       if (attempts >= this.MAX_INTEGRITY_ATTEMPTS) {
-        console.log(`🚫 [Circuit Breaker] Skipping integrity check for ${circuitKey} (${attempts}/${this.MAX_INTEGRITY_ATTEMPTS} attempts)`);
-        console.log(`💾 [Cache] Found ${cachedRankings.length} rankings in cache`);
         return cachedRankings;
       }
       
@@ -208,7 +161,6 @@ class RankingService {
         this.rankingCache.invalidate(userId, sentiment);
         this.integrityCheckAttempts.set(circuitKey, attempts + 1);
       } else {
-        console.log(`💾 [Cache] Found ${cachedRankings.length} rankings in cache`);
         return cachedRankings;
       }
     }
@@ -225,15 +177,7 @@ class RankingService {
       throw error;
     }
     
-    console.log(`[RankingService] Found ${data?.length || 0} rankings`);
-    
-    // Log the top 3 rankings for debugging
-    if (data && data.length > 0) {
-      console.log(`[RankingService] Top 3 rankings:`);
-      data.slice(0, 3).forEach(ranking => {
-        console.log(`  Position ${ranking.rank_position}: Course ${ranking.course_id.substring(0, 8)}, Score: ${ranking.relative_score.toFixed(1)}`);
-      });
-    }
+    // Removed verbose ranking logs for performance
     
     // 🚀 Performance: Validate data before caching to prevent infinite loops
     const rankings = data || [];
@@ -275,7 +219,6 @@ class RankingService {
     const rankings = await this.getUserRankings(userId, sentiment);
     
     if (rankings.length === 0) {
-      console.log(`[RankingService] No rankings found for redistribution`);
       return;
     }
     
@@ -286,10 +229,7 @@ class RankingService {
     // Step 1: Sort rankings by position
     const sortedRankings = [...workingRankings].sort((a, b) => a.rank_position - b.rank_position);
     
-    console.log(`[RankingService] 🔧 Redistributing scores for ${workingRankings.length} courses in ${sentiment} category:`);
-    sortedRankings.forEach((ranking, idx) => {
-      console.log(`  ${idx + 1}. Course ${ranking.course_id.substring(0, 8)}: Position ${ranking.rank_position}`);
-    });
+    // Removed verbose course listing for performance
 
     // Step 2: Calculate new scores with improved algorithm
     const updates = [];
@@ -315,7 +255,7 @@ class RankingService {
         relative_score: maxScore
       });
       
-      console.log(`[RankingService] 🔝 Position ${sortedRankings[0].rank_position} (course ${sortedRankings[0].course_id.substring(0, 8)}) gets max score: ${maxScore}`);
+      // Removed verbose position logging for performance
       
       // 🔧 PHASE 1.2: Improved score distribution algorithm
       // Calculate step size based on total courses and available range
@@ -351,10 +291,7 @@ class RankingService {
         // Round to 1 decimal place for cleaner scores
         newScore = Math.round(newScore * 10) / 10;
         
-        console.log(
-          `[RankingService] 🔧 Position ${ranking.rank_position} (course ${ranking.course_id.substring(0, 8)}): ` +
-          `Score: ${newScore.toFixed(1)} (step: ${effectiveStep.toFixed(2)})`
-        );
+        // Removed verbose score calculation logging for performance
         
         updates.push({
           ...ranking,
@@ -376,13 +313,12 @@ class RankingService {
     // Step 5: Verify the final rankings with enhanced validation
     const finalRankings = await this.getUserRankings(userId, sentiment);
     
-    // 🔧 PHASE 1.2: Enhanced validation with detailed error reporting
+    // 🔧 PHASE 1.2: Enhanced validation - keep only error reporting, remove verbose success logging
     let isValid = true;
     let prevScore = Infinity;
     let prevPos = 0;
     const FLOAT_TOLERANCE = 0.001;
     
-    console.log('[RankingService] 🔍 Final verification:');
     const sortedFinalRankings = finalRankings.sort((a, b) => a.rank_position - b.rank_position);
     
     for (let i = 0; i < sortedFinalRankings.length; i++) {
@@ -400,17 +336,13 @@ class RankingService {
         isValid = false;
       }
       
-      console.log(`  Position ${r.rank_position}: Course ${r.course_id.substring(0, 8)}, Score ${r.relative_score.toFixed(1)}`);
-      
       prevPos = r.rank_position;
       prevScore = r.relative_score;
     }
     
-    if (isValid) {
-      console.log(`[RankingService] ✅ Score redistribution successful`);
-    } else {
+    // Only log errors, not successful operations
+    if (!isValid) {
       console.error(`[RankingService] ⚠️ Score redistribution issues detected`);
-      // 🔧 PHASE 1.3: If issues detected, log detailed state for debugging
       console.error(`[RankingService] 🔍 Debug info - Total courses: ${finalRankings.length}, Sentiment: ${sentiment}`);
     }
   }
@@ -433,13 +365,13 @@ class RankingService {
     const hasDuplicates = uniquePositions.size !== positions.length;
     
     if (!hasGaps && !hasDuplicates) {
-      console.log(`[RankingService] ✅ Position integrity already good for ${sentiment}`);
       return { rankings: sortedRankings, hadIssues: false };
     }
     
-    console.log(`[RankingService] 🔧 Position integrity issues detected for ${sentiment}:`);
-    if (hasGaps) console.log(`  - Gaps in positions: [${positions.join(', ')}]`);
-    if (hasDuplicates) console.log(`  - Duplicate positions detected`);
+    // Only log issues, not success cases
+    if (hasGaps || hasDuplicates) {
+      console.warn(`[RankingService] Position integrity issues detected for ${sentiment} - fixing automatically`);
+    }
     
     // Fix by reassigning consecutive positions (1, 2, 3, ...)
     const fixedRankings = sortedRankings.map((ranking, index) => ({
@@ -455,7 +387,6 @@ class RankingService {
       return { rankings: sortedRankings, hadIssues: true };
     }
     
-    console.log(`[RankingService] ✅ Position integrity fixed - normalized to consecutive positions`);
     return { rankings: fixedRankings, hadIssues: true };
   }
 
@@ -474,7 +405,7 @@ class RankingService {
       ? Math.max(...existingRankings.map(r => r.rank_position)) + 1 
       : 1;
 
-    console.log(`[RankingService] Adding new ranking for course ${courseId} at position ${nextPosition}`);
+    // Adding new ranking silently for performance
 
     // Calculate initial score based on position
     const range = SENTIMENT_RANGES[sentiment];
@@ -501,7 +432,6 @@ class RankingService {
     }
 
     // Verify and fix any ranking integrity issues
-    console.log(`[RankingService] Verifying ranking integrity after adding new course`);
     await this.verifyRankingsIntegrity(userId, sentiment);
 
     // Redistribute scores to maintain even spacing
@@ -522,8 +452,6 @@ class RankingService {
 
     // 🚀 Phase 1.2: Invalidate cache after adding new course
     this.rankingCache.invalidate(userId, sentiment);
-
-    console.log(`[RankingService] Successfully added and scored new ranking for course ${courseId}`);
     return updatedData;
   }
 
@@ -571,8 +499,6 @@ class RankingService {
       const needsReordering = preferredPosition > otherPosition;
   
       if (needsReordering) {
-        console.log(`[RankingService] Reordering needed: preferred course should move from position ${preferredPosition} to ${otherPosition}`);
-        
         // Create a transaction for updating multiple records
         try {
           // Use the swap_course_rankings DB function for atomic updates
@@ -585,13 +511,8 @@ class RankingService {
             console.error('[RankingService] Error swapping rankings:', error);
             throw error;
           }
-          
-          console.log('[RankingService] Rankings swapped successfully');
         } catch (err) {
           console.error('[RankingService] Transaction error:', err);
-          
-          // Fallback approach if the DB function fails
-          console.log('[RankingService] Using fallback method to update positions');
           
           // Create a copy of all rankings
           let updatedRankings = [...allRankings];
@@ -653,17 +574,6 @@ class RankingService {
       
       // Final verification after score redistribution
       const finalRankings = await this.getUserRankings(userId, sentiment);
-      
-      console.log('[RankingService] Final rankings after comparison:');
-      finalRankings.sort((a, b) => a.rank_position - b.rank_position).forEach(r => {
-        const isPreferred = r.course_id === preferredCourseId;
-        const isOther = r.course_id === otherCourseId;
-        console.log(
-          `  Position ${r.rank_position}: Course ${r.course_id.substring(0, 8)}` +
-          `${isPreferred ? ' (PREFERRED)' : ''}${isOther ? ' (OTHER)' : ''} - ` +
-          `Score: ${r.relative_score.toFixed(1)}`
-        );
-      });
     } catch (error) {
       console.error('[RankingService] Error in updateRankingsAfterComparison:', error);
       throw error;
@@ -683,17 +593,13 @@ class RankingService {
   private calculateRelativeScore(position: number, totalRankings: number, sentiment: SentimentRating): number {
     const range = SENTIMENT_RANGES[sentiment];
     
-    console.log(`[RankingService][FIXED] Calculating score for position ${position} of ${totalRankings} in ${sentiment} category`);
-    
     // Always give the maximum score for the top-ranked course in each category
     if (position === 1) {
-      console.log(`[RankingService][FIXED] Top position, giving max score: ${range.max}`);
       return range.max;
     }
 
     // If there's only one course, it gets the maximum score
     if (totalRankings === 1) {
-      console.log(`[RankingService][FIXED] Only one course, giving max score: ${range.max}`);
       return range.max;
     }
 
@@ -800,7 +706,7 @@ class RankingService {
     
     // Fetch fresh data
     const rankings = await this.getUserRankings(userId, sentiment);
-    console.log(`[RankingService] Refreshed ${rankings.length} rankings with latest scores`);
+    // Rankings refreshed silently for performance
     
     return rankings;
   }
@@ -822,11 +728,8 @@ class RankingService {
     const rankings = await this.getUserRankings(userId, sentiment);
     
     if (rankings.length === 0) {
-      console.log(`[RankingService] No rankings to verify for ${userId} in ${sentiment} category`);
       return true;
     }
-    
-    console.log(`[RankingService] Verifying integrity of ${rankings.length} rankings in ${sentiment} category`);
     
     // Sort rankings by position
     const sortedRankings = [...rankings].sort((a, b) => a.rank_position - b.rank_position);
@@ -936,7 +839,7 @@ class RankingService {
    * Can be called to repair corrupt or inconsistent rankings
    */
   async refreshAllRankings(userId: string): Promise<void> {
-    console.log(`[RankingService] Refreshing all rankings for user ${userId}`);
+    // Refreshing all rankings silently for performance
     
     // 🚀 Phase 1.2: Clear all cached data for this user
     this.rankingCache.invalidate(userId);
@@ -984,7 +887,7 @@ class RankingService {
     comparisonCount: number;
     lastCompared: string | null;
   }>>> {
-    console.log(`[RankingService] Exporting ranking data for user ${userId}`);
+    // Exporting ranking data silently for performance
     
     const sentiments: SentimentRating[] = ['liked', 'fine', 'didnt_like'];
     const result: Record<SentimentRating, any[]> = {
@@ -1018,7 +921,7 @@ class RankingService {
    * This can be used as a one-time fix for existing rankings that might have duplicate scores
    */
   async forceRefreshRankings(userId: string, sentiment: SentimentRating): Promise<void> {
-    console.log(`[RankingService] Force refreshing all rankings for user ${userId} in ${sentiment} category`);
+    // Force refreshing rankings silently for performance
     
     // 🚀 Phase 1.2: Invalidate cache before force refresh
     this.rankingCache.invalidate(userId, sentiment);
@@ -1036,7 +939,6 @@ class RankingService {
     const rankings = await this.getUserRankings(userId, sentiment);
     
     if (rankings.length <= 1) {
-      console.log(`[RankingService] Only ${rankings.length} rankings found, no need for additional verification`);
       return;
     }
     
@@ -1044,9 +946,7 @@ class RankingService {
     const scores = rankings.map(r => r.relative_score);
     const uniqueScores = new Set(scores);
     
-    if (uniqueScores.size === scores.length) {
-      console.log(`[RankingService] ✅ All scores are unique after refresh`);
-    } else {
+    if (uniqueScores.size !== scores.length) {
       console.error(`[RankingService] ⚠️ Duplicate scores still exist after refresh - forcing explicit spacing`);
       
       // Last resort: force explicit spacing for all courses
