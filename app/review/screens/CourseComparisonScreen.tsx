@@ -3,6 +3,7 @@ import { View, Text, StyleSheet, Dimensions, ActivityIndicator, Pressable } from
 import { CourseComparisonProps, SentimentRating } from '../../types/review';
 import { useEdenTheme } from '../../theme/ThemeProvider';
 import { Button } from '../../components/eden/Button';
+import { formatScoreForDisplay } from '@/app/utils/scoreDisplay';
 
 const { width } = Dimensions.get('window');
 
@@ -287,7 +288,7 @@ export const CourseComparisonScreen: React.FC<CourseComparisonProps> = React.mem
               <Text style={styles.courseLocation}>
                 <Text>{courseA.location}</Text>
                 <Text> • </Text>
-                <Text style={[styles.ratingText, { color: ratingColor }]}>{Number(previousCourseRating).toFixed(1)}</Text>
+                <Text style={[styles.ratingText, { color: ratingColor }]}>{formatScoreForDisplay(Number(previousCourseRating)).toFixed(1)}</Text>
               </Text>
             ) : (
               <Text style={styles.courseLocation}>
@@ -321,7 +322,7 @@ export const CourseComparisonScreen: React.FC<CourseComparisonProps> = React.mem
               <Text style={styles.courseLocation}>
                 <Text>{courseB.location}</Text>
                 <Text> • </Text>
-                <Text style={[styles.ratingText, { color: ratingColor }]}>{Number(previousCourseRating).toFixed(1)}</Text>
+                <Text style={[styles.ratingText, { color: ratingColor }]}>{formatScoreForDisplay(Number(previousCourseRating)).toFixed(1)}</Text>
               </Text>
             ) : (
               <Text style={styles.courseLocation}>

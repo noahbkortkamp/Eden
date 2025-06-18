@@ -11,6 +11,7 @@ import { supabase } from '../utils/supabase';
 import { usePlayedCourses } from '../context/PlayedCoursesContext';
 import type { Database } from '../utils/database.types';
 import { Image } from 'expo-image';
+import { formatScoreForDisplay } from '@/app/utils/scoreDisplay';
 
 // Import Eden design system components
 import { 
@@ -329,7 +330,7 @@ function ProfileScreenContent() {
                   
                   <FeedbackBadge
                     status={badgeStatus}
-                    label={hasEnoughReviews ? score.toFixed(1) : '-'}
+                    label={hasEnoughReviews ? formatScoreForDisplay(score).toFixed(1) : '-'}
                     small
                   />
                 </View>

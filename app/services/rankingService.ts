@@ -231,67 +231,36 @@ class RankingService {
     
     // Removed verbose course listing for performance
 
-    // Step 2: Calculate new scores with improved algorithm
+    // Step 2: Calculate new scores with smart step size for even distribution
     const updates = [];
     const range = SENTIMENT_RANGES[sentiment];
     const maxScore = range.max;
     const minScore = range.min;
     const scoreRange = maxScore - minScore;
+    const courseCount = sortedRankings.length;
     
-    // If there's only one course, it gets the max score
-    if (sortedRankings.length === 1) {
+    if (courseCount === 1) {
       updates.push({
         ...sortedRankings[0],
         relative_score: maxScore
       });
     } else {
-      // 🔧 PHASE 1.1: Fix position gap handling - use actual positions, not array indices
-      const totalPositions = sortedRankings.length;
-      const minDifference = 0.1; // Minimum score difference between adjacent rankings
-      
-      // First course always gets max score
-      updates.push({
-        ...sortedRankings[0],
-        relative_score: maxScore
-      });
-      
-      // Removed verbose position logging for performance
-      
-      // 🔧 PHASE 1.2: Improved score distribution algorithm
-      // Calculate step size based on total courses and available range
-      const effectiveStep = Math.max(minDifference, scoreRange / Math.max(1, totalPositions - 1));
-      
-      for (let i = 1; i < sortedRankings.length; i++) {
+      // 🆕 Perfect linear distribution using individual calculation
+      for (let i = 0; i < sortedRankings.length; i++) {
         const ranking = sortedRankings[i];
-        const prevScore = updates[i - 1].relative_score;
+        let newScore;
         
-        // Calculate score using improved algorithm
-        let newScore = maxScore - (i * effectiveStep);
-        
-        // 🔧 PHASE 1.2: Enhanced boundary and spacing checks
-        // Ensure minimum difference from previous score
-        const minAllowedScore = prevScore - minDifference;
-        if (newScore > minAllowedScore) {
-          newScore = minAllowedScore;
+        if (courseCount === 1) {
+          newScore = maxScore;
+        } else {
+          // Use linear interpolation for perfect distribution
+          // Formula: score = maxScore - (i / (courseCount - 1)) * scoreRange
+          const progress = i / (courseCount - 1); // 0 to 1
+          newScore = maxScore - (progress * scoreRange);
         }
         
-        // Ensure we don't go below minimum
-        if (newScore < minScore) {
-          // If we've hit the minimum, redistribute remaining scores proportionally
-          const remainingCourses = sortedRankings.length - i;
-          const availableRange = prevScore - minScore;
-          
-          if (remainingCourses > 0 && availableRange > remainingCourses * minDifference) {
-            newScore = prevScore - ((availableRange / remainingCourses) * 0.9); // Use 90% to leave buffer
-          } else {
-            newScore = Math.max(minScore, prevScore - minDifference);
-          }
-        }
-        
-        // Round to 1 decimal place for cleaner scores
-        newScore = Math.round(newScore * 10) / 10;
-        
-        // Removed verbose score calculation logging for performance
+        // Round to 2 decimal places for precision (supports 0.01 minimum)
+        newScore = Math.round(newScore * 100) / 100;
         
         updates.push({
           ...ranking,
@@ -310,14 +279,17 @@ class RankingService {
       throw error;
     }
 
-    // Step 5: Verify the final rankings with enhanced validation
+    // Step 5: Add small delay to ensure database changes are fully committed
+    await new Promise(resolve => setTimeout(resolve, 100));
+
+    // Step 6: Verify the final rankings with enhanced validation
     const finalRankings = await this.getUserRankings(userId, sentiment);
     
-    // 🔧 PHASE 1.2: Enhanced validation - keep only error reporting, remove verbose success logging
+    // 🔧 Enhanced validation for 0.01 precision
     let isValid = true;
     let prevScore = Infinity;
     let prevPos = 0;
-    const FLOAT_TOLERANCE = 0.001;
+    const FLOAT_TOLERANCE = 0.005; // Adjusted for 0.01 precision
     
     const sortedFinalRankings = finalRankings.sort((a, b) => a.rank_position - b.rank_position);
     
@@ -330,7 +302,7 @@ class RankingService {
         isValid = false;
       }
       
-      // Check score ordering with tolerance
+      // Check score ordering with tolerance (allow equal scores due to 0.01 precision)
       if (r.relative_score > prevScore + FLOAT_TOLERANCE) {
         console.error(`[RankingService] ❌ Score error: Course ${r.course_id.substring(0, 8)} has score ${r.relative_score} > ${prevScore} (should be descending)`);
         isValid = false;
@@ -344,6 +316,9 @@ class RankingService {
     if (!isValid) {
       console.error(`[RankingService] ⚠️ Score redistribution issues detected`);
       console.error(`[RankingService] 🔍 Debug info - Total courses: ${finalRankings.length}, Sentiment: ${sentiment}`);
+    } else {
+      // Success case - log once for debugging
+      console.log(`[RankingService] ✅ Score redistribution completed successfully: ${finalRankings.length} ${sentiment} courses`);
     }
   }
 

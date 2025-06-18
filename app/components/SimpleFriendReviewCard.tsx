@@ -8,6 +8,7 @@ import { useAuth } from '../context/AuthContext';
 import { getSentimentFromRating, SENTIMENT_RANGES } from '../utils/sentiment';
 import { toggleLikeReview } from '../utils/interactions';
 import { bookmarkService } from '../services/bookmarkService';
+import { formatScoreForDisplay } from '@/app/utils/scoreDisplay';
 
 // Eden theme colors and styling (directly imported to avoid component conflicts)
 const EDEN_COLORS = {
@@ -103,7 +104,7 @@ export const SimpleFriendReviewCard: React.FC<SimpleFriendReviewCardProps> = ({ 
   // Helper functions
   const formatScore = (score: number | null | undefined): string => {
     if (score === null || score === undefined) return '-';
-    return score.toFixed(1);
+    return formatScoreForDisplay(score).toFixed(1);
   };
   
   // Get background color based on score range

@@ -24,6 +24,7 @@ import { Button } from '../components/eden/Button';
 import { Icon } from '../components/eden/Icon';
 import { courseRankingsService } from '../services/courseRankingsService';
 import { reviewService } from '../services/reviewService';
+import { formatScoreForDisplay } from '@/app/utils/scoreDisplay';
 
 type Course = Database['public']['Tables']['courses']['Row'];
 
@@ -416,7 +417,7 @@ function CourseDetailsContent() {
                   </SmallText>
                 </View>
                 <BodyText style={{ color: theme.colors.primary, fontWeight: 'bold' }}>
-                  {courseStats.currentUserScore.toFixed(1)} out of 10
+                  {formatScoreForDisplay(courseStats.currentUserScore).toFixed(1)} out of 10
                 </BodyText>
               </View>
             </Card>

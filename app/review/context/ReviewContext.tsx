@@ -12,6 +12,16 @@ import { rankingService } from '../../services/rankingService';
 import { supabase } from '../../utils/supabase';
 import { getCourse } from '../../utils/courses';
 import { userService } from '../../services/userService';
+import { getStrategicComparisonCourse } from '../../services/zonePlacementService';
+
+// Add strategic data interface
+interface StrategicData {
+  courseRankMap: Map<string, number>;
+  availableCourses: string[];
+  currentBounds: { lower: number, upper: number };
+  tierSize: number;
+  sentiment: SentimentRating;
+}
 
 interface ReviewContextType {
   submitReview: (review: Omit<CourseReview, 'review_id' | 'user_id' | 'created_at' | 'updated_at'> & { 
@@ -82,10 +92,13 @@ export const ReviewProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   // State management
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [comparisonsRemaining, setComparisonsRemaining] = useState(3);
-  const [totalComparisonsCount, setTotalComparisonsCount] = useState(3);
+  const [comparisonsRemaining, setComparisonsRemaining] = useState(0);
+  const [totalComparisonsCount, setTotalComparisonsCount] = useState(0);
   const [originalReviewedCourseId, setOriginalReviewedCourseId] = useState<string | null>(null);
-  const [comparisonResults, setComparisonResults] = useState<Array<{ preferredId: string; otherId: string }>>([]);
+  const [comparisonResults, setComparisonResults] = useState<Array<{ preferredId: string, otherId: string }>>([]);
+
+  // Strategic placement data
+  const [strategicData, setStrategicData] = useState<StrategicData | null>(null);
 
   // 🚀 Phase 1.2: Cache configurations
   const CACHE_TTL = 30000; // 30 seconds for rankings
@@ -443,6 +456,17 @@ export const ReviewProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         setComparisonsRemaining(totalComparisons);
         setTotalComparisonsCount(totalComparisons);
 
+        // Prepare strategic data for this comparison flow
+        try {
+          const availableCourseIds = reviewedCoursesWithSentiment.map(r => r.course_id);
+          const strategic = await prepareStrategicData(user.id, review.rating, availableCourseIds);
+          setStrategicData(strategic);
+          console.log(`[Strategic] Prepared strategic data for ${strategic.tierSize} courses in ${review.rating} tier`);
+        } catch (err) {
+          console.warn('Failed to prepare strategic data, will use fallback logic:', err);
+          setStrategicData(null);
+        }
+
         console.log(`Setting up comparison flow with ${totalComparisons} total comparisons out of ${otherCoursesWithSentiment.length} available courses`);
         console.log(`Will compare the just-reviewed course (${review.course_id}) with other courses in the same sentiment tier`);
 
@@ -604,6 +628,17 @@ export const ReviewProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
         // Store course A as the "original" for this session
         setOriginalReviewedCourseId(courseA.course_id);
+
+        // Prepare strategic data for this comparison flow
+        try {
+          const availableCourseIds = reviewedCoursesWithSentiment.map(r => r.course_id);
+          const strategic = await prepareStrategicData(user.id, rating, availableCourseIds);
+          setStrategicData(strategic);
+          console.log(`[Strategic] Prepared strategic data for ${strategic.tierSize} courses in ${rating} tier`);
+        } catch (err) {
+          console.warn('Failed to prepare strategic data, will use fallback logic:', err);
+          setStrategicData(null);
+        }
 
         // Then open the comparison modal
         router.push({
@@ -772,6 +807,11 @@ export const ReviewProvider: React.FC<{ children: React.ReactNode }> = ({ childr
           sentiment
         );
 
+        // Update strategic bounds after comparison (for all comparisons, including first two)
+        if (strategicData && originalReviewedCourseId) {
+          updateStrategicBounds(strategicData, preferredCourseId, otherCourseId, originalReviewedCourseId);
+        }
+
         // Check if this is the first comparison (comparing with the median)
         const isFirstComparison = comparisonResults.length === 0;
         
@@ -862,12 +902,37 @@ export const ReviewProvider: React.FC<{ children: React.ReactNode }> = ({ childr
           );
 
           if (otherCoursesWithSentiment.length > 0) {
-            // Get a random course for the next comparison, with proper shuffling
-            const shuffledCourses = [...otherCoursesWithSentiment].sort(() => Math.random() - 0.5);
-            const randomCourse = shuffledCourses[0];
+            let nextCourseId: string;
+            
+            // For comparisons 3+, use strategic selection if available
+            if (strategicData && comparisonResults.length >= 2) {
+              console.log(`[Strategic] Using strategic selection for comparison #${comparisonResults.length + 1}`);
+              
+              const strategicCourse = getStrategicNextCourse(
+                comparisonResults,
+                strategicData,
+                comparedCourseIds,
+                originalReviewedCourseId
+              );
+              
+              if (strategicCourse) {
+                nextCourseId = strategicCourse;
+                console.log(`[Strategic] Selected strategic course: ${strategicCourse.substring(0, 8)}`);
+              } else {
+                // Strategic selection failed, fall back to random
+                console.log(`[Strategic] Strategic selection failed, falling back to random`);
+                const shuffledCourses = [...otherCoursesWithSentiment].sort(() => Math.random() - 0.5);
+                nextCourseId = shuffledCourses[0].course_id;
+              }
+            } else {
+              // First two comparisons or no strategic data - use random selection
+              console.log(`[Strategic] Using random selection for comparison #${comparisonResults.length + 1}`);
+              const shuffledCourses = [...otherCoursesWithSentiment].sort(() => Math.random() - 0.5);
+              nextCourseId = shuffledCourses[0].course_id;
+            }
 
             console.log(`Found ${otherCoursesWithSentiment.length} other courses with matching sentiment to compare`);
-            console.log(`Next comparison will be between ${originalReviewedCourseId} and ${randomCourse.course_id}`);
+            console.log(`Next comparison will be between ${originalReviewedCourseId} and ${nextCourseId}`);
 
             // Use the sentiment from the original review we already have
             const sentiment = originalReview.rating as SentimentRating;
@@ -877,7 +942,7 @@ export const ReviewProvider: React.FC<{ children: React.ReactNode }> = ({ childr
               pathname: '/(modals)/comparison',
               params: {
                 courseAId: originalReviewedCourseId,
-                courseBId: randomCourse.course_id,
+                courseBId: nextCourseId,
                 remainingComparisons: newComparisonsRemaining,
                 totalComparisons: totalComparisonsCount,
                 originalSentiment: sentiment,
@@ -902,12 +967,14 @@ export const ReviewProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         // Reset comparison state
         setOriginalReviewedCourseId(null);
         setComparisonResults([]);
+        setStrategicData(null); // Clear strategic data
         return;
       }
       
       // Fallback: if original review not found, just go to lists
       setOriginalReviewedCourseId(null);
       setComparisonResults([]);
+      setStrategicData(null);
       router.replace('/(tabs)/lists');
     } catch (err) {
       console.error('Detailed comparison error:', err);
@@ -915,6 +982,7 @@ export const ReviewProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       setTimeout(() => {
         setOriginalReviewedCourseId(null);
         setComparisonResults([]);
+        setStrategicData(null);
         router.replace('/(tabs)/lists');
       }, 2000);
     }
@@ -964,17 +1032,42 @@ export const ReviewProvider: React.FC<{ children: React.ReactNode }> = ({ childr
               );
               
               if (otherCoursesWithSentiment.length >= 1) {
-                // Randomize properly
-                const shuffledCourses = [...otherCoursesWithSentiment].sort(() => Math.random() - 0.5);
-                const randomCourse = shuffledCourses[0];
+                let nextCourseId: string;
+                
+                // For comparisons 3+, use strategic selection if available
+                if (strategicData && comparisonResults.length >= 2) {
+                  console.log(`[Strategic Skip] Using strategic selection for comparison #${comparisonResults.length + 1}`);
+                  
+                  const strategicCourse = getStrategicNextCourse(
+                    comparisonResults,
+                    strategicData,
+                    comparedCourseIds,
+                    originalReviewedCourseId
+                  );
+                  
+                  if (strategicCourse) {
+                    nextCourseId = strategicCourse;
+                    console.log(`[Strategic Skip] Selected strategic course: ${strategicCourse.substring(0, 8)}`);
+                  } else {
+                    // Strategic selection failed, fall back to random
+                    console.log(`[Strategic Skip] Strategic selection failed, falling back to random`);
+                    const shuffledCourses = [...otherCoursesWithSentiment].sort(() => Math.random() - 0.5);
+                    nextCourseId = shuffledCourses[0].course_id;
+                  }
+                } else {
+                  // First two comparisons or no strategic data - use random selection
+                  console.log(`[Strategic Skip] Using random selection for comparison #${comparisonResults.length + 1}`);
+                  const shuffledCourses = [...otherCoursesWithSentiment].sort(() => Math.random() - 0.5);
+                  nextCourseId = shuffledCourses[0].course_id;
+                }
 
-                console.log(`Skipping to next comparison: original course ${originalReviewedCourseId} vs next course ${randomCourse.course_id}`);
+                console.log(`Skipping to next comparison: original course ${originalReviewedCourseId} vs next course ${nextCourseId}`);
 
                 router.push({
                   pathname: '/(modals)/comparison',
                   params: {
                     courseAId: originalReviewedCourseId,
-                    courseBId: randomCourse.course_id,
+                    courseBId: nextCourseId,
                     remainingComparisons: newComparisonsRemaining,
                     totalComparisons: totalComparisonsCount,
                     originalSentiment: originalReview.rating,
@@ -998,24 +1091,28 @@ export const ReviewProvider: React.FC<{ children: React.ReactNode }> = ({ childr
             // Reset comparison state
             setOriginalReviewedCourseId(null);
             setComparisonResults([]);
+            setStrategicData(null);
             return;
           } catch (innerErr) {
             console.error('Error in skipComparison inner block:', innerErr);
             setError(innerErr instanceof Error ? innerErr.message : 'Error in comparison flow');
             setOriginalReviewedCourseId(null);
             setComparisonResults([]);
+            setStrategicData(null);
             router.replace('/(tabs)/lists');
           }
           
           // Fallback: if original review not found, just go to lists
           setOriginalReviewedCourseId(null);
           setComparisonResults([]);
+          setStrategicData(null);
           router.replace('/(tabs)/lists');
         }).catch(err => {
           console.error('Error getting user reviews:', err);
           setError(err instanceof Error ? err.message : 'Failed to get user reviews');
           setOriginalReviewedCourseId(null);
           setComparisonResults([]);
+          setStrategicData(null);
           router.replace('/(tabs)/lists');
         });
       } else {
@@ -1041,16 +1138,19 @@ export const ReviewProvider: React.FC<{ children: React.ReactNode }> = ({ childr
             // Reset state
             setOriginalReviewedCourseId(null);
             setComparisonResults([]);
+            setStrategicData(null);
           } catch (innerErr) {
             console.error('Error in success screen navigation:', innerErr);
             setOriginalReviewedCourseId(null);
             setComparisonResults([]);
+            setStrategicData(null);
             router.replace('/(tabs)/lists');
           }
         }).catch(err => {
           console.error('Error getting user reviews for success screen:', err);
           setOriginalReviewedCourseId(null);
           setComparisonResults([]);
+          setStrategicData(null);
           router.replace('/(tabs)/lists');
         });
       }
@@ -1134,6 +1234,108 @@ export const ReviewProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       return false;
     }
   }, [user]);
+
+  // Helper function to prepare strategic data
+  const prepareStrategicData = useCallback(async (
+    userId: string, 
+    sentiment: SentimentRating,
+    availableCourseIds: string[]
+  ): Promise<StrategicData> => {
+    try {
+      // Get current rankings for this sentiment tier
+      const rankings = await rankingService.getUserRankings(userId, sentiment);
+      
+      // Build course rank map
+      const courseRankMap = new Map<string, number>();
+      rankings.forEach(ranking => {
+        courseRankMap.set(ranking.course_id, ranking.rank_position);
+      });
+      
+      // Filter available courses to only include those with rankings
+      const availableCourses = availableCourseIds.filter(id => courseRankMap.has(id));
+      
+      const tierSize = rankings.length;
+      
+      return {
+        courseRankMap,
+        availableCourses,
+        currentBounds: { lower: 1, upper: tierSize + 1 },
+        tierSize,
+        sentiment
+      };
+    } catch (err) {
+      console.error('Failed to prepare strategic data:', err);
+      throw err;
+    }
+  }, []);
+
+  // Helper function to get strategic next course
+  const getStrategicNextCourse = useCallback((
+    comparisonResults: Array<{ preferredId: string, otherId: string }>,
+    strategicData: StrategicData,
+    excludedCourseIds: Set<string>,
+    originalCourseId: string
+  ): string | null => {
+    try {
+      // Convert comparison results to format expected by zonePlacementService
+      const previousResults = comparisonResults.map(result => ({
+        comparisonId: result.otherId,
+        result: (result.preferredId === originalCourseId ? 'better' : 'worse') as 'better' | 'worse'
+      }));
+
+      // Filter available courses to exclude already compared ones
+      const availableCourses = strategicData.availableCourses.filter(id => 
+        !excludedCourseIds.has(id)
+      );
+
+      // Call the strategic selection function
+      const selectedCourse = getStrategicComparisonCourse(
+        availableCourses,
+        strategicData.courseRankMap,
+        comparisonResults.length, // completed comparisons (starts from 0)
+        strategicData.tierSize,
+        strategicData.currentBounds,
+        previousResults
+      );
+
+      console.log(`[Strategic] Selected course: ${selectedCourse?.substring(0, 8)} from ${availableCourses.length} available courses`);
+      console.log(`[Strategic] Comparison pattern: ${previousResults.map(r => r.result).join('-')}`);
+      
+      return selectedCourse;
+    } catch (err) {
+      console.error('Strategic course selection failed:', err);
+      return null;
+    }
+  }, []);
+
+  // Helper function to update strategic bounds after comparison
+  const updateStrategicBounds = useCallback((
+    strategicData: StrategicData,
+    preferredCourseId: string,
+    otherCourseId: string,
+    originalCourseId: string
+  ) => {
+    if (!strategicData) return;
+
+    const comparedCourseRank = strategicData.courseRankMap.get(otherCourseId);
+    if (!comparedCourseRank) return;
+
+    if (preferredCourseId === originalCourseId) {
+      // New course won - update upper bound
+      strategicData.currentBounds.upper = Math.min(
+        strategicData.currentBounds.upper,
+        comparedCourseRank
+      );
+    } else {
+      // New course lost - update lower bound
+      strategicData.currentBounds.lower = Math.max(
+        strategicData.currentBounds.lower,
+        comparedCourseRank + 1
+      );
+    }
+
+    console.log(`[Strategic] Updated bounds: ${strategicData.currentBounds.lower}-${strategicData.currentBounds.upper}`);
+  }, []);
 
   return (
     <ReviewContext.Provider

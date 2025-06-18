@@ -11,6 +11,7 @@ import { Button } from './eden/Button';
 import { EmptyTabState } from './eden/Tabs';
 import { Card } from './eden/Card';
 import { Icon } from './eden/Icon';
+import { formatScoreForDisplay } from '@/app/utils/scoreDisplay';
 
 interface PlayedCoursesListProps {
   courses: Course[];
@@ -204,7 +205,7 @@ export const PlayedCoursesList = React.memo(({
                       fontWeight: theme.typography.button.fontWeight,
                       fontSize: 15,
                     }}>
-                      {(showScores) ? (course.rating ? course.rating.toFixed(1) : '-') : '-'}
+                      {(showScores) ? (course.rating ? formatScoreForDisplay(course.rating).toFixed(1) : '-') : '-'}
                     </SmallText>
                   </View>
                 </View>

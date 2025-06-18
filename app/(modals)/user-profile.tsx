@@ -11,6 +11,7 @@ import { bookmarkService } from '../services/bookmarkService';
 import { supabase } from '../utils/supabase';
 import { ThumbsUp, ArrowLeft, User as UserIcon, UserPlus, UserCheck } from 'lucide-react-native';
 import { useTheme } from '../theme/ThemeProvider';
+import { formatScoreForDisplay } from '@/app/utils/scoreDisplay';
 
 // Get badge color based on rating
 const getBadgeColor = (score: number): string => {
@@ -358,7 +359,7 @@ export default function UserProfileScreen() {
                       </View>
                       <View style={[styles.ratingBadge, { backgroundColor: badgeColor }]}>
                         <Text style={styles.ratingText}>
-                          {hasEnoughReviews ? score.toFixed(1) : '-'}
+                          {hasEnoughReviews ? formatScoreForDisplay(score).toFixed(1) : '-'}
                         </Text>
                       </View>
                     </Card.Content>

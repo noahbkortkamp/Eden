@@ -11,6 +11,7 @@ import { reviewService } from '../../services/reviewService';
 import { userService } from '../../services/userService';
 import { X } from 'lucide-react-native';
 import { router as globalRouter } from 'expo-router';
+import { formatScoreForDisplay } from '@/app/utils/scoreDisplay';
 
 export interface ReviewSuccessScreenProps {
   datePlayed: Date;
@@ -217,7 +218,7 @@ export const ReviewSuccessScreen: React.FC<ReviewSuccessScreenProps> = ({
           {showRating && rating && (
             <View style={styles.ratingContainer}>
               <View style={styles.ratingCircle}>
-                <Text style={styles.ratingText}>{rating.toFixed(1)}</Text>
+                <Text style={styles.ratingText}>{formatScoreForDisplay(rating).toFixed(1)}</Text>
               </View>
             </View>
           )}
