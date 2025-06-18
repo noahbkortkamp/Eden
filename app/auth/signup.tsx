@@ -85,9 +85,22 @@ export default function SignUpScreen() {
         pathname: '/onboarding/profile-info',
         params: { noHeader: 'true' }
       });
-    } catch (err) {
+    } catch (err: any) {
       console.error('Signup error:', err);
-      setError(err instanceof Error ? err.message : 'An error occurred during sign up');
+      
+      // Check if this is a "user already exists" error
+      const isUserExistsError = 
+        err?.code === 'user_already_exists' || 
+        err?.message?.includes('User already registered') ||
+        err?.message?.includes('already registered') ||
+        err?.message?.includes('already exists') ||
+        (err?.message && err.message.toLowerCase().includes('user') && err.message.toLowerCase().includes('exist'));
+      
+      if (isUserExistsError) {
+        setError('An account with this email already exists. Please sign in instead.');
+      } else {
+        setError(err instanceof Error ? err.message : 'An error occurred during sign up');
+      }
     } finally {
       setLoading(false);
     }
@@ -301,9 +314,10 @@ const styles = StyleSheet.create({
     paddingVertical: edenTheme.spacing.xs,
   },
   error: {
-    color: edenTheme.colors.error,
+    color: '#C41E3A', // Darker red for better visibility
     marginBottom: edenTheme.spacing.md,
     textAlign: 'center',
+    fontWeight: '500',
   },
   footer: {
     flexDirection: 'row',

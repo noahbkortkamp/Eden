@@ -95,17 +95,32 @@ export default function OnboardingSignupScreen() {
         router.replace('/onboarding/profile-info');
       }
     } catch (err: any) {
+      console.error('Signup error:', err);
+      
       // Check if this is a "user already exists" error
-      if (err.code === 'user-already-exists') {
+      // Supabase can return errors in different formats, so check multiple possible error formats
+      const isUserExistsError = 
+        err?.code === 'user_already_exists' || 
+        err?.message?.includes('User already registered') ||
+        err?.message?.includes('already registered') ||
+        err?.message?.includes('already exists') ||
+        (err?.message && err.message.toLowerCase().includes('user') && err.message.toLowerCase().includes('exist'));
+      
+      if (isUserExistsError) {
         // Show a message and redirect to login
-        setError('An account with this email already exists. Redirecting to login...');
+        setError('An account with this email already exists. Please sign in instead.');
         
         // Short delay before redirecting
         setTimeout(() => {
           router.replace('/auth/login');
-        }, 1500);
+        }, 2000);
       } else {
-        setError('Sign up failed.');
+        // Show a more helpful error message based on the specific error
+        if (err?.message) {
+          setError(err.message);
+        } else {
+          setError('Sign up failed. Please try again.');
+        }
       }
     } finally {
       setLoading(false);
@@ -281,9 +296,10 @@ const styles = StyleSheet.create({
     fontFamily: edenTheme.typography.h1.fontFamily,
   },
   error: {
-    color: edenTheme.colors.error,
+    color: '#C41E3A', // Darker red for better visibility
     marginBottom: edenTheme.spacing.md,
     textAlign: 'center',
+    fontWeight: '500',
   },
   socialButton: {
     borderRadius: edenTheme.borderRadius.md,
