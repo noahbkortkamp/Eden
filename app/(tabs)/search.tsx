@@ -28,10 +28,55 @@ import {
 } from 'lucide-react-native';
 import { useRouter, useLocalSearchParams, useFocusEffect } from 'expo-router';
 import { useEdenTheme } from '../theme/ThemeProvider';
-import { searchCourses, getAllCourses } from '../utils/courses';
+import { searchCourses, getAllCourses, getCoursesOrderedByProximity } from '../utils/courses';
 import { useDebouncedCallback } from 'use-debounce';
 import type { Course } from '../types';
 import { useAuth } from '../context/AuthContext';
+import { getUserLocation } from '../utils/users';
+
+// Helper function to calculate distance between two points using Haversine formula
+function getDistanceInMiles(
+  lat1: number,
+  lon1: number,
+  lat2: number,
+  lon2: number
+): number {
+  const R = 3959; // Earth's radius in miles
+  const dLat = toRad(lat2 - lat1);
+  const dLon = toRad(lon2 - lon1);
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos(toRad(lat1)) *
+      Math.cos(toRad(lat2)) *
+      Math.sin(dLon / 2) *
+      Math.sin(dLon / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return R * c;
+}
+
+function toRad(degrees: number): number {
+  return (degrees * Math.PI) / 180;
+}
+
+// Helper function to extract state from location string
+function extractStateFromLocation(location: string | null): string | null {
+  if (!location) return null;
+  
+  // Common patterns: "City, State", "City, State, Country"
+  const parts = location.split(',').map(part => part.trim());
+  
+  if (parts.length >= 2) {
+    const statePart = parts[1];
+    // Handle common US state abbreviations and full names
+    if (statePart.length === 2) {
+      return statePart.toUpperCase(); // State abbreviation like "CA", "NY"
+    } else if (statePart.length > 2) {
+      return statePart; // Full state name like "California", "New York"
+    }
+  }
+  
+  return null;
+}
 import { getReviewsForUser } from '../utils/reviews';
 import { Image } from 'expo-image';
 import { searchUsersByName, followUser, unfollowUser, isFollowing } from '../utils/friends';
@@ -70,20 +115,43 @@ const CourseItem = React.memo(({
   isReviewed, 
   isBookmarked, 
   isBookmarkLoading, 
-  onBookmarkToggle 
+  onBookmarkToggle,
+  userLocation
 }: { 
   course: EnhancedCourse, 
   onPress: (id: string) => void, 
   isReviewed: boolean, 
   isBookmarked: boolean, 
   isBookmarkLoading: boolean, 
-  onBookmarkToggle: (id: string) => void 
+  onBookmarkToggle: (id: string) => void,
+  userLocation?: {latitude: number, longitude: number, state: string} | null
 }) => {
   const theme = useEdenTheme();
   const [isPressed, setIsPressed] = useState(false);
   
   const handlePressIn = () => setIsPressed(true);
   const handlePressOut = () => setIsPressed(false);
+  
+  // Calculate distance if we have user location and course coordinates
+  const distance = useMemo(() => {
+    if (userLocation && course.latitude && course.longitude) {
+      const dist = getDistanceInMiles(
+        userLocation.latitude,
+        userLocation.longitude,
+        course.latitude,
+        course.longitude
+      );
+      
+      // Show "50+" for courses more than 50 miles away
+      if (dist > 50) {
+        return "50+";
+      }
+      
+      // For nearby courses, show precise distance
+      return dist < 10 ? dist.toFixed(1) : Math.round(dist).toString();
+    }
+    return null;
+  }, [userLocation, course.latitude, course.longitude]);
   
   return (
     <TouchableOpacity
@@ -134,6 +202,11 @@ const CourseItem = React.memo(({
             <MapPin size={14} color={theme.colors.textSecondary} />
             <SmallText color={theme.colors.textSecondary} style={styles.locationText}>
               {course.location || 'Location not available'}
+              {distance && (
+                <SmallText color={theme.colors.primary} style={{ fontWeight: '600' }}>
+                  {' • '}{distance} mi
+                </SmallText>
+              )}
             </SmallText>
           </View>
           
@@ -216,6 +289,10 @@ function SearchScreenContent() {
     timestamp: number
   } | null>(null);
 
+  // Add state to track ordering method for display
+  const [orderingMethod, setOrderingMethod] = useState<'proximity' | 'alphabetical' | 'search'>('alphabetical');
+  const [userLocation, setUserLocation] = useState<{latitude: number, longitude: number, state: string} | null>(null);
+
   // Check if cache is valid
   const isCacheValid = useCallback((cache: { timestamp: number } | null) => {
     return cache && (Date.now() - cache.timestamp < CACHE_EXPIRY);
@@ -284,13 +361,47 @@ function SearchScreenContent() {
     try {
       setLoading(true);
       setError(null);
-      const allCourses = await getAllCourses();
-      const coursesData = allCourses as EnhancedCourse[];
-      setCourses(coursesData);
+      
+      // Get user location for proximity-based ordering
+      let coursesData: Course[] = [];
+      if (user) {
+        const currentUserLocation = await getUserLocation(user.id);
+        if (currentUserLocation) {
+          // Order courses by proximity to user
+          coursesData = await getCoursesOrderedByProximity(
+            currentUserLocation.latitude,
+            currentUserLocation.longitude,
+            currentUserLocation.state
+          );
+          setUserLocation({
+            latitude: currentUserLocation.latitude,
+            longitude: currentUserLocation.longitude,
+            state: currentUserLocation.state
+          });
+          setOrderingMethod('proximity');
+          console.log('📍 Search: Loaded courses ordered by proximity to user location');
+        } else {
+          // Fall back to alphabetical order
+          const allCourses = await getAllCourses();
+          coursesData = allCourses.sort((a, b) => a.name.localeCompare(b.name));
+          setUserLocation(null);
+          setOrderingMethod('alphabetical');
+          console.log('📍 Search: No user location found, using alphabetical order');
+        }
+      } else {
+        // No user, use alphabetical order
+        const allCourses = await getAllCourses();
+        coursesData = allCourses.sort((a, b) => a.name.localeCompare(b.name));
+        setUserLocation(null);
+        setOrderingMethod('alphabetical');
+      }
+      
+      const enhancedCoursesData = coursesData as EnhancedCourse[];
+      setCourses(enhancedCoursesData);
       
       // Update cache
       setCoursesCache({
-        data: coursesData,
+        data: enhancedCoursesData,
         timestamp: Date.now()
       });
     } catch (err) {
@@ -299,7 +410,7 @@ function SearchScreenContent() {
       setLoading(false);
       setInitialLoadComplete(true);
     }
-  }, [coursesCache, isCacheValid]);
+  }, [coursesCache, isCacheValid, user]);
 
   // Optimized data loading - cache courses, only refresh status
   useEffect(() => {
@@ -384,6 +495,8 @@ function SearchScreenContent() {
   const debouncedSearch = useDebouncedCallback(async (query: string) => {
     if (!query.trim()) {
       if (activeTab === 'courses') {
+        // Use proximity-based loading when no search query
+        setOrderingMethod(userLocation ? 'proximity' : 'alphabetical');
         loadCourses();
       } else {
         setUsers([]);
@@ -398,6 +511,7 @@ function SearchScreenContent() {
       if (activeTab === 'courses') {
         // Get raw search results with scores (we'll keep the smart search but not display stars)
         const results = await searchCourses(query);
+        setOrderingMethod('search');
         
         // Set courses with their relevance scores (used for sorting)
         if (Array.isArray(results)) {
@@ -625,9 +739,11 @@ function SearchScreenContent() {
       // Optimistically update UI
       const isCurrentlyBookmarked = bookmarkedCourseIds.has(courseId);
       
+      let newBookmarkedIds: Set<string>;
+      
       if (isCurrentlyBookmarked) {
         // Remove from bookmarks
-        const newBookmarkedIds = new Set(bookmarkedCourseIds);
+        newBookmarkedIds = new Set(bookmarkedCourseIds);
         newBookmarkedIds.delete(courseId);
         setBookmarkedCourseIds(newBookmarkedIds);
         
@@ -635,7 +751,7 @@ function SearchScreenContent() {
         await bookmarkService.removeBookmark(user.id, courseId);
       } else {
         // Add to bookmarks
-        const newBookmarkedIds = new Set(bookmarkedCourseIds);
+        newBookmarkedIds = new Set(bookmarkedCourseIds);
         newBookmarkedIds.add(courseId);
         setBookmarkedCourseIds(newBookmarkedIds);
         
@@ -643,11 +759,18 @@ function SearchScreenContent() {
         await bookmarkService.addBookmark(user.id, courseId);
       }
       
+      // Update the cache with the new state immediately
+      setBookmarkedCoursesCache({
+        data: newBookmarkedIds,
+        timestamp: Date.now()
+      });
+      
       // Trigger refresh of bookmarks in Lists screen
       setNeedsRefresh();
     } catch (error) {
       console.error('Error toggling bookmark:', error);
-      // Revert optimistic update on error
+      // Invalidate cache and reload from server on error
+      setBookmarkedCoursesCache(null);
       loadBookmarkedCourses();
     } finally {
       // Clear loading state
@@ -696,17 +819,20 @@ function SearchScreenContent() {
         }
       };
       
-      // Throttle to prevent excessive refreshes
+      // Throttle to prevent excessive refreshes, but allow immediate refresh after bookmark changes
       const now = Date.now();
       const timeSinceLastRefresh = now - (lastStatusRefresh.current || 0);
       
-      if (timeSinceLastRefresh > 3000) { // 3 second throttle
+      // Always refresh if cache is invalid (e.g., after bookmark changes)
+      const shouldForceRefresh = !isCacheValid(bookmarkedCoursesCache) || !isCacheValid(reviewedCoursesCache);
+      
+      if (timeSinceLastRefresh > 3000 || shouldForceRefresh) { // 3 second throttle or forced refresh
         lastStatusRefresh.current = now;
         refreshStatusData();
       } else {
         console.log(`⏭️ Search: Skipping status refresh - too soon (${timeSinceLastRefresh}ms)`);
       }
-    }, [activeTab, users.length, user, loadReviewedCourses, loadBookmarkedCourses])
+    }, [activeTab, users.length, user, loadReviewedCourses, loadBookmarkedCourses, bookmarkedCoursesCache, reviewedCoursesCache, isCacheValid])
   );
 
   // Add this memoized renderItem function before the return statement
@@ -718,8 +844,9 @@ function SearchScreenContent() {
       isBookmarked={bookmarkedCourseIds.has(item.id)}
       isBookmarkLoading={bookmarkLoading[item.id] || false}
       onBookmarkToggle={handleBookmarkToggle}
+      userLocation={userLocation}
     />
-  ), [reviewedCourseIds, bookmarkedCourseIds, bookmarkLoading, handleCoursePress, handleBookmarkToggle]);
+  ), [reviewedCourseIds, bookmarkedCourseIds, bookmarkLoading, handleCoursePress, handleBookmarkToggle, userLocation]);
 
   // Calculate item height based on data for more accurate layout
   const getItemLayout = useCallback((data: any, index: number) => ({
@@ -875,6 +1002,16 @@ function SearchScreenContent() {
             ref={coursesListRef}
             
             renderItem={renderCourseItem}
+            
+            ListHeaderComponent={
+              !searchQuery.trim() ? (
+                <View style={styles.orderingHeader}>
+                  <SmallText color={theme.colors.textSecondary} style={styles.orderingText}>
+                    {orderingMethod === 'proximity' ? '📍 Courses near you' : '🏌️ All courses (A-Z)'}
+                  </SmallText>
+                </View>
+              ) : null
+            }
             
             contentContainerStyle={styles.listContent}
             ListFooterComponent={<View style={styles.listFooter} />}
@@ -1126,6 +1263,15 @@ const styles = StyleSheet.create({
     width: '100%',
     marginBottom: 8,
     paddingHorizontal: 2, // Small padding to accommodate pressed state effects
+  },
+  orderingHeader: {
+    paddingHorizontal: 4,
+    paddingBottom: 8,
+    marginBottom: 8,
+  },
+  orderingText: {
+    fontSize: 14,
+    fontWeight: '500',
   },
 });
 

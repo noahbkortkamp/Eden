@@ -575,4 +575,86 @@ function getDistanceInMiles(
 
 function toRad(degrees: number): number {
   return (degrees * Math.PI) / 180;
+}
+
+export async function getCoursesOrderedByProximity(
+  userLatitude: number | null, 
+  userLongitude: number | null,
+  userState: string | null
+): Promise<Course[]> {
+  const allCourses = await getAllCourses();
+  
+  if (!userLatitude || !userLongitude) {
+    // If no user location, fall back to alphabetical order
+    return allCourses.sort((a, b) => a.name.localeCompare(b.name));
+  }
+
+  // Separate courses into categories
+  const geocodedCourses: Array<Course & { distance: number }> = [];
+  const stateCoursesNotGeocoded: Course[] = [];
+  const otherCourses: Course[] = [];
+
+  for (const course of allCourses) {
+    if (course.latitude && course.longitude) {
+      // Course has precise location - calculate distance
+      const distance = getDistanceInMiles(
+        userLatitude,
+        userLongitude,
+        course.latitude,
+        course.longitude
+      );
+      geocodedCourses.push({ ...course, distance });
+    } else {
+      // Course doesn't have precise location
+      // Extract state from location string and compare
+      const courseState = extractStateFromLocation(course.location);
+      if (userState && courseState && 
+          courseState.toLowerCase() === userState.toLowerCase()) {
+        stateCoursesNotGeocoded.push(course);
+      } else {
+        otherCourses.push(course);
+      }
+    }
+  }
+
+  // Sort each category
+  // 1. Geocoded courses by distance (closest first)
+  const sortedGeocodedCourses = geocodedCourses
+    .sort((a, b) => a.distance - b.distance)
+    .map(({ distance, ...course }) => course); // Remove distance property
+
+  // 2. State courses alphabetically
+  const sortedStateCourses = stateCoursesNotGeocoded
+    .sort((a, b) => a.name.localeCompare(b.name));
+
+  // 3. Other courses alphabetically
+  const sortedOtherCourses = otherCourses
+    .sort((a, b) => a.name.localeCompare(b.name));
+
+  // Combine in order: closest first, then state courses, then all others
+  return [
+    ...sortedGeocodedCourses,
+    ...sortedStateCourses,
+    ...sortedOtherCourses
+  ];
+}
+
+// Helper function to extract state from location string
+function extractStateFromLocation(location: string): string | null {
+  if (!location) return null;
+  
+  // Common patterns: "City, State", "City, State, Country"
+  const parts = location.split(',').map(part => part.trim());
+  
+  if (parts.length >= 2) {
+    const statePart = parts[1];
+    // Handle common US state abbreviations and full names
+    if (statePart.length === 2) {
+      return statePart.toUpperCase(); // State abbreviation like "CA", "NY"
+    } else if (statePart.length > 2) {
+      return statePart; // Full state name like "California", "New York"
+    }
+  }
+  
+  return null;
 } 

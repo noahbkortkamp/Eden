@@ -5,21 +5,51 @@ import { useRouter } from 'expo-router';
 import * as Location from 'expo-location';
 import { edenTheme } from '../theme/edenTheme';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
+import { locationService } from '../services/location';
+import { useAuth } from '../context/AuthContext';
+import { supabase } from '../utils/supabase';
 
 export default function LocationPermissionScreen() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const router = useRouter();
+  const { user } = useAuth();
 
   const handleAllow = async () => {
     setLoading(true);
     setError('');
     try {
       const { status } = await Location.requestForegroundPermissionsAsync();
-      // You can store the permission status or location here if needed
+      
+      if (status === 'granted') {
+        // Get the user's current location
+        const locationData = await locationService.getCurrentLocation();
+        
+        if (locationData && user) {
+          // Store the location in the user's profile
+          const { error: updateError } = await supabase
+            .from('users')
+            .update({
+              location_latitude: locationData.latitude,
+              location_longitude: locationData.longitude,
+              location_city: locationData.city,
+              location_state: locationData.state,
+              location_country: locationData.country,
+              updated_at: new Date().toISOString(),
+            })
+            .eq('id', user.id);
+            
+          if (updateError) {
+            console.error('Error storing user location:', updateError);
+            // Continue anyway - location storage is not critical
+          }
+        }
+      }
+      
       // Proceed to find friends screen
       router.replace('/onboarding/find-friends');
     } catch (err: any) {
+      console.error('Location permission error:', err);
       setError('Failed to request location permission');
     } finally {
       setLoading(false);
@@ -42,7 +72,7 @@ export default function LocationPermissionScreen() {
         <Text style={styles.header}>Find and review every course in your area</Text>
         <Text style={styles.subheader}>Select "Allow" to share your location. This will allow Eden to do the following:</Text>
         <View style={styles.bullets}>
-          <RNText style={styles.bullet}>• Show top-rated courses nearby</RNText>
+          <RNText style={styles.bullet}>• Show courses nearest to you first</RNText>
           <RNText style={styles.bullet}>• Suggest hidden gems around you</RNText>
           <RNText style={styles.bullet}>• Help you track where you've played</RNText>
         </View>
