@@ -1,5 +1,5 @@
 import { View, Text, StyleSheet, ScrollView, Image, Pressable, TextInput, ActivityIndicator, Modal, TouchableOpacity } from 'react-native';
-import { useRouter, useLocalSearchParams } from 'expo-router';
+import { useRouter, useLocalSearchParams, useFocusEffect } from 'expo-router';
 import { Search, Trophy, Bell, Menu, Users, TrendingUp } from 'lucide-react-native';
 import { useFonts, Inter_400Regular, Inter_600SemiBold, Inter_700Bold } from '@expo-google-fonts/inter';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -45,7 +45,23 @@ function HomeScreenContent() {
     if (params.tab === 'members') {
       setShowFindFriends(true);
     }
-  }, [params]);
+    
+    // Check if a follow action was performed and refresh the feed
+    if (params.followAction === 'follow' && params.targetUser) {
+      console.log(`Follow action detected for user ${params.targetUser}, refreshing feed`);
+      // If someone was followed and we're on the friends tab, refresh the feed
+      if (activeTab === 'friends') {
+        setTimeout(() => {
+          if (friendsFeedRef.current) {
+            friendsFeedRef.current.handleRefresh();
+          }
+        }, 500); // Give a bit more time for the follow action to complete
+      }
+      
+      // Clear the parameters after handling them
+      router.setParams({ followAction: undefined, targetUser: undefined });
+    }
+  }, [params, activeTab, router]);
 
   const loadNearbyCourses = async () => {
     try {
@@ -89,6 +105,24 @@ function HomeScreenContent() {
       }, 300);
     }
   };
+
+  // Add focus effect to refresh feed when returning to home tab
+  useFocusEffect(
+    useCallback(() => {
+      console.log('📱 Home tab focused');
+      
+      // If we're on the friends tab and the feed is initialized, do a soft refresh
+      if (activeTab === 'friends' && friendsFeedRef.current) {
+        // Small delay to ensure any follow actions have completed
+        setTimeout(() => {
+          if (friendsFeedRef.current) {
+            console.log('🔄 Refreshing friends feed on focus');
+            friendsFeedRef.current.handleRefresh();
+          }
+        }, 200);
+      }
+    }, [activeTab])
+  );
 
   const navigateToDebug = () => {
     router.push('/(modals)/debug');

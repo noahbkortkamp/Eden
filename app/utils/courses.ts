@@ -640,7 +640,7 @@ export async function getCoursesOrderedByProximity(
 }
 
 // Helper function to extract state from location string
-function extractStateFromLocation(location: string): string | null {
+export function extractStateFromLocation(location: string): string | null {
   if (!location) return null;
   
   // Common patterns: "City, State", "City, State, Country"

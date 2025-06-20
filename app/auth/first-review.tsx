@@ -6,9 +6,12 @@ import { useAuth } from '../context/AuthContext';
 import { supabase } from '../utils/supabase';
 import { reviewService } from '../services/reviewService';
 import { userService } from '../services/userService';
-import { Search, MapPin } from 'lucide-react-native';
+import { locationService } from '../services/location';
+import { getCoursesOrderedByProximity } from '../utils/courses';
+import { Search, MapPin, Navigation } from 'lucide-react-native';
 import { edenTheme } from '../theme/edenTheme';
 import { useDebouncedCallback } from 'use-debounce';
+import { LocationData } from '../types';
 
 // Course type definition
 type Course = {
@@ -26,7 +29,11 @@ export default function FirstReviewScreen() {
   const [initialLoading, setInitialLoading] = useState(true);
   const [searchResults, setSearchResults] = useState<Course[]>([]);
   const [topCourses, setTopCourses] = useState<Course[]>([]);
+  const [nearbyCourses, setNearbyCourses] = useState<Course[]>([]);
   const [hasUserReview, setHasUserReview] = useState(false);
+  const [userLocation, setUserLocation] = useState<LocationData | null>(null);
+  const [locationLoading, setLocationLoading] = useState(false);
+  const [showingNearby, setShowingNearby] = useState(false);
 
   // Check if user already has reviews or has been marked as having completed first review
   useEffect(() => {
@@ -57,8 +64,11 @@ export default function FirstReviewScreen() {
         
         console.log('✅ User needs to complete first review, showing prompt screen');
         
-        // Load initial courses in alphabetical order
-        await loadInitialCourses();
+        // Load initial courses and try to get user location
+        await Promise.all([
+          loadInitialCourses(),
+          requestLocationAndLoadNearbyCourses()
+        ]);
       } catch (error) {
         console.error('Error checking user status:', error);
       } finally {
@@ -84,6 +94,43 @@ export default function FirstReviewScreen() {
     } catch (error) {
       console.error('Error loading initial courses:', error);
     }
+  };
+
+  // Request location permission and load nearby courses
+  const requestLocationAndLoadNearbyCourses = async () => {
+    try {
+      setLocationLoading(true);
+      console.log('🌍 Requesting location permission for first review screen');
+      
+      const location = await locationService.getCurrentLocation();
+      if (location) {
+        console.log('📍 Location obtained:', location);
+        setUserLocation(location);
+        
+        // Load courses ordered by proximity
+        const coursesOrderedByProximity = await getCoursesOrderedByProximity(
+          location.latitude,
+          location.longitude,
+          location.state
+        );
+        
+        // Take the first 15 courses for the nearby section
+        setNearbyCourses(coursesOrderedByProximity.slice(0, 15));
+        setShowingNearby(true);
+        console.log('📍 Loaded nearby courses for first review screen');
+      } else {
+        console.log('📍 Location permission denied or unavailable');
+      }
+    } catch (error) {
+      console.error('Error getting location:', error);
+    } finally {
+      setLocationLoading(false);
+    }
+  };
+
+  // Function to manually request location if user didn't grant it initially
+  const handleLocationRequest = async () => {
+    await requestLocationAndLoadNearbyCourses();
   };
 
   // Debounced search function to search as user types
@@ -163,8 +210,8 @@ export default function FirstReviewScreen() {
   return (
     <SafeAreaView style={styles.safeArea}>
       <View style={styles.container}>
-        <View style={styles.fixedHeaderContainer}>
-          <View style={styles.header}>
+        <View style={styles.compactHeaderContainer}>
+          <View style={styles.compactHeader}>
             <Text 
               variant="headlineMedium" 
               style={[styles.title, { 
@@ -173,10 +220,6 @@ export default function FirstReviewScreen() {
               }]}
             >
               Leave Your First Review
-            </Text>
-            
-            <Text style={[styles.subtitle, { color: edenTheme.colors.textSecondary }]}>
-              Help other golfers by sharing your experience at a course you've played.
             </Text>
           </View>
           
@@ -233,10 +276,49 @@ export default function FirstReviewScreen() {
                 </View>
               )}
               
+              {searchQuery.trim() === '' && showingNearby && nearbyCourses.length > 0 && (
+                <View style={styles.resultsContainer}>
+                  <Text style={styles.resultsTitle}>
+                    Courses near you
+                  </Text>
+                  
+                  {nearbyCourses.map(course => renderCourseItem(course))}
+                </View>
+              )}
+              
+              {searchQuery.trim() === '' && !showingNearby && !locationLoading && (
+                <View style={styles.locationPromptContainer}>
+                  <Text style={styles.locationPromptTitle}>
+                    Find courses near you
+                  </Text>
+                  <Text style={styles.locationPromptText}>
+                    Enable location to see golf courses closest to you for your first review.
+                  </Text>
+                  <TouchableOpacity 
+                    style={styles.locationButton}
+                    onPress={handleLocationRequest}
+                  >
+                    <Navigation size={16} color={edenTheme.colors.primary} />
+                    <Text style={styles.locationButtonText}>
+                      Use my location
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+              )}
+              
+              {searchQuery.trim() === '' && locationLoading && (
+                <View style={styles.locationLoadingContainer}>
+                  <ActivityIndicator size="small" color={edenTheme.colors.primary} />
+                  <Text style={styles.locationLoadingText}>
+                    Finding courses near you...
+                  </Text>
+                </View>
+              )}
+              
               {searchQuery.trim() === '' && topCourses.length > 0 && (
                 <View style={styles.resultsContainer}>
                   <Text style={styles.resultsTitle}>
-                    Popular Courses
+                    {showingNearby ? 'More Courses' : 'Popular Courses'}
                   </Text>
                   
                   {topCourses.map(course => renderCourseItem(course))}
@@ -267,9 +349,9 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: edenTheme.colors.background,
   },
-  fixedHeaderContainer: {
+  compactHeaderContainer: {
     paddingHorizontal: edenTheme.spacing.lg,
-    paddingTop: edenTheme.spacing.xl,
+    paddingTop: edenTheme.spacing.md,
     backgroundColor: edenTheme.colors.background,
     zIndex: 1,
     shadowColor: '#000',
@@ -277,7 +359,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.05,
     shadowRadius: 3,
     elevation: 3,
-    paddingBottom: edenTheme.spacing.md,
+    paddingBottom: edenTheme.spacing.xs,
   },
   scrollableContent: {
     flex: 1,
@@ -287,24 +369,19 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     padding: edenTheme.spacing.lg,
-    paddingTop: edenTheme.spacing.sm,
+    paddingTop: edenTheme.spacing.xs,
     paddingBottom: edenTheme.spacing.xl * 2,
   },
-  header: {
-    marginBottom: edenTheme.spacing.xl,
+  compactHeader: {
+    marginBottom: edenTheme.spacing.md,
   },
   title: {
     fontWeight: 'bold',
     textAlign: 'center',
-    marginBottom: edenTheme.spacing.md,
-  },
-  subtitle: {
-    fontSize: 16,
-    textAlign: 'center',
-    lineHeight: 22,
+    marginBottom: 0,
   },
   searchContainer: {
-    marginBottom: edenTheme.spacing.lg,
+    marginBottom: edenTheme.spacing.sm,
   },
   searchInput: {
     marginBottom: edenTheme.spacing.sm,
@@ -370,5 +447,59 @@ const styles = StyleSheet.create({
   skipText: {
     fontSize: 16,
     textDecorationLine: 'underline',
+  },
+  sectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: edenTheme.spacing.sm,
+  },
+  locationPromptContainer: {
+    padding: edenTheme.spacing.lg,
+    backgroundColor: edenTheme.colors.surface,
+    borderRadius: edenTheme.borderRadius.md,
+    marginBottom: edenTheme.spacing.md,
+    alignItems: 'center',
+  },
+  locationPromptTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    marginBottom: edenTheme.spacing.sm,
+    color: edenTheme.colors.text,
+    textAlign: 'center',
+  },
+  locationPromptText: {
+    fontSize: 14,
+    color: edenTheme.colors.textSecondary,
+    textAlign: 'center',
+    marginBottom: edenTheme.spacing.md,
+    lineHeight: 20,
+  },
+  locationButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: edenTheme.spacing.md,
+    paddingVertical: edenTheme.spacing.sm,
+    backgroundColor: edenTheme.colors.primary,
+    borderRadius: edenTheme.borderRadius.sm,
+  },
+  locationButtonText: {
+    color: 'white',
+    fontSize: 14,
+    fontWeight: '600',
+    marginLeft: edenTheme.spacing.xs,
+  },
+  locationLoadingContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: edenTheme.spacing.lg,
+    backgroundColor: edenTheme.colors.surface,
+    borderRadius: edenTheme.borderRadius.md,
+    marginBottom: edenTheme.spacing.md,
+  },
+  locationLoadingText: {
+    marginLeft: edenTheme.spacing.sm,
+    color: edenTheme.colors.textSecondary,
+    fontSize: 14,
   },
 }); 
