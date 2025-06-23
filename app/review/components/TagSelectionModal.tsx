@@ -46,14 +46,12 @@ export const TagSelectionModal: React.FC<TagSelectionModalProps> = ({
   const CATEGORY_ORDER = [
     'Conditions',
     'Course Type',
+    'Design Features',
     'Pace of Play',
-    'Course Design',
-    'Practice Facilities',
-    'Amenities',
-    'Facilities',
     'Value',
-    'Booking',
-    'Difficulty'
+    'Amenities',
+    'Food & Beverage',
+    'Practice Facilities'
   ];
 
   // Fetch tags from Supabase when modal becomes visible
