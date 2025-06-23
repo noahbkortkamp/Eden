@@ -88,15 +88,24 @@ export const ReviewScreen: React.FC<ReviewScreenProps> = ({
   }, [tags, localSelectedTags]);
 
   const handlePhotoUpload = async () => {
+    // Calculate how many more photos can be selected
+    const remainingSlots = 5 - photos.length;
+    
+    if (remainingSlots <= 0) {
+      // Already at maximum photos
+      return;
+    }
+
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ImagePicker.MediaTypeOptions.Images,
-      allowsEditing: true,
-      aspect: [4, 3],
+      allowsMultipleSelection: true,
+      selectionLimit: remainingSlots,
       quality: 1,
     });
 
-    if (!result.canceled && result.assets[0].uri) {
-      setPhotos((prev) => [...prev, result.assets[0].uri].slice(0, 5));
+    if (!result.canceled && result.assets && result.assets.length > 0) {
+      const newPhotoUris = result.assets.map(asset => asset.uri);
+      setPhotos((prev) => [...prev, ...newPhotoUris].slice(0, 5));
     }
   };
 
