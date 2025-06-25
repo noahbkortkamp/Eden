@@ -274,7 +274,7 @@ class IAPService {
 
       // BUGFIX: Use correct API for react-native-iap v12+ with timeout
       const products = await Promise.race([
-        getSubscriptions({ productIds: productIds }),
+        getSubscriptions({ skus: productIds }),
         new Promise((_, reject) => 
           setTimeout(() => reject(new Error('Product loading timeout')), 15000)
         )
@@ -501,9 +501,9 @@ class IAPService {
       
       let purchase;
       try {
-              // BUGFIX: Use correct API for react-native-iap v12+ (productId parameter required)
+              // BUGFIX: Use correct API for react-native-iap v12+ (sku parameter required)
       const subscriptionRequest = {
-        productId: productId
+        sku: productId
       };
       
       console.log('🔍 IAP: Subscription request:', subscriptionRequest);
