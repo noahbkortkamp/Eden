@@ -76,8 +76,11 @@ export const IAP_CONFIG = {
     })(),
   },
   
-  // Connection timeout settings
-  CONNECTION_TIMEOUT: 10000, // 10 seconds
+  // Connection timeout settings - TestFlight purchases can take much longer
+  CONNECTION_TIMEOUT: (() => {
+    const isTestFlightOrProduction = !__DEV__ && (typeof expo === 'undefined' || !expo?.modules);
+    return isTestFlightOrProduction ? 60000 : 15000; // 60s for TestFlight, 15s for dev
+  })(),
   INITIALIZATION_RETRY_DELAY: 2000, // 2 seconds
   
   // Receipt validation endpoint (will be created in Phase 2)

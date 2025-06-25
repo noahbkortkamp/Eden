@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { iapService } from '../services/iapService';
+import { useSubscription } from '../context/SubscriptionContext';
 
 interface UseIAPResult {
   isInitialized: boolean;
@@ -23,6 +24,7 @@ export const useIAP = (): UseIAPResult => {
   const [error, setError] = useState<string | null>(null);
   const [status, setStatus] = useState<UseIAPResult['status']>(null);
   const [initializationAttempted, setInitializationAttempted] = useState(false);
+  const { refreshSubscriptionStatus } = useSubscription();
 
   const refreshStatus = () => {
     const currentStatus = iapService.getStatus();
@@ -145,6 +147,12 @@ export const useIAP = (): UseIAPResult => {
       
       if (success) {
         console.log('✅ useIAP: Purchase completed successfully');
+        
+        // Refresh subscription status after successful purchase
+        console.log('🔄 useIAP: Refreshing subscription status after purchase...');
+        setTimeout(() => {
+          refreshSubscriptionStatus();
+        }, 2000); // Small delay to ensure Apple's servers are updated
       }
       
       return success;

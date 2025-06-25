@@ -501,19 +501,16 @@ class IAPService {
       
       let purchase;
       try {
-              // BUGFIX: Use correct API for react-native-iap v12+ (sku parameter required)
-      const subscriptionRequest = {
-        sku: productId
-      };
-      
-      console.log('🔍 IAP: Subscription request:', subscriptionRequest);
-      
-      purchase = await Promise.race([
-        requestSubscription(subscriptionRequest),
-        new Promise((_, reject) => 
-          setTimeout(() => reject(new Error('Purchase request timeout')), IAP_CONFIG.CONNECTION_TIMEOUT)
-        )
-      ]) as any;
+        // BUGFIX: Use correct API for react-native-iap v12+ (sku parameter required)
+        const subscriptionRequest = {
+          sku: productId
+        };
+        
+        console.log('🔍 IAP: Subscription request:', subscriptionRequest);
+        
+        // Don't use timeout race - let Apple handle the purchase flow completely
+        // The purchaseUpdatedListener will handle success, purchaseErrorListener will handle errors
+        purchase = await requestSubscription(subscriptionRequest);
       } catch (iapError) {
         console.error('❌ IAP: requestSubscription failed:', iapError);
         
