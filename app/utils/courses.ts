@@ -149,23 +149,49 @@ export async function getAllCourses(): Promise<Course[]> {
     return cached.data as unknown as Course[];
   }
 
-  console.log('Fetching all courses from database');
-  const { data, error } = await supabase
-    .from('courses')
-    .select('*')
-    .order('name', { ascending: true });
+  console.log('Fetching all courses from database using pagination');
+  
+  // Supabase has a hard limit of 1000 rows per query, so we need to paginate
+  const allCourses: Course[] = [];
+  let offset = 0;
+  const batchSize = 1000;
+  let hasMoreData = true;
 
-  if (error) throw error;
+  while (hasMoreData) {
+    console.log(`Fetching courses batch: ${offset} to ${offset + batchSize - 1}`);
+    
+    const { data, error } = await supabase
+      .from('courses')
+      .select('*')
+      .order('name', { ascending: true })
+      .range(offset, offset + batchSize - 1);
+
+    if (error) throw error;
+    
+    if (data && data.length > 0) {
+      allCourses.push(...data);
+      offset += batchSize;
+      
+      // If we got less than batchSize, we've reached the end
+      if (data.length < batchSize) {
+        hasMoreData = false;
+      }
+    } else {
+      hasMoreData = false;
+    }
+  }
+
+  console.log(`Successfully fetched ${allCourses.length} total courses`);
   
   // Cache the result
-  if (data) {
+  if (allCourses.length > 0) {
     courseCache.set(allCoursesKey, { 
-      data: data as unknown as Course, 
+      data: allCourses as unknown as Course, 
       timestamp: Date.now() 
     });
   }
   
-  return data;
+  return allCourses;
 }
 
 // Calculate Levenshtein distance between two strings
