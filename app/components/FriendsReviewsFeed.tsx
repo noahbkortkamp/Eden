@@ -391,7 +391,7 @@ export const FriendsReviewsFeed = forwardRef<FriendsReviewsFeedRef, FriendsRevie
       <EmptyFeedState
         icon={<Users size={48} color={edenTheme.colors.textSecondary} />}
         title="No Friend Reviews Yet"
-        description="Follow friends to see their reviews here"
+        description="Follow friends and top reviewers to compare rankings and find new courses worth trying"
         actionButton={
           <Button
             label="Find Friends"
