@@ -114,9 +114,9 @@ function ReviewSuccessContent() {
         console.log(`ReviewSuccessScreen: User has ${totalReviews} total reviews`);
         setUserReviewCount(totalReviews);
 
-        // Check if user has completed exactly 2 reviews AND doesn't have active subscription
-        if (totalReviews === 2 && !subscription?.hasActiveSubscription && !subscription?.isTrialPeriod) {
-          console.log('🚀 User has completed 2 reviews and no active subscription! Showing Founders Membership paywall after comparisons.');
+        // Check if user has completed exactly 6 reviews AND doesn't have active subscription
+        if (totalReviews === 6 && !subscription?.hasActiveSubscription && !subscription?.isTrialPeriod) {
+          console.log('🚀 User has completed 6 reviews and no active subscription! Showing Founders Membership paywall after comparisons.');
           
           // Add a small delay to ensure any IAP initialization has time to complete
           setTimeout(() => {

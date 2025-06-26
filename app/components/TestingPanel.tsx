@@ -106,15 +106,15 @@ export const TestingPanel: React.FC = () => {
           Paywall Testing
         </Typography>
         <Button
-          label="Set 1 Review (trigger on next)"
+          label="Set 5 Reviews (trigger on next)"
           variant="secondary"
-          onPress={() => handleSetReviewCount(1)}
+          onPress={() => handleSetReviewCount(5)}
           style={styles.button}
         />
         <Button
-          label="Set 2 Reviews (trigger paywall)"
+          label="Set 6 Reviews (trigger paywall)"
           variant="secondary"
-          onPress={() => handleSetReviewCount(2)}
+          onPress={() => handleSetReviewCount(6)}
           style={styles.button}
         />
         <Button
