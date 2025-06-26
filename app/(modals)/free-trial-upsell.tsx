@@ -126,7 +126,7 @@ export default function FreeTrialUpsellModal() {
                   <View style={styles.timelineContent}>
                     <Text style={[theme.typography.body, styles.timelineLabel]}>In 7 days</Text>
                     <Text style={[theme.typography.bodySmall, styles.timelineDescription]}>
-                      You'll be charged the lifetime membership amount. Cancel anytime before.
+                      You'll be charged $30/year. Cancel anytime before.
                     </Text>
                   </View>
                 </View>
@@ -139,7 +139,7 @@ export default function FreeTrialUpsellModal() {
                 Free 7-Day Trial
               </Text>
               <Text style={[theme.typography.body, styles.pricingSubtitle]}>
-                $30 lifetime membership after trial
+                $30/year after trial
               </Text>
             </View>
 

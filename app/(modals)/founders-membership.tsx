@@ -195,7 +195,7 @@ export default function FoundersMembershipModal() {
               
               <View style={styles.offerSection}>
                 <Text style={[theme.typography.body, styles.offerText]}>
-                  For a one-time <Text style={styles.priceText}>$30 lifetime membership</Text>, you'll:
+                  For <Text style={styles.priceText}>$30/year</Text> you'll get:
                 </Text>
               </View>
 
@@ -224,7 +224,7 @@ export default function FoundersMembershipModal() {
               </View>
 
               <Text style={[theme.typography.body, styles.closingText]}>
-                This special offer helps keep the lights on, supports ongoing development, and allows us to build the best possible experience for golf sickos just like you.
+                Your membership supports ongoing development of the app and allows us to build the best possible experience for golf sickos just like you.
               </Text>
             </View>
           </View>
