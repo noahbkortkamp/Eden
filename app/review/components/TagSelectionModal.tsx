@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import {
   View,
   Text,
@@ -12,6 +12,7 @@ import {
   Keyboard,
   KeyboardEvent,
   ActivityIndicator,
+  Platform,
 } from 'react-native';
 import { useEdenTheme } from '../../theme/ThemeProvider';
 import { colors, spacing, borderRadius } from '../../theme/tokens';
@@ -26,6 +27,92 @@ interface TagSelectionModalProps {
   onSave: (selectedTags: Tag[]) => void;
   selectedTags: Tag[];
 }
+
+// Memoized tag button component for better performance
+const TagButton = React.memo<{
+  tag: Tag;
+  isSelected: boolean;
+  onPress: (tag: Tag) => void;
+  edenTheme: any;
+}>(({ tag, isSelected, onPress, edenTheme }) => {
+  const handlePress = useCallback(() => onPress(tag), [tag, onPress]);
+  
+  return (
+    <TouchableOpacity
+      style={[
+        styles.tagButton,
+        { 
+          borderColor: colors.border.default,
+          backgroundColor: colors.background.paper,
+        },
+        isSelected && { 
+          backgroundColor: colors.accent.primary + '20',
+          borderColor: colors.accent.primary,
+        },
+      ]}
+      onPress={handlePress}
+      activeOpacity={0.7}
+      hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+    >
+      <Text style={[
+        styles.tagText,
+        edenTheme.typography.tag,
+        { color: isSelected ? colors.accent.primary : colors.text.primary },
+      ]}>
+        {tag.name}
+      </Text>
+      {isSelected && (
+        <View style={styles.selectedIndicator}>
+          <Check size={14} color={colors.accent.primary} strokeWidth={3} />
+        </View>
+      )}
+    </TouchableOpacity>
+  );
+});
+
+// Memoized category component for better performance
+const CategorySection = React.memo<{
+  category: string;
+  tags: Tag[];
+  isExpanded: boolean;
+  selectedTagIds: Set<string>;
+  onToggleCategory: (category: string) => void;
+  onToggleTag: (tag: Tag) => void;
+  edenTheme: any;
+}>(({ category, tags, isExpanded, selectedTagIds, onToggleCategory, onToggleTag, edenTheme }) => {
+  const handleToggleCategory = useCallback(() => onToggleCategory(category), [category, onToggleCategory]);
+  
+  return (
+    <View style={styles.categoryContainer}>
+      <TouchableOpacity 
+        style={styles.categoryHeader}
+        onPress={handleToggleCategory}
+        activeOpacity={0.7}
+      >
+        <Text style={[styles.categoryTitle, edenTheme.typography.h3, { color: colors.text.primary }]}>
+          {category.replace(/_/g, ' ')}
+        </Text>
+        <Text style={{ color: colors.text.secondary, fontSize: 16 }}>
+          {isExpanded ? '▼' : '►'}
+        </Text>
+      </TouchableOpacity>
+      
+      {isExpanded && (
+        <View style={styles.tagsGrid}>
+          {tags.map((tag) => (
+            <TagButton
+              key={tag.id}
+              tag={tag}
+              isSelected={selectedTagIds.has(tag.id)}
+              onPress={onToggleTag}
+              edenTheme={edenTheme}
+            />
+          ))}
+        </View>
+      )}
+    </View>
+  );
+});
 
 export const TagSelectionModal: React.FC<TagSelectionModalProps> = ({
   visible,
@@ -53,6 +140,12 @@ export const TagSelectionModal: React.FC<TagSelectionModalProps> = ({
     'Food & Beverage',
     'Practice Facilities'
   ];
+
+  // Memoized selected tag IDs set for performance
+  const selectedTagIds = useMemo(() => 
+    new Set(localSelectedTags.map(tag => tag.id)), 
+    [localSelectedTags]
+  );
 
   // Fetch tags from Supabase when modal becomes visible
   useEffect(() => {
@@ -92,28 +185,7 @@ export const TagSelectionModal: React.FC<TagSelectionModalProps> = ({
     setLocalSelectedTags(selectedTags);
   }, [selectedTags]);
 
-  // Add keyboard event listener
-  useEffect(() => {
-    const keyboardDidShowListener = Keyboard.addListener(
-      'keyboardDidShow',
-      () => {
-        // Keyboard is shown
-      }
-    );
-    const keyboardDidHideListener = Keyboard.addListener(
-      'keyboardDidHide',
-      () => {
-        // Keyboard is hidden
-      }
-    );
-
-    return () => {
-      keyboardDidShowListener.remove();
-      keyboardDidHideListener.remove();
-    };
-  }, []);
-
-  const toggleTag = (tag: Tag) => {
+  const toggleTag = useCallback((tag: Tag) => {
     setLocalSelectedTags((prev) => {
       const isSelected = prev.some((t) => t.id === tag.id);
       if (isSelected) {
@@ -121,38 +193,36 @@ export const TagSelectionModal: React.FC<TagSelectionModalProps> = ({
       }
       return [...prev, tag];
     });
-  };
+  }, []);
 
-  const toggleCategory = (category: string) => {
+  const toggleCategory = useCallback((category: string) => {
     setExpandedCategories(prev => 
       prev.includes(category) 
         ? prev.filter(c => c !== category) 
         : [...prev, category]
     );
-  };
+  }, []);
 
-  const handleSave = () => {
+  const handleSave = useCallback(() => {
     onSave(localSelectedTags);
     onClose();
-  };
+  }, [localSelectedTags, onSave, onClose]);
 
-  const handleClear = () => {
+  const handleClear = useCallback(() => {
     setLocalSelectedTags([]);
-  };
+  }, []);
 
-  const handleOpenSuggestionModal = () => {
+  const handleOpenSuggestionModal = useCallback(() => {
     console.log('DEBUG: handleOpenSuggestionModal called');
-    // First close the current modal, then open the suggestion modal
-    onClose(); // Close the TagSelectionModal first
-    // Use setTimeout to ensure the first modal is closed before opening the second
+    onClose();
     setTimeout(() => {
       setSuggestionModalVisible(true);
       console.log('DEBUG: setSuggestionModalVisible set to', true);
     }, 300);
-  };
+  }, [onClose]);
 
-  // Filter tags based on search query and apply custom category ordering
-  const filteredCategories = (() => {
+  // Memoized filtered categories for performance
+  const filteredCategories = useMemo(() => {
     // First filter based on search query
     const filtered = Object.entries(dbTags).reduce((acc, [category, tags]) => {
       if (searchQuery.trim() === '') {
@@ -176,21 +246,26 @@ export const TagSelectionModal: React.FC<TagSelectionModalProps> = ({
       const indexA = CATEGORY_ORDER.indexOf(categoryA);
       const indexB = CATEGORY_ORDER.indexOf(categoryB);
       
-      // If both categories are in the order array, sort by their position
       if (indexA !== -1 && indexB !== -1) {
         return indexA - indexB;
       }
       
-      // If only one category is in the order array, prioritize it
       if (indexA !== -1) return -1;
       if (indexB !== -1) return 1;
       
-      // If neither category is in the order array, sort alphabetically
       return categoryA.localeCompare(categoryB);
     });
 
     return Object.fromEntries(sortedEntries);
-  })();
+  }, [dbTags, searchQuery]);
+
+  const handleSearchChange = useCallback((text: string) => {
+    setSearchQuery(text);
+  }, []);
+
+  const clearSearch = useCallback(() => {
+    setSearchQuery('');
+  }, []);
 
   return (
     <>
@@ -199,189 +274,118 @@ export const TagSelectionModal: React.FC<TagSelectionModalProps> = ({
         animationType="slide"
         presentationStyle="pageSheet"
       >
-        <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
-          <SafeAreaView style={[styles.modalContainer, { backgroundColor: colors.background.base }]}>
-            <View style={[styles.header, { 
-              backgroundColor: colors.background.paper,
-              borderBottomColor: colors.border.default,
-            }]}>
-              <Text style={[styles.headerTitle, edenTheme.typography.h3]}>
-                Select Course Tags
-              </Text>
-              <TouchableOpacity style={styles.closeButton} onPress={onClose}>
-                <X size={24} color={colors.text.primary} />
-              </TouchableOpacity>
+        <SafeAreaView style={styles.modalContainer}>
+          <View style={styles.header}>
+            <Text style={[styles.headerTitle, edenTheme.typography.h3]}>
+              Select Course Tags
+            </Text>
+            <TouchableOpacity style={styles.closeButton} onPress={onClose}>
+              <X size={24} color={colors.text.primary} />
+            </TouchableOpacity>
+          </View>
+          
+          <View style={styles.searchContainer}>
+            <View style={styles.searchInputContainer}>
+              <Search size={16} color={colors.text.secondary} />
+              <TextInput
+                style={styles.searchInput}
+                placeholder="Search tags..."
+                placeholderTextColor={colors.text.secondary}
+                value={searchQuery}
+                onChangeText={handleSearchChange}
+                returnKeyType="search"
+                blurOnSubmit={true}
+                onSubmitEditing={Keyboard.dismiss}
+              />
+              {searchQuery ? (
+                <TouchableOpacity onPress={clearSearch}>
+                  <X size={16} color={colors.text.secondary} />
+                </TouchableOpacity>
+              ) : null}
             </View>
-            
-            <View style={styles.searchWrapperContainer}>
-              <View style={[styles.searchContainer, {
-                borderColor: colors.border.default,
-                backgroundColor: colors.background.paper,
-              }]}>
-                <Search size={16} color={colors.text.secondary} />
-                <TextInput
-                  style={[styles.searchInput, { color: colors.text.primary }]}
-                  placeholder="Search tags..."
-                  placeholderTextColor={colors.text.secondary}
-                  value={searchQuery}
-                  onChangeText={setSearchQuery}
-                  returnKeyType="search"
-                  blurOnSubmit={true}
-                  onSubmitEditing={Keyboard.dismiss}
-                />
-                {searchQuery ? (
-                  <TouchableOpacity onPress={() => setSearchQuery('')}>
-                    <X size={16} color={colors.text.secondary} />
-                  </TouchableOpacity>
-                ) : null}
+          </View>
+          
+          <ScrollView 
+            style={styles.scrollView}
+            contentContainerStyle={styles.scrollContent}
+            onScrollBeginDrag={Keyboard.dismiss}
+            showsVerticalScrollIndicator={true}
+            scrollEventThrottle={16}
+            decelerationRate="normal"
+            keyboardShouldPersistTaps="handled"
+            removeClippedSubviews={true}
+            maxToRenderPerBatch={10}
+            windowSize={10}
+          >
+            {isLoading ? (
+              <View style={styles.loadingContainer}>
+                <ActivityIndicator size="large" color={colors.accent.primary} />
+                <Text style={[edenTheme.typography.body, styles.loadingText]}>
+                  Loading tags...
+                </Text>
               </View>
-            </View>
+            ) : error ? (
+              <View style={styles.errorContainer}>
+                <Text style={[edenTheme.typography.body, styles.errorText]}>
+                  {error}
+                </Text>
+                <TouchableOpacity 
+                  style={styles.retryButton}
+                  onPress={fetchTags}
+                >
+                  <Text style={[edenTheme.typography.buttonSmall, styles.retryButtonText]}>
+                    Retry
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            ) : Object.keys(filteredCategories).length === 0 ? (
+              <Text style={[styles.noResults, edenTheme.typography.bodySmall]}>
+                No tags match your search
+              </Text>
+            ) : (
+              Object.entries(filteredCategories).map(([category, tags]) => (
+                <CategorySection
+                  key={category}
+                  category={category}
+                  tags={tags}
+                  isExpanded={expandedCategories.includes(category)}
+                  selectedTagIds={selectedTagIds}
+                  onToggleCategory={toggleCategory}
+                  onToggleTag={toggleTag}
+                  edenTheme={edenTheme}
+                />
+              ))
+            )}
             
-            <View style={styles.contentContainer}>
-              <ScrollView 
-                style={styles.content}
-                contentContainerStyle={styles.scrollContent}
-                onScrollBeginDrag={Keyboard.dismiss}
-                showsVerticalScrollIndicator={true}
-                scrollEnabled={true}
-                directionalLockEnabled={false}
-                alwaysBounceVertical={true}
-                scrollEventThrottle={16}
-                decelerationRate="normal"
-                bounces={true}
-                keyboardShouldPersistTaps="handled"
-              >
-                <View style={styles.scrollInnerContent}>
-                  {isLoading ? (
-                    <View style={styles.loadingContainer}>
-                      <ActivityIndicator size="large" color={colors.accent.primary} />
-                      <Text style={[edenTheme.typography.body, { color: colors.text.primary, marginTop: spacing.md }]}>
-                        Loading tags...
-                      </Text>
-                    </View>
-                  ) : error ? (
-                    <View style={styles.errorContainer}>
-                      <Text style={[edenTheme.typography.body, { color: colors.feedback.negative }]}>
-                        {error}
-                      </Text>
-                      <TouchableOpacity 
-                        style={[styles.retryButton, { backgroundColor: colors.accent.primary }]} 
-                        onPress={fetchTags}
-                      >
-                        <Text style={[edenTheme.typography.buttonSmall, { color: colors.text.inverse }]}>
-                          Retry
-                        </Text>
-                      </TouchableOpacity>
-                    </View>
-                  ) : Object.keys(filteredCategories).length === 0 ? (
-                    <Text style={[styles.noResults, edenTheme.typography.bodySmall, { color: colors.text.secondary }]}>
-                      No tags match your search
-                    </Text>
-                  ) : (
-                    Object.entries(filteredCategories).map(([category, tags]) => (
-                      <View key={category} style={styles.categoryContainer}>
-                        <TouchableOpacity 
-                          style={styles.categoryHeader}
-                          onPress={() => toggleCategory(category)}
-                          activeOpacity={0.7}
-                        >
-                          <Text style={[styles.categoryTitle, edenTheme.typography.h3, { color: colors.text.primary }]}>
-                            {category.replace(/_/g, ' ')}
-                          </Text>
-                          <Text style={{ color: colors.text.secondary }}>
-                            {expandedCategories.includes(category) ? '▼' : '►'}
-                          </Text>
-                        </TouchableOpacity>
-                        
-                        {expandedCategories.includes(category) && (
-                          <View style={styles.tagsGrid}>
-                            {tags.map((tag) => {
-                              const isSelected = localSelectedTags.some((t) => t.id === tag.id);
-                              return (
-                                <TouchableOpacity
-                                  key={tag.id}
-                                  style={[
-                                    styles.tagButton,
-                                    { 
-                                      borderColor: colors.border.default,
-                                      backgroundColor: colors.background.paper,
-                                    },
-                                    isSelected && { 
-                                      backgroundColor: colors.accent.primary + '20',
-                                      borderColor: colors.accent.primary,
-                                    },
-                                  ]}
-                                  onPress={() => toggleTag(tag)}
-                                  activeOpacity={0.7}
-                                  hitSlop={{ top: 5, bottom: 5, left: 5, right: 5 }}
-                                >
-                                  <Text style={[
-                                    styles.tagText,
-                                    edenTheme.typography.tag,
-                                    { color: isSelected ? colors.accent.primary : colors.text.primary },
-                                  ]}>
-                                    {tag.name}
-                                  </Text>
-                                  {isSelected && (
-                                    <View style={styles.selectedIndicator}>
-                                      <Check size={14} color={colors.accent.primary} strokeWidth={3} />
-                                    </View>
-                                  )}
-                                </TouchableOpacity>
-                              );
-                            })}
-                          </View>
-                        )}
-                      </View>
-                    ))
-                  )}
-                  
-                  <TouchableOpacity 
-                    style={[styles.newTagButton, { borderTopColor: colors.border.default }]}
-                    onPress={handleOpenSuggestionModal}
-                  >
-                    <Text style={[styles.newTagText, edenTheme.typography.buttonSecondary]}>
-                      Have a new tag idea? Let us know!
-                    </Text>
-                  </TouchableOpacity>
-                </View>
-              </ScrollView>
-            </View>
+            <TouchableOpacity 
+              style={styles.newTagButton}
+              onPress={handleOpenSuggestionModal}
+            >
+              <Text style={[styles.newTagText, edenTheme.typography.buttonSecondary]}>
+                Have a new tag idea? Let us know!
+              </Text>
+            </TouchableOpacity>
+          </ScrollView>
 
-            <View style={[styles.buttonRow, {
-              borderTopColor: colors.border.default,
-              backgroundColor: colors.background.paper
-            }]}>
-              <TouchableOpacity 
-                style={[
-                  styles.clearButton, 
-                  {
-                    backgroundColor: colors.background.paper,
-                    borderColor: colors.border.default,
-                  }
-                ]} 
-                onPress={handleClear}
-              >
-                <Text style={[styles.clearButtonText, edenTheme.typography.buttonSecondary, { color: colors.feedback.negative }]}>
-                  Clear All
-                </Text>
-              </TouchableOpacity>
-              <TouchableOpacity 
-                style={[
-                  styles.saveButton,
-                  {
-                    backgroundColor: colors.accent.primary,
-                  }
-                ]} 
-                onPress={handleSave}
-              >
-                <Text style={[styles.saveButtonText, edenTheme.typography.button, { color: colors.text.inverse }]}>
-                  Save Tags
-                </Text>
-              </TouchableOpacity>
-            </View>
-          </SafeAreaView>
-        </TouchableWithoutFeedback>
+          <View style={styles.buttonRow}>
+            <TouchableOpacity 
+              style={styles.clearButton}
+              onPress={handleClear}
+            >
+              <Text style={[styles.clearButtonText, edenTheme.typography.buttonSecondary]}>
+                Clear All
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity 
+              style={styles.saveButton}
+              onPress={handleSave}
+            >
+              <Text style={[styles.saveButtonText, edenTheme.typography.button]}>
+                Save Tags
+              </Text>
+            </TouchableOpacity>
+          </View>
+        </SafeAreaView>
       </Modal>
       
       <TagSuggestionModal 
@@ -396,7 +400,6 @@ const styles = StyleSheet.create({
   modalContainer: {
     flex: 1,
     backgroundColor: colors.background.base,
-    width: '100%',
   },
   header: {
     flexDirection: 'row',
@@ -406,12 +409,17 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: colors.border.default,
     backgroundColor: colors.background.paper,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 1,
-    elevation: 2,
-    zIndex: 10,
+    ...Platform.select({
+      ios: {
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 1 },
+        shadowOpacity: 0.1,
+        shadowRadius: 1,
+      },
+      android: {
+        elevation: 2,
+      },
+    }),
   },
   headerTitle: {
     flex: 1,
@@ -419,48 +427,39 @@ const styles = StyleSheet.create({
   },
   closeButton: {
     padding: spacing.sm,
-  },
-  searchWrapperContainer: {
-    paddingHorizontal: spacing.md,
-    paddingTop: spacing.sm,
-    paddingBottom: 0,
+    marginLeft: spacing.sm,
   },
   searchContainer: {
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    backgroundColor: colors.background.paper,
+  },
+  searchInputContainer: {
     flexDirection: 'row',
     alignItems: 'center',
     borderWidth: 1,
+    borderColor: colors.border.default,
     borderRadius: borderRadius.md,
     paddingHorizontal: spacing.md,
-    paddingVertical: spacing.xs,
+    paddingVertical: spacing.sm,
+    backgroundColor: colors.background.base,
   },
   searchInput: {
     flex: 1,
     paddingVertical: spacing.xs,
-    fontSize: 14,
+    paddingHorizontal: spacing.sm,
+    fontSize: 16,
+    color: colors.text.primary,
   },
-  contentContainer: {
+  scrollView: {
     flex: 1,
-    backgroundColor: colors.background.base,
-    width: '100%',
-  },
-  content: {
-    flex: 1,
-    width: '100%',
   },
   scrollContent: {
-    paddingHorizontal: 0,
-    paddingTop: spacing.xs,
-    paddingBottom: spacing.xl * 2,
-    width: '100%',
-    flexGrow: 1,
-  },
-  scrollInnerContent: {
-    width: '100%',
-    paddingHorizontal: spacing.md,
+    padding: spacing.md,
+    paddingBottom: spacing.xl,
   },
   categoryContainer: {
-    marginBottom: spacing.md,
-    width: '100%',
+    marginBottom: spacing.lg,
   },
   categoryHeader: {
     flexDirection: 'row',
@@ -471,7 +470,6 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: colors.border.default,
     marginBottom: spacing.sm,
-    width: '100%',
   },
   categoryTitle: {
     flex: 1,
@@ -479,81 +477,23 @@ const styles = StyleSheet.create({
   tagsGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: spacing.sm,
     marginTop: spacing.sm,
-    width: '100%',
+    marginHorizontal: -spacing.xs, // Negative margin to offset tag margins
   },
   tagButton: {
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.sm,
     borderRadius: borderRadius.full,
     borderWidth: 1,
-    marginRight: spacing.sm,
-    marginBottom: spacing.sm,
+    margin: spacing.xs,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
+    minHeight: 36, // Consistent height for better touch targets
   },
   tagText: {
-    marginRight: spacing.xs,
-  },
-  buttonRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    padding: spacing.md,
-    paddingTop: spacing.md,
-    borderTopWidth: 1,
-  },
-  clearButton: {
-    padding: spacing.md,
-    borderRadius: borderRadius.md,
-    alignItems: 'center',
-    borderWidth: 1,
-    flex: 1,
-    marginRight: spacing.sm,
-  },
-  clearButtonText: {
-    fontWeight: '600',
-  },
-  saveButton: {
-    padding: spacing.md,
-    borderRadius: borderRadius.md,
-    alignItems: 'center',
-    flex: 2,
-  },
-  saveButtonText: {},
-  noResults: {
-    textAlign: 'center',
-    marginTop: spacing.xl,
-  },
-  newTagButton: {
-    padding: spacing.md,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderTopWidth: 1,
-    marginTop: spacing.sm,
-    marginBottom: spacing.sm,
-  },
-  newTagText: {
-    textAlign: 'center',
-  },
-  loadingContainer: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: spacing.xl * 2,
-  },
-  errorContainer: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: spacing.xl * 2,
-  },
-  retryButton: {
-    marginTop: spacing.md,
-    paddingVertical: spacing.sm,
-    paddingHorizontal: spacing.lg,
-    borderRadius: borderRadius.md,
+    fontSize: 14,
+    fontWeight: '500',
   },
   selectedIndicator: {
     marginLeft: spacing.xs,
@@ -561,5 +501,86 @@ const styles = StyleSheet.create({
     height: 16,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  buttonRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    padding: spacing.md,
+    borderTopWidth: 1,
+    borderTopColor: colors.border.default,
+    backgroundColor: colors.background.paper,
+  },
+  clearButton: {
+    padding: spacing.md,
+    borderRadius: borderRadius.md,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: colors.border.default,
+    backgroundColor: colors.background.paper,
+    flex: 1,
+    marginRight: spacing.sm,
+  },
+  clearButtonText: {
+    fontWeight: '600',
+    color: colors.feedback.negative,
+  },
+  saveButton: {
+    padding: spacing.md,
+    borderRadius: borderRadius.md,
+    alignItems: 'center',
+    backgroundColor: colors.accent.primary,
+    flex: 2,
+  },
+  saveButtonText: {
+    color: colors.text.inverse,
+    fontWeight: '600',
+  },
+  loadingContainer: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: spacing.xl * 2,
+  },
+  loadingText: {
+    color: colors.text.primary,
+    marginTop: spacing.md,
+  },
+  errorContainer: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: spacing.xl * 2,
+  },
+  errorText: {
+    color: colors.feedback.negative,
+    textAlign: 'center',
+  },
+  retryButton: {
+    marginTop: spacing.md,
+    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.lg,
+    borderRadius: borderRadius.md,
+    backgroundColor: colors.accent.primary,
+  },
+  retryButtonText: {
+    color: colors.text.inverse,
+  },
+  noResults: {
+    textAlign: 'center',
+    marginTop: spacing.xl,
+    color: colors.text.secondary,
+  },
+  newTagButton: {
+    padding: spacing.md,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderTopWidth: 1,
+    borderTopColor: colors.border.default,
+    marginTop: spacing.lg,
+    marginBottom: spacing.sm,
+  },
+  newTagText: {
+    textAlign: 'center',
+    color: colors.text.secondary,
   },
 }); 
