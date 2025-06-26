@@ -26,6 +26,7 @@ import {
   Users,
   Bookmark,
   BookmarkCheck,
+  Plus,
 } from 'lucide-react-native';
 import { useRouter, useLocalSearchParams, useFocusEffect } from 'expo-router';
 import { useEdenTheme } from '../theme/ThemeProvider';
@@ -34,6 +35,7 @@ import { useDebouncedCallback } from 'use-debounce';
 import type { Course } from '../types';
 import { useAuth } from '../context/AuthContext';
 import { getUserLocation } from '../utils/users';
+import { CourseSubmissionModal } from '../components/CourseSubmissionModal';
 
 // Helper function to calculate distance between two points using Haversine formula
 function getDistanceInMiles(
@@ -236,6 +238,7 @@ function SearchScreenContent() {
   const [bookmarkedCourseIds, setBookmarkedCourseIds] = useState<Set<string>>(new Set());
   const [bookmarkLoading, setBookmarkLoading] = useState<{[key: string]: boolean}>({});
   const [initialLoadComplete, setInitialLoadComplete] = useState(false);
+  const [courseSubmissionModalVisible, setCourseSubmissionModalVisible] = useState(false);
   const coursesListRef = useRef<FlatList>(null);
   const membersListRef = useRef<FlatList>(null);
   
@@ -702,6 +705,11 @@ function SearchScreenContent() {
     }
   }, [activeTab, loadCourses]);
 
+  // Handler for opening course submission modal
+  const handleSubmitCourse = useCallback(() => {
+    setCourseSubmissionModalVisible(true);
+  }, []);
+
   const handleTabChange = useCallback((tab: SearchTab) => {
     if (tab === activeTab) return; // Prevent unnecessary state changes
     
@@ -916,6 +924,11 @@ function SearchScreenContent() {
               autoCorrect={false}
               spellCheck={false}
             />
+            {activeTab === 'courses' && (
+              <TouchableOpacity style={styles.submitCourseButton} onPress={handleSubmitCourse}>
+                <Plus size={18} color={theme.colors.primary} />
+              </TouchableOpacity>
+            )}
             {searchQuery !== '' && (
               <TouchableOpacity style={styles.clearButton} onPress={handleCancelPress}>
                 <XIcon size={18} color={theme.colors.textSecondary} />
@@ -1000,9 +1013,27 @@ function SearchScreenContent() {
           ((activeTab === 'courses' && courses.length === 0) || 
            (activeTab === 'members' && users.length === 0)) && (
           <View style={styles.centerContainer}>
-            <BodyText color={theme.colors.textSecondary} style={styles.noResultsText}>
-              No {activeTab === 'courses' ? 'courses' : 'members'} found for "{searchQuery}"
-            </BodyText>
+            {activeTab === 'courses' ? (
+              <View style={styles.noCoursesContainer}>
+                <MapPin size={48} color={theme.colors.textSecondary} style={styles.noCoursesIcon} />
+                <BodyText color={theme.colors.textSecondary} style={styles.noResultsText}>
+                  No courses found for "{searchQuery}"
+                </BodyText>
+                <SmallText color={theme.colors.textSecondary} style={styles.submitCourseHelpText}>
+                  Can't find the course you're looking for?
+                </SmallText>
+                <Button 
+                  label="Submit Missing Course" 
+                  variant="primary"
+                  onPress={handleSubmitCourse}
+                  style={styles.submitCourseEmptyButton}
+                />
+              </View>
+            ) : (
+              <BodyText color={theme.colors.textSecondary} style={styles.noResultsText}>
+                No members found for "{searchQuery}"
+              </BodyText>
+            )}
           </View>
         )}
 
@@ -1143,6 +1174,12 @@ function SearchScreenContent() {
             ref={membersListRef}
           />
         )}
+
+        {/* Course Submission Modal */}
+        <CourseSubmissionModal
+          visible={courseSubmissionModalVisible}
+          onClose={() => setCourseSubmissionModalVisible(false)}
+        />
       </View>
     </TouchableWithoutFeedback>
   );
@@ -1178,6 +1215,26 @@ const styles = StyleSheet.create({
   },
   clearButton: {
     padding: 4,
+  },
+  submitCourseButton: {
+    padding: 4,
+    marginLeft: 8,
+    marginRight: 4,
+  },
+  noCoursesContainer: {
+    alignItems: 'center',
+    padding: 20,
+  },
+  noCoursesIcon: {
+    marginBottom: 16,
+  },
+  submitCourseHelpText: {
+    textAlign: 'center',
+    marginTop: 8,
+    marginBottom: 16,
+  },
+  submitCourseEmptyButton: {
+    minWidth: 200,
   },
   tabContainer: {
     flexDirection: 'row',
