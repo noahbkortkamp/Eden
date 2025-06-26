@@ -228,56 +228,43 @@ function ListsScreenContent() {
 
   // Centralized data loading function
   const loadData = async () => {
+    if (!user) {
+      console.log('ListsScreen: User not found, aborting data load');
+      return;
+    }
+
+    setError(null);
     setLoading(true);
     setCoursesLoading(true); // Update context loading state
-    setError(null);
-    console.log('Loading all data for Lists screen');
-    
+
     try {
-      // First, get current user review count to ensure showScores flag is set correctly
-      const count = await reviewService.getUserReviewCount(user.id);
-      console.log(`🔢 loadData: User has ${count} reviews. Score visibility: ${count >= 10 ? 'ENABLED' : 'DISABLED'}`);
-      setUserReviewCount(count);
-      const shouldShowScores = count >= 10;
+      console.log('ListsScreen: Starting data load...');
       
-      // Try a completely fresh approach to diagnose database issues
-      console.log('🔎 DIAGNOSTIC: Trying direct table access...');
+      // Load user review count first
+      if (user) {
+        try {
+          setIsReviewCountLoading(true);
+          const count = await reviewService.getUserReviewCount(user.id);
+          console.log(`🔢 User has ${count} reviews. Score visibility: ${count >= 10 ? 'ENABLED' : 'DISABLED'}`);
+          setUserReviewCount(count);
+          setIsReviewCountLoading(false);
+        } catch (err) {
+          console.error('Error fetching user review count:', err);
+          setIsReviewCountLoading(false);
+        }
+      }
       
-      // 1. Directly check reviews table
-      const { data: allReviews, error: reviewsError } = await supabase
-        .from('reviews')
-        .select('*');
-        
-      console.log('🔎 DIAGNOSTIC: Direct reviews table access:', {
-        success: !reviewsError,
-        error: reviewsError?.message,
-        totalReviewCount: allReviews?.length || 0,
-        tableExists: !reviewsError && Array.isArray(allReviews)
-      });
-      
-      // 2. Directly check courses table
-      const { data: allCourses, error: coursesError } = await supabase
-        .from('courses')
-        .select('id, name')
-        .limit(5);
-        
-      console.log('🔎 DIAGNOSTIC: Direct courses table access:', {
-        success: !coursesError,
-        error: coursesError?.message,
-        sampleCount: allCourses?.length || 0,
-        tableExists: !coursesError && Array.isArray(allCourses),
-        sampleNames: allCourses?.map(c => c.name)
-      });
-      
-      // Now proceed with the regular data loading
+      // Then load course data
       await Promise.all([
         fetchPlayedCourses(),
         fetchWantToPlayCourses(),
-        fetchRecommendedCourses(),
+        fetchRecommendedCourses()
       ]);
       
       // Mark courses as loaded
       setHasLoadedCourses(true);
+      
+      console.log('ListsScreen: Data load completed successfully');
     } catch (error) {
       console.error('Error loading Lists data:', error);
       setError('Failed to load data. Please try again.');

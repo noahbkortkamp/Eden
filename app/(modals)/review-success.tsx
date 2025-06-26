@@ -33,6 +33,12 @@ function ReviewSuccessContent() {
   const [loadAttempts, setLoadAttempts] = useState(0);
   const [fadeAnim] = useState(new Animated.Value(0));
   
+  // 🔧 SIMPLE FIX: Trigger lists refresh once when success screen loads
+  // This ensures fresh data when user returns to lists (runs only once)
+  useEffect(() => {
+    setNeedsRefresh();
+  }, []); // Empty dependency array - only runs once on mount
+  
   // Add a timeout to prevent being stuck in loading state forever
   useEffect(() => {
     console.log(`ReviewSuccessScreen: Initializing with courseId=${courseId}, loading=${isLoading}, courseLoading=${courseLoading}`);
@@ -48,28 +54,6 @@ function ReviewSuccessContent() {
     
     return () => clearTimeout(globalTimeout);
   }, []);
-
-  // Force refresh all rankings when the success screen is shown
-  // This ensures proper score distribution after comparisons
-  useEffect(() => {
-    if (user && !isLoading) {
-      const refreshRankings = async () => {
-        try {
-          console.log('🔄 Forcing refresh of all rankings to fix display issues');
-          await rankingService.refreshAllRankings(user.id);
-          
-          // Now force the Lists tab to refresh when we navigate back
-          setNeedsRefresh();
-          console.log('🔄 Rankings refreshed successfully, Lists tab will reload on next focus');
-        } catch (err) {
-          console.error('Error refreshing rankings:', err);
-          // Continue anyway, this is just a proactive fix
-        }
-      };
-      
-      refreshRankings();
-    }
-  }, [user, isLoading, setNeedsRefresh]);
 
   // Fade in animation when the component mounts
   useEffect(() => {
@@ -155,6 +139,8 @@ function ReviewSuccessContent() {
               const sentiment = latestReview.rating;
               
               console.log(`ReviewSuccessScreen: Getting rankings for sentiment=${sentiment}`);
+              
+              // Get fresh rankings data
               const rankings = await rankingService.getUserRankings(user.id, sentiment);
               
               const courseRanking = rankings.find(r => r.course_id === courseId);

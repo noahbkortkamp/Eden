@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { View, Text, StyleSheet, Dimensions, ActivityIndicator, Pressable } from 'react-native';
 import { CourseComparisonProps, SentimentRating } from '../../types/review';
 import { useEdenTheme } from '../../theme/ThemeProvider';
@@ -14,7 +14,7 @@ const SENTIMENT_COLORS = {
   didnt_like: '#F6D3D1' // Eden negative feedback color
 };
 
-// 🚀 Phase 1.3: Memoized CourseComparisonScreen to prevent unnecessary re-renders
+// 🚀 Performance: Memoized CourseComparisonScreen to prevent unnecessary re-renders
 export const CourseComparisonScreen: React.FC<CourseComparisonProps> = React.memo(({
   courseA,
   courseB,
@@ -28,14 +28,20 @@ export const CourseComparisonScreen: React.FC<CourseComparisonProps> = React.mem
   onSkip,
 }) => {
   const theme = useEdenTheme();
-  const [isSelecting, setIsSelecting] = useState(false);
   
-  // 🚀 Phase 1.3: Memoize color calculation to prevent recalculation on every render
+  // 🚀 Performance: Use refs to prevent unnecessary re-renders during selection
+  const isSelectingRef = useRef(false);
+  const lastSelectionTimeRef = useRef(0);
+  
+  // 🚀 Performance: Debounce mechanism to prevent rapid selections
+  const SELECTION_DEBOUNCE_MS = 300;
+  
+  // 🚀 Performance: Memoize color calculation to prevent recalculation on every render
   const ratingColor = useMemo(() => {
     return SENTIMENT_COLORS[originalSentiment] || SENTIMENT_COLORS.liked;
   }, [originalSentiment]);
 
-  // 🚀 Phase 1.3: Memoize course review status to prevent recalculation
+  // 🚀 Performance: Memoize course review status to prevent recalculation
   const courseReviewStatus = useMemo(() => {
     return {
       isACourseReviewed: previousCourseId === courseA?.id,
@@ -60,58 +66,58 @@ export const CourseComparisonScreen: React.FC<CourseComparisonProps> = React.mem
     };
   }, [remainingComparisons, totalComparisons]);
 
-  // Reset selecting state when courses change
-  useEffect(() => {
-    if (courseA && courseB) {
-      setIsSelecting(false);
-    }
-  }, [courseA?.id, courseB?.id]);
-
-  // 🚀 Phase 1.3: Optimize handler functions with useCallback to prevent re-renders
+  // 🚀 Performance: Optimized selection handler with debouncing
   const handleSelect = useCallback(async (selectedId: string, notSelectedId: string) => {
     try {
-      // Prevent double-selection
-      if (isSelecting) return;
+      const now = Date.now();
       
-      setIsSelecting(true);
-      
-      // 🚀 Phase 1.3: Reduced logging - only log important comparisons
-      if (process.env.NODE_ENV === 'development') {
-        console.log('🎯 Comparison:', {
-          selected: selectedId.substring(0, 8),
-          rejected: notSelectedId.substring(0, 8),
-        });
+      // Prevent rapid double-taps and overlapping selections
+      if (isSelectingRef.current || (now - lastSelectionTimeRef.current) < SELECTION_DEBOUNCE_MS) {
+        console.log('🚫 Selection blocked - too fast or already selecting');
+        return;
       }
       
-      // Directly call onSelect which will navigate to the next comparison
+      isSelectingRef.current = true;
+      lastSelectionTimeRef.current = now;
+      
+      // Execute the selection
       await onSelect(selectedId, notSelectedId);
     } catch (error) {
       console.error('Failed to submit comparison:', error);
-      setIsSelecting(false);
+    } finally {
+      // Reset selection state after a short delay to prevent visual glitches
+      setTimeout(() => {
+        isSelectingRef.current = false;
+      }, 100);
     }
-  }, [isSelecting, onSelect]);
+  }, [onSelect]);
 
+  // 🚀 Performance: Optimized skip handler with debouncing
   const handleSkip = useCallback(async () => {
     try {
-      if (isSelecting) return;
+      const now = Date.now();
       
-      setIsSelecting(true);
-      
-      if (process.env.NODE_ENV === 'development') {
-        console.log('⏭️ Skipped comparison:', {
-          courseA: courseA?.id?.substring(0, 8),
-          courseB: courseB?.id?.substring(0, 8),
-        });
+      // Prevent rapid double-taps
+      if (isSelectingRef.current || (now - lastSelectionTimeRef.current) < SELECTION_DEBOUNCE_MS) {
+        console.log('🚫 Skip blocked - too fast or already selecting');
+        return;
       }
+      
+      isSelectingRef.current = true;
+      lastSelectionTimeRef.current = now;
       
       await onSkip(courseA!.id, courseB!.id);
     } catch (error) {
       console.error('Failed to skip comparison:', error);
-      setIsSelecting(false);
+    } finally {
+      // Reset selection state
+      setTimeout(() => {
+        isSelectingRef.current = false;
+      }, 100);
     }
-  }, [isSelecting, onSkip, courseA, courseB]);
+  }, [onSkip, courseA, courseB]);
 
-  // 🎨 EDEN DESIGN SYSTEM: Updated styles to use proper Eden tokens
+  // 🎨 EDEN DESIGN SYSTEM: Memoized styles to prevent recalculation
   const styles = useMemo(() => StyleSheet.create({
     container: {
       flex: 1,
@@ -127,12 +133,12 @@ export const CourseComparisonScreen: React.FC<CourseComparisonProps> = React.mem
       marginBottom: theme.spacing.xl,
     },
     title: {
-      ...theme.typography.h1, // 🎨 Use Eden h1 typography
+      ...theme.typography.h1,
       textAlign: 'center',
       color: theme.colors.text,
     },
     subtitle: {
-      ...theme.typography.body, // 🎨 Use Eden body typography
+      ...theme.typography.body,
       color: theme.colors.textSecondary,
       textAlign: 'center',
       marginTop: theme.spacing.xs,
@@ -144,18 +150,17 @@ export const CourseComparisonScreen: React.FC<CourseComparisonProps> = React.mem
     progressBar: {
       width: 200,
       height: 6,
-      backgroundColor: theme.colors.border, // 🎨 Use Eden border color
-      borderRadius: theme.borderRadius.xs, // 🎨 Use Eden border radius
+      backgroundColor: theme.colors.border,
+      borderRadius: theme.borderRadius.xs,
       overflow: 'hidden',
       marginBottom: theme.spacing.xs,
     },
     progressFill: {
       height: '100%',
-      borderRadius: theme.borderRadius.xs, // 🎨 Use Eden border radius
-      // Note: React Native doesn't support CSS transitions
+      borderRadius: theme.borderRadius.xs,
     },
     progressText: {
-      ...theme.typography.bodySmall, // 🎨 Use Eden bodySmall typography
+      ...theme.typography.bodySmall,
       color: theme.colors.textSecondary,
       textAlign: 'center',
     },
@@ -167,12 +172,12 @@ export const CourseComparisonScreen: React.FC<CourseComparisonProps> = React.mem
     },
     courseCard: {
       width: width - 32,
-      borderRadius: theme.borderRadius.lg, // 🎨 Use Eden border radius
+      borderRadius: theme.borderRadius.lg,
       padding: theme.spacing.lg,
-      ...theme.shadows.md, // 🎨 Use Eden shadow
+      ...theme.shadows.md,
       backgroundColor: theme.colors.surface,
       borderWidth: 1,
-      borderColor: theme.colors.border, // 🎨 Use Eden border color
+      borderColor: theme.colors.border,
       alignItems: 'center',
       justifyContent: 'center',
     },
@@ -180,7 +185,7 @@ export const CourseComparisonScreen: React.FC<CourseComparisonProps> = React.mem
       borderColor: theme.colors.primary,
       borderWidth: 2,
       transform: [{ scale: 0.98 }],
-      backgroundColor: `${theme.colors.primary}10`, // 🎨 Use Eden primary with opacity
+      backgroundColor: `${theme.colors.primary}10`,
     },
     courseNameContainer: {
       flexDirection: 'row',
@@ -189,48 +194,50 @@ export const CourseComparisonScreen: React.FC<CourseComparisonProps> = React.mem
       gap: 8,
     },
     courseName: {
-      ...theme.typography.h2, // 🎨 Use Eden h2 typography instead of hardcoded values
+      ...theme.typography.h2,
       color: theme.colors.text,
       textAlign: 'center',
       marginVertical: theme.spacing.md,
     },
     courseLocation: {
-      ...theme.typography.body, // 🎨 Use Eden body typography
+      ...theme.typography.body,
       color: theme.colors.textSecondary,
       textAlign: 'center',
       marginTop: 4,
     },
     ratingText: {
-      ...theme.typography.body, // 🎨 Use Eden body typography
-      fontWeight: theme.typography.h3.fontWeight, // 🎨 Use Eden semibold weight
-      fontSize: 16, // Make rating text larger and more visible
-      fontWeight: '600', // Make it bold for better visibility
+      ...theme.typography.body,
+      fontWeight: '600',
+      fontSize: 16,
     },
     vsContainer: {
       width: 40,
       height: 40,
-      borderRadius: theme.borderRadius.full, // 🎨 Use Eden full border radius for circle
+      borderRadius: theme.borderRadius.full,
       backgroundColor: theme.colors.primary,
       justifyContent: 'center',
       alignItems: 'center',
       marginVertical: -theme.spacing.lg,
       zIndex: 1,
-      ...theme.shadows.sm, // 🎨 Use Eden shadow
+      ...theme.shadows.sm,
     },
     vsText: {
-      ...theme.typography.button, // 🎨 Use Eden button typography
-      color: '#FFFFFF', // Change to white for better visibility
-      fontWeight: '600', // Make it bold
+      ...theme.typography.button,
+      color: '#FFFFFF',
+      fontWeight: '600',
     },
-    // 🎨 EDEN DESIGN SYSTEM: Updated skip button container for Eden Button component
+    // 🚀 Performance: Optimized skip button container - removed conflicting styles that cause flashing
     skipButtonContainer: {
       alignSelf: 'center',
-      marginBottom: theme.spacing.xl, // Reduced from xxl to move button higher
-      marginTop: theme.spacing.lg, // Reduced from xxl to move button higher
-      // Removed conflicting background styling to prevent button flashing
+      marginBottom: theme.spacing.xl,
+      marginTop: theme.spacing.lg,
+      // 🚀 Fix: Ensure consistent sizing and positioning to prevent layout shifts
+      minHeight: 44, // Standard button height
+      justifyContent: 'center',
     }
   }), [theme]); // Only recalculate when theme changes
 
+  // 🚀 Performance: Early return with loading state
   if (!courseA || !courseB) {
     return (
       <View style={[styles.container, styles.centered]}>
@@ -276,7 +283,10 @@ export const CourseComparisonScreen: React.FC<CourseComparisonProps> = React.mem
           ]}
           onPress={() => handleSelect(courseA.id, courseB.id)}
           android_ripple={{ color: `${theme.colors.primary}30` }}
-          disabled={isSelecting}
+          disabled={isSelectingRef.current}
+          // 🚀 Performance: Optimize hit area and response time
+          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+          delayPressIn={0}
         >
           <View>
             <View style={styles.courseNameContainer}>
@@ -310,7 +320,10 @@ export const CourseComparisonScreen: React.FC<CourseComparisonProps> = React.mem
           ]}
           onPress={() => handleSelect(courseB.id, courseA.id)}
           android_ripple={{ color: `${theme.colors.primary}30` }}
-          disabled={isSelecting}
+          disabled={isSelectingRef.current}
+          // 🚀 Performance: Optimize hit area and response time
+          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+          delayPressIn={0}
         >
           <View>
             <View style={styles.courseNameContainer}>
@@ -333,19 +346,25 @@ export const CourseComparisonScreen: React.FC<CourseComparisonProps> = React.mem
         </Pressable>
       </View>
       
-      {/* 🎨 EDEN DESIGN SYSTEM: Use Eden Button component for consistent styling */}
+      {/* 🚀 Performance: Optimized skip button with fixed styling to prevent flashing */}
       <View style={styles.skipButtonContainer}>
         <Button
           label="Too tough to choose"
-          variant="primary" // Changed to primary variant for better visibility
+          variant="secondary" // 🚀 Fix: Changed back to secondary to prevent style conflicts
           onPress={handleSkip}
-          disabled={isSelecting}
+          disabled={isSelectingRef.current}
+          // 🚀 Performance: Ensure consistent styling
+          style={{
+            minHeight: 44,
+            paddingHorizontal: theme.spacing.lg,
+          }}
         />
       </View>
     </View>
   );
-}, (prevProps, nextProps) => {
-  // 🚀 Phase 1.3: Custom comparison function for React.memo to prevent unnecessary re-renders
+}, 
+// 🚀 Performance: Enhanced comparison function for React.memo to prevent unnecessary re-renders
+(prevProps, nextProps) => {
   return (
     prevProps.courseA?.id === nextProps.courseA?.id &&
     prevProps.courseB?.id === nextProps.courseB?.id &&

@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback, useRef } from 'react';
 import { View, StyleSheet, ActivityIndicator, Text } from 'react-native';
 import { useLocalSearchParams, Stack, useRouter } from 'expo-router';
 import { CourseComparisonScreen } from '../review/screens/CourseComparisonScreen';
@@ -9,9 +9,8 @@ import { getCourse } from '../utils/courses';
 import { rankingService } from '../services/rankingService';
 import { useAuth } from '../context/AuthContext';
 import { getReviewsForUser } from '../utils/reviews';
-import { reviewService } from '../services/reviewService';
 
-// 🚀 Phase 1.3: Enhanced course cache with timestamp for intelligent caching
+// 🚀 Performance: Enhanced course cache with timestamp for intelligent caching
 interface CachedCourse {
   course: Course;
   timestamp: number;
@@ -20,7 +19,7 @@ interface CachedCourse {
 const courseCache = new Map<string, CachedCourse>();
 const CACHE_TTL = 5 * 60 * 1000; // 5 minutes cache
 
-// 🚀 Phase 1.3: Intelligent cache management
+// 🚀 Performance: Intelligent cache management
 const getCachedCourse = (courseId: string): Course | null => {
   const cached = courseCache.get(courseId);
   if (cached && (Date.now() - cached.timestamp) < CACHE_TTL) {
@@ -48,10 +47,13 @@ export default function ComparisonModal() {
     originalSentiment?: string;
     originalReviewedCourseId?: string;
   }>();
+  
   const theme = useEdenTheme();
   const router = useRouter();
   const { handleComparison, skipComparison } = useReview();
   const { user } = useAuth();
+  
+  // 🚀 Performance: Optimized state management
   const [courseA, setCourseA] = useState<Course | null>(null);
   const [courseB, setCourseB] = useState<Course | null>(null);
   const [loading, setLoading] = useState(true);
@@ -59,17 +61,21 @@ export default function ComparisonModal() {
   const [previousCourseId, setPreviousCourseId] = useState<string | undefined>(undefined);
   const [previousCourseRating, setPreviousCourseRating] = useState<number | undefined>(undefined);
   const [totalReviewCount, setTotalReviewCount] = useState<number>(0);
-  
-  // 🚀 Phase 1.3: Simplified loading state
   const [loadingMessage, setLoadingMessage] = useState<string>('Preparing comparison...');
-  
-  // 🚀 Phase 1.3: Pre-initialize the screen for faster perceived loading
   const [screenReady, setScreenReady] = useState<boolean>(false);
+  
+  // 🚀 Performance: Refs to prevent unnecessary navigation calls
+  const isNavigatingRef = useRef(false);
+  const mountedRef = useRef(true);
 
-  // 🚀 Phase 1.3: Enhanced course loading with better error handling and parallel loading
+  // 🚀 Performance: Enhanced course loading with better error handling and parallel loading
   useEffect(() => {
+    let isCancelled = false;
+    
     async function loadCoursesOptimized() {
       try {
+        if (isCancelled) return;
+        
         setLoadingMessage('Loading courses...');
         
         if (!courseAId || !courseBId) {
@@ -81,12 +87,12 @@ export default function ComparisonModal() {
           console.error('[ERROR] Attempted to compare a course against itself:', courseAId);
           
           // Navigate to success screen for same-course comparison
-                     if (originalReviewedCourseId && user?.id) {
-             try {
-               const reviews = await getReviewsForUser(user.id);
-               const courseReview = reviews.find(r => r.course_id === originalReviewedCourseId);
+          if (originalReviewedCourseId && user?.id && !isCancelled) {
+            try {
+              const reviews = await getReviewsForUser(user.id);
+              const courseReview = reviews.find(r => r.course_id === originalReviewedCourseId);
               
-              if (courseReview) {
+              if (courseReview && !isCancelled) {
                 router.replace({
                   pathname: '/(modals)/review-success',
                   params: {
@@ -102,15 +108,17 @@ export default function ComparisonModal() {
           }
           
           // Fallback to lists
-          router.replace('/(tabs)/lists');
+          if (!isCancelled) {
+            router.replace('/(tabs)/lists');
+          }
           return;
         }
 
-        // 🚀 Phase 1.3: Check cache first for both courses
+        // 🚀 Performance: Check cache first for both courses
         let courseAData = getCachedCourse(courseAId);
         let courseBData = getCachedCourse(courseBId);
         
-        // 🚀 Phase 1.3: Parallel loading for courses not in cache
+        // 🚀 Performance: Parallel loading for courses not in cache
         const loadPromises: Promise<Course>[] = [];
         
         if (!courseAData) {
@@ -135,10 +143,12 @@ export default function ComparisonModal() {
           console.log('💾 Cache hit for Course B:', courseBData.name);
         }
 
-        // 🚀 Phase 1.3: Load missing courses in parallel
+        // 🚀 Performance: Load missing courses in parallel
         if (loadPromises.length > 0) {
           setLoadingMessage(`Loading ${loadPromises.length} course${loadPromises.length > 1 ? 's' : ''}...`);
           const loadedCourses = await Promise.all(loadPromises);
+          
+          if (isCancelled) return;
           
           // Assign loaded courses to correct variables
           let loadIndex = 0;
@@ -150,18 +160,20 @@ export default function ComparisonModal() {
           }
         }
 
-        // 🚀 Phase 1.3: Parallel loading of review data
+        // 🚀 Performance: Parallel loading of review data
+        if (isCancelled) return;
         setLoadingMessage('Loading review data...');
         
         const [reviewsData] = await Promise.all([
           user?.id ? getReviewsForUser(user.id) : Promise.resolve([])
         ]);
 
+        if (isCancelled) return;
+
         // Set total review count
         setTotalReviewCount(reviewsData.length);
 
-        // 🚀 Phase 1.3: Determine which course is the previously reviewed one and get its ranking score
-        // The originalReviewedCourseId is the NEW course, so the OTHER course is the existing one with a score
+        // 🚀 Performance: Determine which course is the previously reviewed one and get its ranking score
         let existingCourseId: string | null = null;
         let existingCourseScore: number | undefined = undefined;
         
@@ -188,7 +200,7 @@ export default function ComparisonModal() {
         }
 
         // 🚀 Get the ranking score for the existing course
-        if (existingCourseId && originalSentiment) {
+        if (existingCourseId && originalSentiment && user?.id && !isCancelled) {
           try {
             console.log(`🔍 Getting ranking score for existing course ${existingCourseId.substring(0, 8)} in ${originalSentiment} tier`);
             const rankings = await rankingService.getUserRankings(user.id, originalSentiment);
@@ -205,6 +217,8 @@ export default function ComparisonModal() {
           }
         }
 
+        if (isCancelled) return;
+
         // Set the previous course data for display
         if (existingCourseId && existingCourseScore !== undefined) {
           setPreviousCourseId(existingCourseId);
@@ -212,47 +226,84 @@ export default function ComparisonModal() {
           console.log(`📊 Comparison setup: ${existingCourseId === courseAId ? 'Course A' : 'Course B'} will show score ${existingCourseScore}`);
         }
 
-        console.log('🚀 Comparison ready:', {
-          courseA: { id: courseAData!.id, name: courseAData!.name },
-          courseB: { id: courseBData!.id, name: courseBData!.name },
-          totalReviews: reviewsData.length,
-          cachedA: !!getCachedCourse(courseAId),
-          cachedB: !!getCachedCourse(courseBId),
-          originalReviewedCourse: originalReviewedCourseId?.substring(0, 8),
-          existingCourse: existingCourseId?.substring(0, 8),
-          existingCourseScore: existingCourseScore,
-          sentiment: originalSentiment
-        });
-
-        // 🚀 Phase 1.3: Set courses simultaneously to prevent multiple renders
-        setCourseA(courseAData!);
-        setCourseB(courseBData!);
-        setScreenReady(true);
-        setLoading(false);
+        // 🚀 Performance: Set courses simultaneously to prevent multiple renders
+        if (!isCancelled && mountedRef.current) {
+          setCourseA(courseAData!);
+          setCourseB(courseBData!);
+          setScreenReady(true);
+          setLoading(false);
+        }
         
       } catch (err) {
-        console.error('Detailed error loading courses:', err);
-        setError(err instanceof Error ? err.message : 'Failed to load courses');
-        setScreenReady(true);
-        
-        // Auto-navigate away on error
-        setTimeout(() => {
-          router.replace('/(tabs)/lists');
-        }, 2000);
+        if (!isCancelled) {
+          console.error('Detailed error loading courses:', err);
+          setError(err instanceof Error ? err.message : 'Failed to load courses');
+          setScreenReady(true);
+          
+          // Auto-navigate away on error
+          setTimeout(() => {
+            if (!isCancelled && mountedRef.current) {
+              router.replace('/(tabs)/lists');
+            }
+          }, 2000);
+        }
       }
     }
 
     loadCoursesOptimized();
+    
+    // Cleanup function
+    return () => {
+      isCancelled = true;
+    };
   }, [courseAId, courseBId, router, user?.id, originalReviewedCourseId]);
 
-  // 🚀 Phase 1.3: Optimized handlers
-  const handleSelect = async (selectedId: string, notSelectedId: string) => {
-    await handleComparison(selectedId, notSelectedId);
-  };
+  // 🚀 Performance: Cleanup on unmount
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+    };
+  }, []);
 
-  const handleSkip = async (courseAId: string, courseBId: string) => {
-    await skipComparison(courseAId, courseBId);
-  };
+  // 🚀 Performance: Optimized handlers with navigation guards
+  const handleSelect = useCallback(async (selectedId: string, notSelectedId: string) => {
+    if (isNavigatingRef.current || !mountedRef.current) {
+      console.log('🚫 Navigation blocked - already navigating or component unmounted');
+      return;
+    }
+    
+    try {
+      isNavigatingRef.current = true;
+      await handleComparison(selectedId, notSelectedId);
+    } catch (error) {
+      console.error('Selection error:', error);
+    } finally {
+      // Reset navigation flag after a delay
+      setTimeout(() => {
+        isNavigatingRef.current = false;
+      }, 500);
+    }
+  }, [handleComparison]);
+
+  const handleSkip = useCallback(async (courseAId: string, courseBId: string) => {
+    if (isNavigatingRef.current || !mountedRef.current) {
+      console.log('🚫 Skip navigation blocked - already navigating or component unmounted');
+      return;
+    }
+    
+    try {
+      isNavigatingRef.current = true;
+      await skipComparison(courseAId, courseBId);
+    } catch (error) {
+      console.error('Skip error:', error);
+    } finally {
+      // Reset navigation flag after a delay
+      setTimeout(() => {
+        isNavigatingRef.current = false;
+      }, 500);
+    }
+  }, [skipComparison]);
 
   const renderContent = () => {
     if (!screenReady || loading) {
@@ -313,6 +364,9 @@ export default function ComparisonModal() {
           title: `Comparison ${remainingComparisons && totalComparisons ? `(${parseInt(totalComparisons) - parseInt(remainingComparisons) + 1}/${totalComparisons})` : remainingComparisons ? `(${remainingComparisons} remaining)` : ''}`,
           headerBackVisible: false,
           gestureEnabled: false,
+          // 🚀 Performance: Optimize header for smoother transitions
+          headerShadowVisible: false,
+          animation: 'slide_from_right',
         }}
       />
       <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
@@ -326,14 +380,17 @@ export default function ComparisonModal() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+    // 🚀 Performance: Ensure proper layout to prevent layout shifts
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   loadingText: {
-    fontSize: 16, // 🎨 Keep simple for loading states
+    fontSize: 16,
     textAlign: 'center',
     marginTop: 16,
   },
   errorText: {
-    fontSize: 16, // 🎨 Keep simple for error states
+    fontSize: 16,
     textAlign: 'center',
     marginBottom: 16,
   },

@@ -915,8 +915,6 @@ export const ReviewProvider: React.FC<{ children: React.ReactNode }> = ({ childr
             comparedCourseIds.add(result.otherId);
           });
 
-          console.log(`Excluded courses from future comparisons: ${Array.from(comparedCourseIds).join(', ')}`);
-
           // Get other courses with the same sentiment for comparison, excluding already compared courses
           const otherCoursesWithSentiment = userReviews.filter(r => 
             !comparedCourseIds.has(r.course_id) &&
@@ -1045,8 +1043,6 @@ export const ReviewProvider: React.FC<{ children: React.ReactNode }> = ({ childr
                 comparedCourseIds.add(result.preferredId);
                 comparedCourseIds.add(result.otherId);
               });
-
-              console.log(`Excluded courses from future comparisons: ${Array.from(comparedCourseIds).join(', ')}`);
 
               const otherCoursesWithSentiment = userReviews.filter(r => 
                 !comparedCourseIds.has(r.course_id) &&
@@ -1321,7 +1317,6 @@ export const ReviewProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       );
 
       console.log(`[Strategic] Selected course: ${selectedCourse?.substring(0, 8)} from ${availableCourses.length} available courses`);
-      console.log(`[Strategic] Comparison pattern: ${previousResults.map(r => r.result).join('-')}`);
       
       return selectedCourse;
     } catch (err) {

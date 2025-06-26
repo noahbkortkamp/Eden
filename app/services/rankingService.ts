@@ -315,7 +315,6 @@ class RankingService {
     // Only log errors, not successful operations
     if (!isValid) {
       console.error(`[RankingService] ⚠️ Score redistribution issues detected`);
-      console.error(`[RankingService] 🔍 Debug info - Total courses: ${finalRankings.length}, Sentiment: ${sentiment}`);
     } else {
       // Success case - log once for debugging
       console.log(`[RankingService] ✅ Score redistribution completed successfully: ${finalRankings.length} ${sentiment} courses`);
