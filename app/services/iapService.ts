@@ -35,6 +35,7 @@ class IAPService {
   private currentProducts: Product[] = [];
   private isDevelopment = __DEV__;
   private configurationValid = false;
+  private purchaseInProgress = false; // ✅ ADD: Prevent multiple simultaneous purchases
 
   /**
    * Validate IAP configuration before attempting to connect to stores
@@ -434,6 +435,14 @@ class IAPService {
     try {
       console.log(`🛒 IAP: Initiating purchase for product: ${productId}`);
       
+      // ✅ ADD: Prevent multiple simultaneous purchases
+      if (this.purchaseInProgress) {
+        console.log('⚠️ IAP: Purchase already in progress, skipping...');
+        return false;
+      }
+      
+      this.purchaseInProgress = true; // Set lock
+      
       // Check if IAP is ready
       if (!this.isReadyForPurchase()) {
         console.log('⚠️ IAP: Not ready for purchase, attempting initialization...');
@@ -561,6 +570,9 @@ class IAPService {
       }
       
       throw new Error(errorMessage);
+    } finally {
+      // ✅ ADD: Always clear the purchase lock
+      this.purchaseInProgress = false;
     }
   }
 
@@ -643,28 +655,47 @@ class IAPService {
 
   private async handlePurchaseUpdate(purchase: Purchase): Promise<void> {
     try {
-      console.log('🔄 IAP: Processing purchase update:', purchase.transactionId);
-      
-      // BUGFIX: Safely get current user with error handling
-      let user;
-      try {
-        const authResult = await supabase.auth.getUser();
-        console.log('🔍 IAP: Auth result structure:', typeof authResult, authResult ? 'exists' : 'null');
-        
-        // Safely check if authResult has the expected structure
-        if (authResult && typeof authResult === 'object' && 'data' in authResult && authResult.data && typeof authResult.data === 'object' && 'user' in authResult.data) {
-          user = authResult.data.user;
-        } else {
-          console.error('❌ IAP: Unexpected auth result structure:', authResult);
-          return;
-        }
-      } catch (authError) {
-        console.error('❌ IAP: Supabase auth error:', authError);
+      // FIXED: Add comprehensive null/undefined checks
+      if (!purchase) {
+        console.error('❌ IAP: Purchase object is null or undefined');
         return;
       }
       
-      if (!user) {
-        console.error('❌ IAP: No user found for purchase processing');
+      // Validate required purchase properties
+      if (!purchase.transactionId) {
+        console.error('❌ IAP: Purchase missing transactionId:', purchase);
+        return;
+      }
+      
+      if (!purchase.productId) {
+        console.error('❌ IAP: Purchase missing productId:', purchase);
+        return;
+      }
+      
+      console.log('🔄 IAP: Processing purchase update:', {
+        transactionId: purchase.transactionId,
+        productId: purchase.productId,
+        hasReceipt: !!purchase.transactionReceipt
+      });
+      
+      // FIXED: Safely get current user with better error handling
+      let user;
+      try {
+        const { data: authData, error: authError } = await supabase.auth.getUser();
+        
+        if (authError) {
+          console.error('❌ IAP: Supabase auth error:', authError);
+          return;
+        }
+        
+        if (!authData?.user) {
+          console.error('❌ IAP: No authenticated user found');
+          return;
+        }
+        
+        user = authData.user;
+      } catch (authError) {
+        console.error('❌ IAP: Auth system error:', authError);
         return;
       }
 
@@ -672,16 +703,21 @@ class IAPService {
       const isValid = await this.validateReceipt(purchase);
       
       if (isValid) {
-        // Update subscription status in database
-        await this.updateSubscriptionStatus(user.id, purchase);
-        
-        // Log successful purchase event
-        await this.logSubscriptionEvent(user.id, 'purchase_completed', {
-          transactionId: purchase.transactionId,
-          productId: purchase.productId
-        });
-        
-        console.log('✅ IAP: Purchase processed successfully');
+        try {
+          // Update subscription status in database
+          await this.updateSubscriptionStatus(user.id, purchase);
+          
+          // Log successful purchase event
+          await this.logSubscriptionEvent(user.id, 'purchase_completed', {
+            transactionId: purchase.transactionId,
+            productId: purchase.productId
+          });
+          
+          console.log('✅ IAP: Purchase processed successfully');
+        } catch (dbError) {
+          console.error('❌ IAP: Database update failed:', dbError);
+          // Still finish the transaction even if DB update fails
+        }
       } else {
         console.error('❌ IAP: Receipt validation failed');
         
@@ -692,11 +728,21 @@ class IAPService {
         });
       }
       
-      // Always finish the transaction
-      await finishTransaction(purchase);
-      
     } catch (error) {
       console.error('❌ IAP: Error processing purchase update:', error);
+    } finally {
+      // FIXED: Always finish transaction with proper null checks
+      if (purchase && purchase.transactionId) {
+        try {
+          await finishTransaction(purchase);
+          console.log('✅ IAP: Transaction finished successfully');
+        } catch (finishError) {
+          console.error('❌ IAP: Error finishing transaction:', finishError);
+          // Log the error but don't throw - we don't want to break the flow
+        }
+      } else {
+        console.warn('⚠️ IAP: Cannot finish transaction - invalid purchase object');
+      }
     }
   }
 
@@ -734,58 +780,44 @@ class IAPService {
 
   private async validateReceipt(purchase: Purchase): Promise<boolean> {
     try {
-      console.log('🔍 IAP: Validating receipt...', {
+      console.log('🔍 IAP: Validating receipt (CLIENT-SIDE ONLY)...', {
         productId: purchase.productId,
         transactionId: purchase.transactionId,
         hasReceipt: !!purchase.transactionReceipt,
         platform: Platform.OS
       });
       
-      // Enhanced validation for TestFlight/Sandbox environment
-      const userId = await this.safeGetUserId();
-      if (!userId) {
-        console.error('❌ IAP: Cannot validate receipt - no user ID');
-        return false;
-      }
-
-      // Call our Edge Function for receipt validation
-      const { data, error } = await supabase.functions.invoke('validate-receipt', {
-        body: {
-          platform: Platform.OS,
-          receiptData: purchase.transactionReceipt,
-          productId: purchase.productId,
-          transactionId: purchase.transactionId,
-          userId: userId,
-          environment: __DEV__ ? 'sandbox' : 'production' // Help server determine environment
-        }
-      });
-
-      if (error) {
-        console.error('❌ IAP: Receipt validation error:', error);
-        // In TestFlight/sandbox, be more permissive for testing
-        if (__DEV__ === false && error?.message?.includes('sandbox')) {
-          console.log('⚠️ IAP: Allowing sandbox receipt in TestFlight for testing');
-          return true;
-        }
-        return false;
-      }
-
-      const isValid = data?.isValid || false;
-      console.log(`✅ IAP: Receipt validation result: ${isValid}`, {
-        transactionId: data?.transactionId,
-        environment: data?.environment
-      });
+      // PHASE 1 FIX: Temporarily bypass server validation for testing
+      // This allows purchases to complete without the missing Edge Function
+      console.log('⚠️ IAP: PHASE 1 - Using client-side validation only (testing mode)');
       
-      return isValid;
+      // Basic client-side validation
+      if (!purchase || !purchase.productId || !purchase.transactionId) {
+        console.error('❌ IAP: Invalid purchase object');
+        return false;
+      }
+      
+      // Verify product ID matches our expected subscription products
+      const validProductIds = [
+        'com.noahkortkamp.golfcoursereview.founders.yearly',
+        // Add other product IDs here if needed
+      ];
+      
+      if (!validProductIds.includes(purchase.productId)) {
+        console.error('❌ IAP: Invalid product ID:', purchase.productId);
+        return false;
+      }
+      
+      console.log('✅ IAP: Client-side validation passed');
+      console.log('📝 IAP: Note - Server validation will be implemented in Phase 2');
+      
+      return true;
       
     } catch (error) {
       console.error('❌ IAP: Receipt validation failed:', error);
-      // Fallback for TestFlight testing
-      if (__DEV__ === false) {
-        console.log('⚠️ IAP: Using fallback validation for TestFlight');
-        return true;
-      }
-      return false;
+      // For Phase 1, be permissive to ensure testing works
+      console.log('⚠️ IAP: Phase 1 fallback - allowing purchase to proceed');
+      return true;
     }
   }
 
@@ -793,7 +825,7 @@ class IAPService {
     try {
       console.log('🔄 IAP: Updating subscription status...');
       
-      // Calculate expiration date (example: 1 month for monthly, 1 year for yearly)
+      // Calculate expiration date (1 year for yearly subscription)
       const expirationDate = new Date();
       if (purchase.productId.includes('monthly')) {
         expirationDate.setMonth(expirationDate.getMonth() + 1);
@@ -801,46 +833,65 @@ class IAPService {
         expirationDate.setFullYear(expirationDate.getFullYear() + 1);
       }
 
+      // FIXED: Use correct column names and proper upsert conflict resolution
       const { error } = await supabase
-        .rpc('update_subscription_status', {
+        .from('user_subscriptions')
+        .upsert({
           user_id: userId,
           product_id: purchase.productId,
-          new_status: 'active',
+          status: 'active',
+          start_date: new Date().toISOString(),
           expiration_date: expirationDate.toISOString(),
-          transaction_id: purchase.transactionId,
-          receipt_data: purchase.transactionReceipt
+          latest_transaction_id: purchase.transactionId,
+          receipt_data: purchase.transactionReceipt,
+          environment: __DEV__ ? 'sandbox' : 'production',
+          is_trial_period: false,
+          trial_days_remaining: 0,
+          last_receipt_validation: new Date().toISOString(),
+          auto_renew_enabled: true,
+          updated_at: new Date().toISOString()
+          // ✅ REMOVED created_at - let database handle this on INSERT only
+        }, {
+          onConflict: 'user_id,product_id',
+          ignoreDuplicates: false // Update existing records
         });
 
       if (error) {
         console.error('❌ IAP: Error updating subscription status:', error);
-        throw error;
+        throw error; // Throw error to trigger proper error handling
+      } else {
+        console.log('✅ IAP: Subscription status updated successfully');
       }
-      
-      console.log('✅ IAP: Subscription status updated successfully');
       
     } catch (error) {
       console.error('❌ IAP: Failed to update subscription status:', error);
-      throw error;
+      throw error; // Re-throw to ensure proper error handling
     }
   }
 
   private async logSubscriptionEvent(userId: string, eventType: string, eventData: any): Promise<void> {
     try {
+      // FIXED: Use correct column names from actual database schema
       const { error } = await supabase
-        .rpc('log_subscription_event', {
+        .from('subscription_events')
+        .insert({
           user_id: userId,
           event_type: eventType,
-          event_data: eventData
+          event_data: eventData,
+          created_at: new Date().toISOString()
+          // ✅ FIXED: Removed platform column as it doesn't exist in schema
         });
 
       if (error) {
         console.error('❌ IAP: Error logging subscription event:', error);
+        // Don't throw here - logging failures shouldn't block purchase flow
       } else {
         console.log(`✅ IAP: Logged event: ${eventType}`);
       }
       
     } catch (error) {
       console.error('❌ IAP: Failed to log subscription event:', error);
+      // Don't throw - logging failures shouldn't block purchase flow
     }
   }
 

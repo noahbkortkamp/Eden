@@ -335,56 +335,66 @@ export async function getFeatureUsageStats(
 
 /**
  * Check if user is within review limits (integrates with existing review system)
+ * Users get 15 total reviews (free + trial), then must upgrade for unlimited
  */
 export async function checkReviewLimit(userId: string): Promise<{
   canSubmitReview: boolean;
-  reviewsUsedToday: number;
+  totalReviews: number;
   reviewLimit: number;
   requiresUpgrade: boolean;
+  subscriptionStatus: SubscriptionStatus;
 }> {
   try {
     // Check subscription status first
     const subscriptionStatus = await getUserSubscriptionStatus(userId);
     
-    if (subscriptionStatus.hasActiveSubscription) {
+    // If user has active paid subscription (not trial), they get unlimited reviews
+    if (subscriptionStatus.hasActiveSubscription && !subscriptionStatus.isTrialActive) {
       return {
         canSubmitReview: true,
-        reviewsUsedToday: 0,
+        totalReviews: 0,
         reviewLimit: -1, // Unlimited
         requiresUpgrade: false,
+        subscriptionStatus: subscriptionStatus.subscriptionStatus,
       };
     }
 
-    // Check today's review count from existing reviews table
-    const today = new Date().toISOString().split('T')[0];
+    // Check total lifetime review count from existing reviews table
     const { data: reviews, error } = await supabase
       .from('reviews')
       .select('id')
-      .eq('user_id', userId)
-      .gte('created_at', `${today}T00:00:00`)
-      .lt('created_at', `${today}T23:59:59`);
+      .eq('user_id', userId);
 
     if (error) {
       console.error('Error checking review count:', error);
       throw error;
     }
 
-    const reviewsToday = reviews?.length || 0;
-    const limit = FEATURE_LIMITS.FREE_REVIEW_LIMIT;
+    const totalReviews = reviews?.length || 0;
+    const limit = FEATURE_LIMITS.FREE_REVIEW_LIMIT; // 15 reviews max for free/trial users
+
+    // Users can submit up to 15 reviews (free + trial combined)
+    // After 15 reviews, they must have a paid subscription
+    const canSubmit = totalReviews < limit;
+    const needsUpgrade = totalReviews >= limit && !subscriptionStatus.hasActiveSubscription;
+
+    console.log(`🔍 Review limit check: ${totalReviews}/${limit} reviews, canSubmit: ${canSubmit}, needsUpgrade: ${needsUpgrade}, subscription: ${subscriptionStatus.subscriptionStatus}`);
 
     return {
-      canSubmitReview: reviewsToday < limit,
-      reviewsUsedToday: reviewsToday,
+      canSubmitReview: canSubmit,
+      totalReviews,
       reviewLimit: limit,
-      requiresUpgrade: reviewsToday >= limit,
+      requiresUpgrade: needsUpgrade,
+      subscriptionStatus: subscriptionStatus.subscriptionStatus,
     };
   } catch (error) {
     console.error('Failed to check review limit:', error);
     return {
       canSubmitReview: false,
-      reviewsUsedToday: 0,
+      totalReviews: 0,
       reviewLimit: FEATURE_LIMITS.FREE_REVIEW_LIMIT,
       requiresUpgrade: true,
+      subscriptionStatus: 'inactive',
     };
   }
 }

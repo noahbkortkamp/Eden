@@ -194,6 +194,28 @@ export const ReviewProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       userMetadata: user.user_metadata
     });
 
+    // CRITICAL: Check review limits BEFORE allowing submission
+    try {
+      const { checkReviewLimit } = await import('../../utils/subscription');
+      const limitCheck = await checkReviewLimit(user.id);
+      
+      console.log('🔍 Review limit check result:', limitCheck);
+      
+      if (!limitCheck.canSubmitReview) {
+        console.log('🚫 User has reached review limit, showing upgrade prompt');
+        setError(`You've reached the limit of ${limitCheck.reviewLimit} reviews. Upgrade to continue submitting unlimited reviews!`);
+        
+        // Navigate to subscription upgrade modal
+        router.push('/(modals)/founders-membership');
+        return;
+      }
+      
+      console.log(`✅ Review limit check passed: ${limitCheck.totalReviews}/${limitCheck.reviewLimit} reviews used`);
+    } catch (limitError) {
+      console.error('Error checking review limits:', limitError);
+      // Continue with submission but log the error
+    }
+
     const isFromOnboarding = review.fromOnboarding === true;
     console.log('ReviewContext: Starting review submission:', {
       userId: user.id,

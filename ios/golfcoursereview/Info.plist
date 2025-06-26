@@ -39,8 +39,8 @@
         </array>
       </dict>
     </array>
-    <key>CFBundleVersion</key>
-    <string>57</string>
+    	<key>CFBundleVersion</key>
+	<string>63</string>
     <key>ITSAppUsesNonExemptEncryption</key>
     <false/>
     <key>LSMinimumSystemVersion</key>

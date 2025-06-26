@@ -322,7 +322,7 @@ BEGIN
   
   -- Set feature limits for free users
   feature_limit := CASE feature_name
-    WHEN 'unlimited_reviews' THEN 3  -- Free users get 3 reviews
+    WHEN 'unlimited_reviews' THEN 15  -- Free and trial users get 15 total reviews
     WHEN 'score_visibility' THEN 0   -- Premium only
     WHEN 'advanced_recommendations' THEN 0  -- Premium only
     WHEN 'social_features' THEN 1    -- Limited social features

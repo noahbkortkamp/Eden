@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { iapService } from '../services/iapService';
-import { useSubscription } from '../context/SubscriptionContext';
+import { useSubscription } from './useSubscription';
 
 interface UseIAPResult {
   isInitialized: boolean;
@@ -27,10 +27,22 @@ export const useIAP = (): UseIAPResult => {
   const { refetch: refreshSubscription } = useSubscription();
 
   const refreshStatus = () => {
-    const currentStatus = iapService.getStatus();
-    setStatus(currentStatus);
-    setIsInitialized(currentStatus.isInitialized);
-    return currentStatus;
+    try {
+      if (!iapService || typeof iapService.getStatus !== 'function') {
+        console.error('❌ useIAP: iapService not properly initialized');
+        setError('Payment system not available');
+        return null;
+      }
+
+      const currentStatus = iapService.getStatus();
+      setStatus(currentStatus);
+      setIsInitialized(currentStatus.isInitialized);
+      return currentStatus;
+    } catch (err) {
+      console.error('❌ useIAP: Error refreshing status:', err);
+      setError('Failed to refresh payment status');
+      return null;
+    }
   };
 
   useEffect(() => {
@@ -49,6 +61,10 @@ export const useIAP = (): UseIAPResult => {
         
         console.log('🚀 useIAP: Starting IAP initialization...');
         
+        if (!iapService || typeof iapService.initialize !== 'function') {
+          throw new Error('Payment service not available');
+        }
+
         await iapService.initialize();
         
         // Get updated status after initialization
@@ -70,7 +86,7 @@ export const useIAP = (): UseIAPResult => {
             setError(err instanceof Error ? err.message : 'Payment system initialization failed');
           } else {
             // Only set error if we can't proceed at all
-            if (!currentStatus.canPurchase) {
+            if (!currentStatus?.canPurchase) {
               setError('Payment system temporarily unavailable');
             }
           }
@@ -89,21 +105,26 @@ export const useIAP = (): UseIAPResult => {
     // Cleanup on unmount
     return () => {
       isMounted = false;
-      if (isInitialized) {
+      if (isInitialized && iapService && typeof iapService.cleanup === 'function') {
         iapService.cleanup().catch(err => {
           console.error('useIAP: Cleanup error:', err);
         });
       }
     };
-  }, []); // 🔥 CRITICAL FIX: Empty dependency array to run only once on mount
+  }, []);
 
   const retryInitialization = async (): Promise<void> => {
     console.log('🔄 useIAP: Manual retry initialization requested');
-    setInitializationAttempted(false);
-    setError(null);
     
     try {
+      if (!iapService || typeof iapService.initialize !== 'function') {
+        throw new Error('Payment service not available');
+      }
+
+      setInitializationAttempted(false);
+      setError(null);
       setIsLoading(true);
+      
       await iapService.initialize();
       const newStatus = refreshStatus();
       console.log('✅ useIAP: Manual retry initialization completed');
@@ -113,7 +134,7 @@ export const useIAP = (): UseIAPResult => {
       const currentStatus = refreshStatus();
       if (__DEV__) {
         setError(err instanceof Error ? err.message : 'Payment system initialization failed');
-      } else if (!currentStatus.canPurchase) {
+      } else if (!currentStatus?.canPurchase) {
         setError('Payment system temporarily unavailable');
       }
     } finally {
@@ -127,19 +148,31 @@ export const useIAP = (): UseIAPResult => {
       
       console.log(`🛒 useIAP: Initiating purchase for product: ${productId}`);
       
+      if (!productId || typeof productId !== 'string') {
+        throw new Error('Invalid product ID');
+      }
+
+      if (!iapService || typeof iapService.purchaseSubscription !== 'function') {
+        throw new Error('Payment service not available');
+      }
+
+      if (!iapService || typeof iapService.getStatus !== 'function') {
+        throw new Error('Payment service not properly initialized');
+      }
+
       // Check current status before purchase
       const currentStatus = refreshStatus();
       
-      if (!currentStatus.canPurchase && !initializationAttempted) {
+      if (!currentStatus?.canPurchase && !initializationAttempted) {
         console.log('🔄 useIAP: IAP not ready, attempting one-time retry...');
         await retryInitialization();
         
         // Check again after retry
         const retryStatus = refreshStatus();
-        if (!retryStatus.canPurchase) {
+        if (!retryStatus?.canPurchase) {
           throw new Error('Payment system is not ready. Please try again in a moment.');
         }
-      } else if (!currentStatus.canPurchase) {
+      } else if (!currentStatus?.canPurchase) {
         throw new Error('Payment system is not ready. Please try again in a moment.');
       }
 
@@ -150,9 +183,14 @@ export const useIAP = (): UseIAPResult => {
         
         // Refresh subscription status after successful purchase
         console.log('🔄 useIAP: Refreshing subscription status after purchase...');
-        setTimeout(() => {
-          refreshSubscription();
-        }, 2000); // Small delay to ensure Apple's servers are updated
+        
+        if (refreshSubscription && typeof refreshSubscription === 'function') {
+          setTimeout(() => {
+            refreshSubscription();
+          }, 2000); // Small delay to ensure Apple's servers are updated
+        } else {
+          console.warn('⚠️ useIAP: refreshSubscription not available');
+        }
       }
       
       return success;

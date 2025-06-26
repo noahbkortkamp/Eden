@@ -7,7 +7,7 @@ import { useEdenTheme } from '../theme';
 import { EDEN_COLORS } from '../theme/edenColors';
 import { IAP_PRODUCT_IDS } from '../config/iap';
 import { useIAP } from '../hooks/useIAP';
-import { useSubscription } from '../context/SubscriptionContext';
+import { useSubscription } from '../hooks/useSubscription';
 
 export default function FoundersMembershipModal() {
   const router = useRouter();
@@ -33,11 +33,32 @@ export default function FoundersMembershipModal() {
   useEffect(() => {
     if (subscription?.hasActiveSubscription) {
       console.log('✅ Subscription detected as active, closing paywall');
-      setTimeout(() => {
-        router.replace('/(tabs)/lists');
-      }, 1000); // Small delay to show success state
+      // Use a small delay to ensure any pending state updates complete
+      const timer = setTimeout(() => {
+        try {
+          router.replace('/(tabs)/lists');
+        } catch (navigationError) {
+          console.error('❌ Navigation error:', navigationError);
+          // Fallback: try router.back() if replace fails
+          router.back();
+        }
+      }, 1000);
+
+      return () => clearTimeout(timer);
     }
   }, [subscription?.hasActiveSubscription, router]);
+
+  // Also check subscription status periodically while modal is open
+  useEffect(() => {
+    if (!subscription?.hasActiveSubscription) {
+      const checkInterval = setInterval(() => {
+        console.log('🔄 Checking subscription status...');
+        refreshSubscription();
+      }, 3000); // Check every 3 seconds
+
+      return () => clearInterval(checkInterval);
+    }
+  }, [subscription?.hasActiveSubscription, refreshSubscription]);
 
   const handleJoinToday = async () => {
     console.log('🔥 BUTTON PRESSED: Join Today button was clicked!');
@@ -52,21 +73,30 @@ export default function FoundersMembershipModal() {
       console.log('🔍 Is Initialized:', isInitialized);
       console.log('🔍 Environment:', __DEV__ ? 'development' : 'production');
       
-      // Force purchase attempt even if canPurchase is false (for debugging in TestFlight)
-      console.log('💳 Attempting purchase regardless of canPurchase status...');
-      
-      // Purchase subscription without using introductory offer (no trial)
+      // Purchase subscription
+      console.log('💳 Attempting purchase...');
       const success = await purchaseSubscription(IAP_PRODUCT_IDS.FOUNDERS_YEARLY!);
       
       if (success) {
         console.log('✅ Purchase successful! User now has Founders Membership');
         
-        // Refresh subscription status to trigger auto-close
-        console.log('🔄 Refreshing subscription status...');
-        await refreshSubscription();
+        // Wait a moment for any async updates to complete
+        await new Promise(resolve => setTimeout(resolve, 1000));
         
-        // Navigate back to main app (this might be redundant due to useEffect above)
+        // Refresh subscription status
+        console.log('🔄 Refreshing subscription status...');
+        try {
+          await refreshSubscription();
+          console.log('✅ Subscription status refreshed');
+        } catch (refreshError) {
+          console.warn('⚠️ Failed to refresh subscription status:', refreshError);
+          // Don't fail the flow if refresh fails
+        }
+        
+        // Navigate back to main app
+        console.log('🔄 Navigating to main app...');
         router.replace('/(tabs)/lists');
+        
       } else {
         console.log('❌ Purchase returned false');
         setPurchaseError('Purchase was cancelled or failed. Please try again.');

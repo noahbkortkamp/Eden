@@ -9,6 +9,7 @@ import { getReviewsForUser } from '../utils/reviews';
 import { rankingService } from '../services/rankingService';
 import ThemedLoadingScreen from '../components/ThemedLoadingScreen';
 import { usePlayedCourses } from '../context/PlayedCoursesContext';
+import { useSubscription } from '../hooks/useSubscription';
 
 // Inner component that uses the CourseContext
 function ReviewSuccessContent() {
@@ -24,6 +25,7 @@ function ReviewSuccessContent() {
   const { user } = useAuth();
   const { course, isLoading: courseLoading, error: courseError } = useCourse();
   const { setNeedsRefresh } = usePlayedCourses();
+  const { subscription } = useSubscription();
   const [isLoading, setIsLoading] = useState(true);
   const [userReviewCount, setUserReviewCount] = useState(0);
   const [rating, setRating] = useState<number | undefined>(undefined);
@@ -127,6 +129,17 @@ function ReviewSuccessContent() {
         const totalReviews = await reviewService.getUserReviewCount(user.id);
         console.log(`ReviewSuccessScreen: User has ${totalReviews} total reviews`);
         setUserReviewCount(totalReviews);
+
+        // Check if user has completed exactly 2 reviews AND doesn't have active subscription
+        if (totalReviews === 2 && !subscription?.hasActiveSubscription && !subscription?.isTrialPeriod) {
+          console.log('🚀 User has completed 2 reviews and no active subscription! Showing Founders Membership paywall after comparisons.');
+          
+          // Add a small delay to ensure any IAP initialization has time to complete
+          setTimeout(() => {
+            router.push('/(modals)/founders-membership');
+          }, 1000);
+          return;
+        }
 
         // Get how many times the user has reviewed this course
         const allUserReviews = await getReviewsForUser(user.id);
