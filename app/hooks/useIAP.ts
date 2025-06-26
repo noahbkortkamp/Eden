@@ -24,7 +24,7 @@ export const useIAP = (): UseIAPResult => {
   const [error, setError] = useState<string | null>(null);
   const [status, setStatus] = useState<UseIAPResult['status']>(null);
   const [initializationAttempted, setInitializationAttempted] = useState(false);
-  const { refreshSubscriptionStatus } = useSubscription();
+  const { refetch: refreshSubscription } = useSubscription();
 
   const refreshStatus = () => {
     const currentStatus = iapService.getStatus();
@@ -151,7 +151,7 @@ export const useIAP = (): UseIAPResult => {
         // Refresh subscription status after successful purchase
         console.log('🔄 useIAP: Refreshing subscription status after purchase...');
         setTimeout(() => {
-          refreshSubscriptionStatus();
+          refreshSubscription();
         }, 2000); // Small delay to ensure Apple's servers are updated
       }
       

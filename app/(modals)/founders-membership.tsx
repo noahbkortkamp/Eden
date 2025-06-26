@@ -13,7 +13,7 @@ export default function FoundersMembershipModal() {
   const router = useRouter();
   const theme = useEdenTheme();
   const { isInitialized, purchaseSubscription, canPurchase, status, error: iapError, refreshStatus } = useIAP();
-  const { hasActiveSubscription, refreshSubscriptionStatus } = useSubscription();
+  const { subscription, refetch: refreshSubscription } = useSubscription();
   const [isLoading, setIsLoading] = useState(false);
   const [purchaseError, setPurchaseError] = useState<string | null>(null);
   const [showFallback, setShowFallback] = useState(false);
@@ -31,13 +31,13 @@ export default function FoundersMembershipModal() {
 
   // Auto-close modal if subscription becomes active
   useEffect(() => {
-    if (hasActiveSubscription) {
+    if (subscription?.hasActiveSubscription) {
       console.log('✅ Subscription detected as active, closing paywall');
       setTimeout(() => {
         router.replace('/(tabs)/lists');
       }, 1000); // Small delay to show success state
     }
-  }, [hasActiveSubscription, router]);
+  }, [subscription?.hasActiveSubscription, router]);
 
   const handleJoinToday = async () => {
     console.log('🔥 BUTTON PRESSED: Join Today button was clicked!');
@@ -63,7 +63,7 @@ export default function FoundersMembershipModal() {
         
         // Refresh subscription status to trigger auto-close
         console.log('🔄 Refreshing subscription status...');
-        await refreshSubscriptionStatus();
+        await refreshSubscription();
         
         // Navigate back to main app (this might be redundant due to useEffect above)
         router.replace('/(tabs)/lists');
