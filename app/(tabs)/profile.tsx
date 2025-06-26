@@ -60,6 +60,7 @@ function ProfileScreenContent() {
   const [followStats, setFollowStats] = useState({ followers: 0, following: 0 });
   const [wantToPlayCount, setWantToPlayCount] = useState(0);
   const [hasEnoughReviews, setHasEnoughReviews] = useState(false);
+  const [userProfile, setUserProfile] = useState<any>(null);
   const theme = useEdenTheme();
   
   // Access the shared played courses context
@@ -68,12 +69,27 @@ function ProfileScreenContent() {
   const loadReviews = async () => {
     if (!user) return;
     try {
-      // Fetch all stats in parallel
-      const [userReviews, followCounts, bookmarkedCourseIds] = await Promise.all([
+      // Fetch all stats in parallel, including user profile
+      const [userReviews, followCounts, bookmarkedCourseIds, profileData] = await Promise.all([
         getReviewsForUser(user.id),
         getFollowCounts(user.id),
-        bookmarkService.getBookmarkedCourseIds(user.id)
+        bookmarkService.getBookmarkedCourseIds(user.id),
+        supabase
+          .from('users')
+          .select('username, full_name')
+          .eq('id', user.id)
+          .single()
+          .then(({ data, error }) => {
+            if (error) {
+              console.log('No user profile found in database, using auth metadata');
+              return null;
+            }
+            return data;
+          })
       ]);
+      
+      // Set user profile data
+      setUserProfile(profileData);
       
       // Update follow stats
       setFollowStats(followCounts);
@@ -153,8 +169,10 @@ function ProfileScreenContent() {
 
   // Generate initials from user name or email
   const getInitials = () => {
-    if (user?.user_metadata?.name) {
-      return user.user_metadata.name[0].toUpperCase();
+    const fullName = userProfile?.full_name || user?.user_metadata?.name;
+    if (fullName) {
+      // Get first letter of first name
+      return fullName[0].toUpperCase();
     } else if (user?.email) {
       return user.email[0].toUpperCase();
     }
@@ -198,11 +216,11 @@ function ProfileScreenContent() {
         </View>
         
         <Heading2 style={styles.name}>
-          {user.user_metadata?.name || 'User'}
+          {userProfile?.full_name || user.user_metadata?.name || 'User'}
         </Heading2>
         
         <SmallText color={theme.colors.textSecondary} style={styles.email}>
-          {user.email}
+          @{userProfile?.username || user.user_metadata?.username || 'user'}
         </SmallText>
         
         {/* Stats Row */}
@@ -213,7 +231,7 @@ function ProfileScreenContent() {
               pathname: '/connections-list',
               params: { 
                 userId: user.id,
-                userName: user.user_metadata?.name || 'User',
+                userName: userProfile?.full_name || user.user_metadata?.name || 'User',
                 initialTab: 'followers'
               }
             })}
@@ -228,7 +246,7 @@ function ProfileScreenContent() {
               pathname: '/connections-list',
               params: { 
                 userId: user.id,
-                userName: user.user_metadata?.name || 'User',
+                userName: userProfile?.full_name || user.user_metadata?.name || 'User',
                 initialTab: 'following'
               }
             })}

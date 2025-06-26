@@ -30,22 +30,56 @@ export default function ProfileInfoScreen() {
   const isFormValid = firstName.trim() && lastName.trim();
 
   const handleContinue = async () => {
-    if (!isFormValid) return;
+    if (!isFormValid || !user) return;
     setLoading(true);
     setError('');
     try {
-      const { error: updateError } = await supabase
+      // Import username generator
+      const { generateUsername } = await import('../utils/usernameGenerator');
+      
+      // Create full name and generate username
+      const fullName = `${firstName.trim()} ${lastName.trim()}`;
+      const username = generateUsername(fullName);
+      
+      console.log('Creating user profile with username:', username);
+      
+      // Check if user profile already exists
+      const { data: existingProfile } = await supabase
         .from('users')
-        .update({
-          first_name: firstName.trim(),
-          last_name: lastName.trim(),
-          updated_at: new Date().toISOString(),
-        })
-        .eq('id', user.id);
-      if (updateError) throw updateError;
+        .select('id')
+        .eq('id', user.id)
+        .single();
+      
+      if (existingProfile) {
+        // Update existing profile
+        const { error: updateError } = await supabase
+          .from('users')
+          .update({
+            username: username,
+            full_name: fullName,
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', user.id);
+        if (updateError) throw updateError;
+      } else {
+        // Create new profile
+        const { error: insertError } = await supabase
+          .from('users')
+          .insert({
+            id: user.id,
+            username: username,
+            full_name: fullName,
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+          });
+        if (insertError) throw insertError;
+      }
+      
+      console.log('User profile created/updated successfully');
       router.replace('/onboarding/golf-sickko');
     } catch (err: any) {
-      setError(err.message || 'Failed to update profile');
+      console.error('Profile creation error:', err);
+      setError(err.message || 'Failed to create profile');
     } finally {
       setLoading(false);
     }
