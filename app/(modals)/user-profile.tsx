@@ -20,7 +20,7 @@ const getBadgeColor = (score: number): string => {
   return '#F44336'; // Red
 };
 
-// Fallback scores by sentiment (only used if we can't get the real relative score)
+// Fallback scores by sentiment (used only when relative score isn't available from course_rankings)
 const fallbackScores = {
   'liked': 8.8,
   'fine': 6.5,
@@ -37,6 +37,33 @@ type ReviewWithCourse = {
   playing_partners?: string[];
   course?: any;
   relativeScore?: number;
+};
+
+// Function to fetch relative scores for a user's courses
+const fetchUserRelativeScores = async (userId: string, courseIds: string[]): Promise<Map<string, number>> => {
+  try {
+    const { data, error } = await supabase
+      .from('course_rankings')
+      .select('course_id, relative_score')
+      .eq('user_id', userId)
+      .in('course_id', courseIds);
+
+    if (error) {
+      console.error('Error fetching relative scores:', error);
+      return new Map();
+    }
+
+    const scoresMap = new Map<string, number>();
+    data?.forEach(ranking => {
+      scoresMap.set(ranking.course_id, ranking.relative_score);
+    });
+
+    console.log(`Fetched relative scores for ${scoresMap.size} courses for user ${userId.substring(0, 8)}`);
+    return scoresMap;
+  } catch (error) {
+    console.error('Exception fetching relative scores:', error);
+    return new Map();
+  }
 };
 
 export default function UserProfileScreen() {
@@ -110,18 +137,25 @@ export default function UserProfileScreen() {
       // Check if user has enough reviews to show scores
       setHasEnoughReviews(userReviews.length >= 10);
       
+      // Get course IDs to fetch relative scores
+      const courseIds = userReviews.map(review => review.course_id);
+      
+      // Fetch relative scores for this user's courses
+      const relativeScoresMap = await fetchUserRelativeScores(userId, courseIds);
+      
       // Fetch course details for each review
       const reviewsWithCourses = await Promise.all(
         userReviews.map(async (review) => {
           try {
             const course = await getCourse(review.course_id);
             
+            // Use actual relative score if available, otherwise fallback to sentiment mapping
+            const relativeScore = relativeScoresMap.get(review.course_id) ?? fallbackScores[review.rating] ?? 5.0;
+            
             return { 
               ...review, 
               course,
-              // For other users, we don't have access to their personal ratings
-              // We'll use sentiment-based fallback scores instead
-              relativeScore: fallbackScores[review.rating] || 5.0
+              relativeScore
             };
           } catch (error) {
             console.error(`Error loading course ${review.course_id}:`, error);
@@ -323,11 +357,11 @@ export default function UserProfileScreen() {
               <Text style={styles.emptyText}>No reviews yet</Text>
             </View>
           ) : (
-            reviews.map((review) => {
-              // Use the fallback scores for other users' reviews
-              const score = review.relativeScore !== undefined 
-                ? review.relativeScore 
-                : fallbackScores[review.rating] || 0;
+                          reviews.map((review) => {
+                // Use the actual relative score from course_rankings table, with sentiment fallback only if no ranking exists
+                const score = review.relativeScore !== undefined 
+                  ? review.relativeScore 
+                  : fallbackScores[review.rating] || 0;
                 
               const badgeColor = getBadgeColor(score);
               
