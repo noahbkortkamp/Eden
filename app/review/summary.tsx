@@ -68,6 +68,9 @@ export default function ReviewSummaryScreen() {
   const { user } = useAuth();
   const userId = paramUserId || user?.id;
   
+  // Determine if this is the current user's review or another user's review
+  const isCurrentUserReview = user?.id === userId;
+  
   // State
   const [review, setReview] = useState<any | null>(null);
   const [loading, setLoading] = useState(true);
@@ -164,15 +167,17 @@ export default function ReviewSummaryScreen() {
         <View style={styles.centerContent}>
           <BodyText color={theme.colors.textSecondary} center style={styles.errorText}>
             {error === 'No review found' 
-              ? "You haven't reviewed this course yet." 
+              ? (isCurrentUserReview ? "You haven't reviewed this course yet." : "No review found for this course.")
               : "There was a problem loading this review."}
           </BodyText>
           
-          <Button 
-            label="Review This Course"
-            onPress={handleCreateReview}
-            style={styles.createReviewButton}
-          />
+          {isCurrentUserReview && (
+            <Button 
+              label="Review This Course"
+              onPress={handleCreateReview}
+              style={styles.createReviewButton}
+            />
+          )}
         </View>
       </SafeAreaView>
     );
@@ -209,7 +214,7 @@ export default function ReviewSummaryScreen() {
         <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
           <ArrowLeft size={24} color={theme.colors.text} />
         </TouchableOpacity>
-        <Heading3>Your Review</Heading3>
+        <Heading3>{isCurrentUserReview ? 'Your Review' : 'Review Details'}</Heading3>
       </View>
 
       <ScrollView style={styles.scrollContainer} contentContainerStyle={styles.contentContainer}>
@@ -336,19 +341,21 @@ export default function ReviewSummaryScreen() {
           </Card>
         )}
 
-        {/* Edit Button */}
-        <Button
-          label="Edit Review"
-          variant="secondary"
-          onPress={() => router.push({
-            pathname: '/(modals)/review',
-            params: { 
-              courseId: review.course_id, 
-              reviewId: review.id 
-            }
-          })}
-          style={styles.editButton}
-        />
+        {/* Edit Button - Only show for current user's reviews */}
+        {isCurrentUserReview && (
+          <Button
+            label="Edit Review"
+            variant="secondary"
+            onPress={() => router.push({
+              pathname: '/(modals)/review',
+              params: { 
+                courseId: review.course_id, 
+                reviewId: review.id 
+              }
+            })}
+            style={styles.editButton}
+          />
+        )}
       </ScrollView>
     </SafeAreaView>
   );
