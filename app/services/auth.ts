@@ -184,17 +184,12 @@ export const signInWithGoogle = async () => {
       provider: 'google',
       options: {
         redirectTo: redirectUrl,
-        skipBrowserRedirect: true, // We'll handle the browser redirect
-        queryParams: {
-          // Force fresh authentication
-          prompt: 'select_account',
-          access_type: 'offline'
-        }
-      },
+        skipBrowserRedirect: true,
+      }
     });
     
     if (error) {
-      console.error('Failed to get OAuth URL:', error);
+      console.error('Error getting Google OAuth URL:', error);
       throw error;
     }
     
@@ -222,6 +217,45 @@ export const signInWithGoogle = async () => {
       
       if (sessionData?.session) {
         console.log('Session successfully established:', sessionData.session.user.id);
+        
+        // Check if this is a new user (no onboardingComplete metadata set)
+        const user = sessionData.session.user;
+        console.log('Google user metadata:', user.user_metadata);
+        
+        // More robust check for new users
+        const onboardingComplete = user.user_metadata?.onboardingComplete;
+        const isNewUser = onboardingComplete === undefined || onboardingComplete === null;
+        
+        if (isNewUser) {
+          console.log('New Google user detected, setting initial metadata...');
+          
+          // Set initial metadata for new Google users
+          const name = user.user_metadata?.name || user.user_metadata?.full_name || user.email?.split('@')[0] || 'Google User';
+          
+          try {
+            const { data: updateData, error: updateError } = await supabase.auth.updateUser({
+              data: {
+                name: name,
+                onboardingComplete: false,
+                provider: 'google',
+              }
+            });
+            
+            if (updateError) {
+              console.error('Error setting initial metadata for Google user:', updateError);
+            } else {
+              console.log('Successfully set initial metadata for new Google user');
+              // Update the session data with the new metadata
+              if (updateData?.user) {
+                sessionData.session.user = updateData.user;
+              }
+            }
+          } catch (metadataError) {
+            console.error('Error setting initial metadata for Google user:', metadataError);
+            // Don't throw - we can still continue with the sign-in
+          }
+        }
+        
         return sessionData;
       }
       
@@ -231,6 +265,42 @@ export const signInWithGoogle = async () => {
       
       if (directSession?.session) {
         console.log('Retrieved session directly:', directSession.session.user.id);
+        
+        // Check if this is a new user for direct session as well
+        const user = directSession.session.user;
+        console.log('Google user metadata (direct):', user.user_metadata);
+        
+        const onboardingComplete = user.user_metadata?.onboardingComplete;
+        const isNewUser = onboardingComplete === undefined || onboardingComplete === null;
+        
+        if (isNewUser) {
+          console.log('New Google user detected (direct session), setting initial metadata...');
+          
+          const name = user.user_metadata?.name || user.user_metadata?.full_name || user.email?.split('@')[0] || 'Google User';
+          
+          try {
+            const { data: updateData, error: updateError } = await supabase.auth.updateUser({
+              data: {
+                name: name,
+                onboardingComplete: false,
+                provider: 'google',
+              }
+            });
+            
+            if (updateError) {
+              console.error('Error setting initial metadata for Google user (direct):', updateError);
+            } else {
+              console.log('Successfully set initial metadata for new Google user (direct session)');
+              // Update the session data with the new metadata
+              if (updateData?.user) {
+                directSession.session.user = updateData.user;
+              }
+            }
+          } catch (metadataError) {
+            console.error('Error setting initial metadata for Google user (direct session):', metadataError);
+          }
+        }
+        
         return directSession;
       }
       
@@ -279,6 +349,50 @@ export const signInWithApple = async () => {
       }
 
       console.log('Apple sign-in successful:', data);
+
+      // Check if this is a new user (no onboardingComplete metadata set)
+      if (data?.session?.user) {
+        const user = data.session.user;
+        console.log('Apple user metadata:', user.user_metadata);
+        
+        // More robust check for new users
+        const onboardingComplete = user.user_metadata?.onboardingComplete;
+        const isNewUser = onboardingComplete === undefined || onboardingComplete === null;
+        
+        if (isNewUser) {
+          console.log('New Apple user detected, setting initial metadata...');
+          
+          // Set initial metadata for new Apple users
+          const fullName = credential.fullName;
+          const firstName = fullName?.givenName || '';
+          const lastName = fullName?.familyName || '';
+          const name = `${firstName} ${lastName}`.trim() || user.email?.split('@')[0] || 'Apple User';
+          
+          try {
+            const { data: updateData, error: updateError } = await supabase.auth.updateUser({
+              data: {
+                name: name,
+                onboardingComplete: false,
+                provider: 'apple',
+              }
+            });
+            
+            if (updateError) {
+              console.error('Error setting initial metadata for Apple user:', updateError);
+            } else {
+              console.log('Successfully set initial metadata for new Apple user');
+              // Update the session data with the new metadata
+              if (updateData?.user) {
+                data.session.user = updateData.user;
+              }
+            }
+          } catch (metadataError) {
+            console.error('Error setting initial metadata for Apple user:', metadataError);
+            // Don't throw - we can still continue with the sign-in
+          }
+        }
+      }
+
       return data;
     } else {
       throw new Error('No identity token received from Apple');

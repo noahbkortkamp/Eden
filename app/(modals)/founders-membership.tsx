@@ -253,7 +253,7 @@ export default function FoundersMembershipModal() {
               label="Contact Support"
               variant="secondary"
               onPress={() => {
-                Linking.openURL('mailto:support@golfcoursereview.app?subject=Payment Issue&body=I am experiencing issues with the payment system when trying to purchase the Founders Membership.');
+                Linking.openURL('mailto:support@golfculture.io?subject=Payment Issue&body=I am experiencing issues with the payment system when trying to purchase the Founders Membership.');
               }}
               fullWidth
               disabled={isLoading}

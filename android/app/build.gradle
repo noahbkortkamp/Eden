@@ -93,7 +93,7 @@ missingDimensionStrategy "store", "play"
         applicationId 'com.noahkortkamp.golfcoursereview'
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 63
+        versionCode 66
         versionName "1.0.0"
     }
     signingConfigs {

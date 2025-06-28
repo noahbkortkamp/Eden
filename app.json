@@ -17,7 +17,7 @@
     ],
     "ios": {
       "supportsTablet": true,
-      "buildNumber": "63",
+      "buildNumber": "67",
       "capabilities": {
         "inAppPurchase": true
       },
@@ -40,7 +40,7 @@
       },
       "bundleIdentifier": "com.noahkortkamp.golfcoursereview",
       "associatedDomains": [
-        "applinks:golfcoursereview.app"
+        "applinks:golfculture.io"
       ],
       "usesAppleSignIn": true,
       "requireFullScreen": false,
@@ -150,7 +150,7 @@
       }
     },
     "android": {
-      "versionCode": 62,
+      "versionCode": 66,
       "permissions": [
         "android.permission.CAMERA",
         "android.permission.READ_EXTERNAL_STORAGE",

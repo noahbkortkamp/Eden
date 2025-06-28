@@ -171,8 +171,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setUser(user);
       retryAttempts.current = 0; // Reset retry counter
       
-      // Simplified routing - avoid API calls during sign-in
-      if (user && user.user_metadata?.onboardingComplete === false) {
+      // Check if user needs onboarding (undefined or false)
+      const onboardingComplete = user.user_metadata?.onboardingComplete;
+      if (onboardingComplete === false || onboardingComplete === undefined) {
+        console.log('User needs onboarding, redirecting to profile-info');
         router.replace('/onboarding/profile-info');
       } else {
         router.replace('/(tabs)/lists');
@@ -190,10 +192,25 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setUser(result.session.user);
         retryAttempts.current = 0; // Reset retry counter
         
-        // Simplified routing
-        if (result.session.user.user_metadata?.onboardingComplete === false) {
+        // Small delay to ensure metadata updates have propagated
+        await new Promise(resolve => setTimeout(resolve, 100));
+        
+        // Re-fetch the user to get the latest metadata
+        const currentUser = await authService.getCurrentUser();
+        const userToCheck = currentUser || result.session.user;
+        
+        // Enhanced logging for debugging
+        console.log('Google Sign-In - Full user metadata:', JSON.stringify(userToCheck.user_metadata, null, 2));
+        
+        // Check if user needs onboarding (undefined or false)
+        const onboardingComplete = userToCheck.user_metadata?.onboardingComplete;
+        console.log('Google Sign-In - onboardingComplete value:', onboardingComplete, 'Type:', typeof onboardingComplete);
+        
+        if (onboardingComplete === false || onboardingComplete === undefined || onboardingComplete === null) {
+          console.log('Google user needs onboarding, redirecting to profile-info');
           router.replace('/onboarding/profile-info');
         } else {
+          console.log('Google user onboarding already complete, redirecting to lists');
           router.replace('/(tabs)/lists');
         }
       }
@@ -213,10 +230,25 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setUser(result.session.user);
         retryAttempts.current = 0; // Reset retry counter
         
-        // Simplified routing
-        if (result.session.user.user_metadata?.onboardingComplete === false) {
+        // Small delay to ensure metadata updates have propagated
+        await new Promise(resolve => setTimeout(resolve, 100));
+        
+        // Re-fetch the user to get the latest metadata
+        const currentUser = await authService.getCurrentUser();
+        const userToCheck = currentUser || result.session.user;
+        
+        // Enhanced logging for debugging
+        console.log('Apple Sign-In - Full user metadata:', JSON.stringify(userToCheck.user_metadata, null, 2));
+        
+        // Check if user needs onboarding (undefined or false)
+        const onboardingComplete = userToCheck.user_metadata?.onboardingComplete;
+        console.log('Apple Sign-In - onboardingComplete value:', onboardingComplete, 'Type:', typeof onboardingComplete);
+        
+        if (onboardingComplete === false || onboardingComplete === undefined || onboardingComplete === null) {
+          console.log('Apple user needs onboarding, redirecting to profile-info');
           router.replace('/onboarding/profile-info');
         } else {
+          console.log('Apple user onboarding already complete, redirecting to lists');
           router.replace('/(tabs)/lists');
         }
       }

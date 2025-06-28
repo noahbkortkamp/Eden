@@ -1,0 +1,11 @@
+[build]
+  # No build command needed for static HTML
+  command = ""
+  # Publish the current directory
+  publish = "."
+
+[dev]
+  # Local development settings
+  command = "python3 -m http.server 8888"
+  port = 8888
+  publish = "." 

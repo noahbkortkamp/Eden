@@ -1,0 +1,11 @@
+{
+  "applinks": {
+    "apps": [],
+    "details": [
+      {
+        "appID": "9LXK23553A.com.noahkortkamp.golfcoursereview",
+        "paths": ["/auth/callback", "*"]
+      }
+    ]
+  }
+} 

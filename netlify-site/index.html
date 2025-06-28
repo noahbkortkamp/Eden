@@ -1,0 +1,465 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Eden - Golf Course Review App</title>
+    <meta name="description" content="Eden - The ultimate golf course review app. Track your rounds, rate courses, and discover the best golf experiences.">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            line-height: 1.6;
+            color: #234D2C;
+            background-color: #F8F5EC;
+            overflow-x: hidden;
+        }
+
+        /* Navigation */
+        .nav {
+            position: fixed;
+            top: 0;
+            width: 100%;
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            z-index: 1000;
+            padding: 1rem 0;
+            transition: all 0.3s ease;
+        }
+
+        .nav-container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 0 2rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .logo {
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: #234D2C;
+        }
+
+        .nav-tabs {
+            display: flex;
+            gap: 2rem;
+        }
+
+        .nav-tab {
+            background: none;
+            border: none;
+            font-size: 1rem;
+            font-weight: 500;
+            color: #234D2C;
+            text-decoration: none;
+            cursor: pointer;
+            padding: 0.5rem 1rem;
+            border-radius: 12px;
+            transition: all 0.3s ease;
+        }
+
+        .nav-tab:hover,
+        .nav-tab.active {
+            background: #234D2C;
+            color: white;
+        }
+
+
+
+        /* Hero Section */
+        .hero {
+            background: linear-gradient(135deg, #234D2C 0%, #4A5E50 100%);
+            color: white;
+            padding: 6rem 2rem;
+            padding-top: 8rem;
+            text-align: center;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .hero::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><defs><pattern id="golf" width="20" height="20" patternUnits="userSpaceOnUse"><circle cx="10" cy="10" r="1" fill="rgba(255,255,255,0.1)"/></pattern></defs><rect width="100" height="100" fill="url(%23golf)"/></svg>');
+        }
+
+        .hero-content {
+            position: relative;
+            z-index: 1;
+            max-width: 800px;
+            margin: 0 auto;
+        }
+
+        .hero h1 {
+            font-size: 3.5rem;
+            font-weight: 700;
+            margin-bottom: 1rem;
+            line-height: 1.2;
+        }
+
+        .hero .subtitle {
+            font-size: 1.25rem;
+            margin-bottom: 2rem;
+            opacity: 0.9;
+        }
+
+        .app-store-badge {
+            display: inline-block;
+            margin: 1rem;
+            transition: transform 0.3s ease;
+        }
+
+        .app-store-badge:hover {
+            transform: translateY(-2px);
+        }
+
+        .app-store-badge img {
+            height: 60px;
+            border-radius: 12px;
+        }
+
+        /* Features Section */
+        .features {
+            padding: 6rem 2rem;
+            background: #F8F5EC;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        .section-title {
+            text-align: center;
+            font-size: 2.5rem;
+            font-weight: 700;
+            margin-bottom: 3rem;
+            color: #234D2C;
+        }
+
+        .features-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 3rem;
+            margin-top: 4rem;
+        }
+
+        .feature-card {
+            background: white;
+            padding: 2rem;
+            border-radius: 16px;
+            text-align: center;
+            border: 1px solid #234D2C;
+            box-shadow: 0 4px 20px rgba(35, 77, 44, 0.1);
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+        }
+
+        .feature-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.15);
+        }
+
+        .feature-icon {
+            width: 80px;
+            height: 80px;
+            margin: 0 auto 1.5rem;
+            background: #234D2C;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 2rem;
+        }
+
+        .feature-card h3 {
+            font-size: 1.25rem;
+            font-weight: 600;
+            margin-bottom: 1rem;
+            color: #234D2C;
+        }
+
+        .feature-card p {
+            color: #4A5E50;
+            line-height: 1.6;
+            font-size: 0.9rem;
+        }
+
+        /* App Preview Section */
+        .app-preview {
+            padding: 6rem 2rem;
+            background: white;
+            text-align: center;
+        }
+
+        .phone-mockup {
+            width: 300px;
+            height: 600px;
+            margin: 3rem auto;
+            background: linear-gradient(135deg, #234D2C, #4A5E50);
+            border-radius: 30px;
+            padding: 20px;
+            position: relative;
+            box-shadow: 0 20px 60px rgba(35, 77, 44, 0.3);
+        }
+
+        .phone-screen {
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(135deg, #234D2C, #4A5E50);
+            border-radius: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 1.2rem;
+            font-weight: 500;
+        }
+
+
+
+        /* Footer */
+        .footer {
+            background: #234D2C;
+            color: white;
+            padding: 3rem 2rem;
+            text-align: center;
+        }
+
+        .footer-content {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        .footer h3 {
+            font-size: 1.5rem;
+            margin-bottom: 1rem;
+            color: #9ACE8E;
+        }
+
+        /* Mobile Responsive */
+        @media (max-width: 768px) {
+            .nav-tabs {
+                display: none;
+            }
+
+            .hero h1 {
+                font-size: 2.5rem;
+            }
+
+            .hero .subtitle {
+                font-size: 1.1rem;
+            }
+
+            .features-grid {
+                grid-template-columns: 1fr;
+                gap: 2rem;
+            }
+
+            .phone-mockup {
+                width: 250px;
+                height: 500px;
+            }
+
+            .privacy-content {
+                padding: 2rem;
+            }
+
+            .nav-container {
+                padding: 0 1rem;
+            }
+        }
+
+        /* Mobile Navigation */
+        .mobile-nav-toggle {
+            display: none;
+            background: none;
+            border: none;
+            font-size: 1.5rem;
+            color: #234D2C;
+            cursor: pointer;
+        }
+
+        @media (max-width: 768px) {
+            .mobile-nav-toggle {
+                display: block;
+            }
+
+            .nav-tabs {
+                position: absolute;
+                top: 100%;
+                left: 0;
+                right: 0;
+                background: white;
+                flex-direction: column;
+                gap: 0;
+                padding: 1rem;
+                box-shadow: 0 5px 20px rgba(0, 0, 0, 0.1);
+                transform: translateY(-100%);
+                opacity: 0;
+                pointer-events: none;
+                transition: all 0.3s ease;
+            }
+
+            .nav-tabs.active {
+                transform: translateY(0);
+                opacity: 1;
+                pointer-events: all;
+            }
+
+            .nav-tab {
+                text-align: center;
+                padding: 1rem;
+                border-radius: 10px;
+                margin-bottom: 0.5rem;
+            }
+        }
+
+        /* Animations */
+        @keyframes fadeInUp {
+            from {
+                opacity: 0;
+                transform: translateY(30px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .hero-content {
+            animation: fadeInUp 1s ease-out;
+        }
+
+        .feature-card {
+            animation: fadeInUp 0.8s ease-out;
+        }
+
+        .feature-card:nth-child(2) {
+            animation-delay: 0.2s;
+        }
+
+        .feature-card:nth-child(3) {
+            animation-delay: 0.4s;
+        }
+    </style>
+</head>
+<body>
+    <!-- Navigation -->
+    <nav class="nav">
+        <div class="nav-container">
+            <div class="logo">Eden</div>
+            <div class="nav-tabs" id="navTabs">
+                <a href="/" class="nav-tab active">Home</a>
+                <a href="/privacy-policy.html" class="nav-tab">Privacy Policy</a>
+            </div>
+            <button class="mobile-nav-toggle" onclick="toggleMobileNav()">
+                <i class="fas fa-bars"></i>
+            </button>
+        </div>
+    </nav>
+
+    <!-- Main Content -->
+        <!-- Hero -->
+        <div class="hero">
+            <div class="hero-content">
+                <h1>Eden</h1>
+                <p class="subtitle">The ultimate golf course review app. Track your rounds, rate courses, and discover the best golf experiences.</p>
+                <div class="app-store-buttons">
+                    <a href="https://apps.apple.com/app/id6746735468" class="app-store-badge">
+                        <img src="data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTYwIiBoZWlnaHQ9IjQ4IiB2aWV3Qm94PSIwIDAgMTYwIDQ4IiBmaWxsPSJub25lIiB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciPgo8cmVjdCB3aWR0aD0iMTYwIiBoZWlnaHQ9IjQ4IiByeD0iOCIgZmlsbD0iYmxhY2siLz4KPHN2ZyB4PSIxMiIgeT0iMTIiIHdpZHRoPSIyNCIgaGVpZ2h0PSIyNCIgdmlld0JveD0iMCAwIDI0IDI0IiBmaWxsPSJ3aGl0ZSI+CjxwYXRoIGQ9Ik0xOC43MSA5LjY1QzE4LjY4IDkuNTUgMTguNjMgOS40NSAxOC41NyA5LjM3QzE4LjM1IDkuMDQgMTcuOTUgOC44OCAxNy41NCA5QzE3LjEzIDkuMTIgMTYuODEgOS40NiAxNi42OSA5Ljg3QzE2LjU3IDEwLjI4IDE2LjY3IDEwLjcyIDE2Ljk1IDExLjA0QzE3LjIzIDExLjM2IDE3LjY2IDExLjUgMTguMDkgMTEuMzhDMTguNTIgMTEuMjYgMTguODggMTAuOSAxOSAxMC40N0MxOS4xMiAxMC4wNCAxOS4wMiA5LjU5IDE4Ljc0IDkuMjdMMTguNzEgOS42NVoiLz4KPHN2ZyB4PSI0MCIgeT0iOCIgd2lkdGg9IjEwOCIgaGVpZ2h0PSIzMiIgdmlld0JveD0iMCAwIDEwOCAzMiIgZmlsbD0id2hpdGUiPgo8dGV4dCB4PSIwIiB5PSIxMiIgZm9udC1zaXplPSI5IiBmb250LWZhbWlseT0iSGVsdmV0aWNhLCBBcmlhbCwgc2Fucy1zZXJpZiIgZmlsbD0iZ3JheSI+RG93bmxvYWQgb24gdGhlPC90ZXh0Pgo8dGV4dCB4PSIwIiB5PSIyNCIgZm9udC1zaXplPSIxNCIgZm9udC1mYW1pbHk9IkhlbHZldGljYSwgQXJpYWwsIHNhbnMtc2VyaWYiIGZvbnQtd2VpZ2h0PSJib2xkIj5BcHAgU3RvcmU8L3RleHQ+CjwvdGV4dD4KPC9zdmc+Cg==" alt="Download on the App Store">
+                    </a>
+                </div>
+            </div>
+        </div>
+
+        <!-- Features -->
+        <section class="features">
+            <div class="container">
+                <h2 class="section-title">Why Choose Eden?</h2>
+                <div class="features-grid">
+                    <div class="feature-card">
+                        <div class="feature-icon">
+                            <i class="fas fa-star"></i>
+                        </div>
+                        <h3>Course Reviews</h3>
+                        <p>Rate and review golf courses with detailed feedback. Share your experiences and help other golfers discover great courses.</p>
+                    </div>
+                    <div class="feature-card">
+                        <div class="feature-icon">
+                            <i class="fas fa-chart-line"></i>
+                        </div>
+                        <h3>Track Progress</h3>
+                        <p>Monitor your golf journey with comprehensive tracking. Keep notes, compare rounds, and watch your game improve over time.</p>
+                    </div>
+                    <div class="feature-card">
+                        <div class="feature-icon">
+                            <i class="fas fa-users"></i>
+                        </div>
+                        <h3>Social Features</h3>
+                        <p>Connect with friends, share reviews, and discover new courses together. Build your golf community within Eden.</p>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- App Preview -->
+        <section class="app-preview">
+            <div class="container">
+                <h2 class="section-title">Beautiful, Intuitive Design</h2>
+                <div class="phone-mockup">
+                    <div class="phone-screen">
+                        <div>
+                            <i class="fas fa-golf-ball" style="font-size: 3rem; margin-bottom: 1rem;"></i>
+                            <div>Eden App Preview</div>
+                            <div style="font-size: 0.9rem; opacity: 0.8; margin-top: 0.5rem;">Coming Soon</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Footer -->
+        <footer class="footer">
+            <div class="footer-content">
+                <h3>Eden</h3>
+                <p>The future of golf course reviews</p>
+                <p style="margin-top: 2rem; opacity: 0.7;">© 2025 Eden. All rights reserved.</p>
+                <p style="margin-top: 1rem;">
+                    <a href="mailto:noah@golfculture.io" style="color: #9ACE8E; text-decoration: none;">noah@golfculture.io</a>
+                </p>
+            </div>
+        </footer>
+
+    <script>
+        function toggleMobileNav() {
+            document.getElementById('navTabs').classList.toggle('active');
+        }
+
+        // Add scroll effect to navigation
+        window.addEventListener('scroll', function() {
+            const nav = document.querySelector('.nav');
+            if (window.scrollY > 100) {
+                nav.style.background = 'rgba(255, 255, 255, 0.98)';
+                nav.style.boxShadow = '0 2px 20px rgba(35, 77, 44, 0.1)';
+            } else {
+                nav.style.background = 'rgba(255, 255, 255, 0.95)';
+                nav.style.boxShadow = 'none';
+            }
+        });
+    </script>
+</body>
+</html> 
