@@ -391,7 +391,22 @@ function CourseDetailsContent() {
 
             <View style={[styles.divider, { backgroundColor: theme.colors.border }]} />
 
-            <View style={styles.statItem}>
+            <TouchableOpacity 
+              style={[
+                styles.statItem, 
+                (courseStats?.totalRankings && courseStats.totalRankings > 0) && styles.clickableStatItem
+              ]}
+              onPress={() => {
+                if (courseStats?.totalRankings && courseStats.totalRankings > 0) {
+                  router.push({
+                    pathname: '/(modals)/course-reviews',
+                    params: { courseId: course?.id }
+                  });
+                }
+              }}
+              disabled={!courseStats?.totalRankings || courseStats.totalRankings === 0}
+              activeOpacity={0.7}
+            >
               <Users size={18} color={theme.colors.primary} />
               {statsLoading ? (
                 <ActivityIndicator size="small" color={theme.colors.primary} />
@@ -403,7 +418,7 @@ function CourseDetailsContent() {
               <SmallText color={theme.colors.textSecondary}>
                 Reviews
               </SmallText>
-            </View>
+            </TouchableOpacity>
           </Card>
 
           {/* Current User Score (if available) */}
@@ -580,6 +595,10 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: 'center',
     padding: 10,
+  },
+  clickableStatItem: {
+    backgroundColor: 'rgba(35, 77, 44, 0.04)', // Subtle background tint
+    borderRadius: 8,
   },
   divider: {
     width: 1,
