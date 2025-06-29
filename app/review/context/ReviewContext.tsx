@@ -37,15 +37,18 @@ interface ReviewContextType {
 /**
  * Calculate the number of comparisons based on course count in a sentiment category
  * - 3 or fewer courses: 3 comparisons
- * - More than 5 courses: 4 comparisons
- * - More than 10 courses: 5 comparisons
+ * - 4-5 courses: 4 comparisons
+ * - 6-10 courses: 5 comparisons
+ * - More than 10 courses: 6 comparisons
  */
 const getMaxComparisons = (courseCount: number): number => {
-  let maxComparisons = 3; // Default
+  let maxComparisons = 3; // Default for 3 or fewer courses
   
   if (courseCount > 10) {
-    maxComparisons = 5;
+    maxComparisons = 6;
   } else if (courseCount > 5) {
+    maxComparisons = 5;
+  } else if (courseCount > 3) {
     maxComparisons = 4;
   }
   
@@ -115,7 +118,9 @@ export const ReviewProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const getCachedUserReviews = useCallback(async (userId: string): Promise<any[]> => {
     // Safety check: ensure userId is valid
     if (!userId || typeof userId !== 'string') {
-      console.error('🚀 [Cache] ERROR - Invalid userId provided:', userId);
+      if (__DEV__) {
+        console.error('🚀 [Cache] ERROR - Invalid userId provided:', userId);
+      }
       return [];
     }
     
@@ -123,30 +128,42 @@ export const ReviewProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     const now = Date.now();
     
     if (cached && (now - cached.timestamp) < USER_REVIEWS_CACHE_TTL) {
-      console.log('🚀 [Cache] HIT - Using cached user reviews');
+      if (__DEV__) {
+        console.log('🚀 [Cache] HIT - Using cached user reviews');
+      }
       // Safety check: ensure cached reviews is an array
       return Array.isArray(cached.reviews) ? cached.reviews : [];
     }
     
-    console.log('🚀 [Cache] MISS - Fetching fresh user reviews');
+    if (__DEV__) {
+      console.log('🚀 [Cache] MISS - Fetching fresh user reviews');
+    }
     try {
       const reviews = await getReviewsForUser(userId);
       // Safety check: ensure reviews is an array before caching
       const safeReviews = Array.isArray(reviews) ? reviews : [];
       userReviewsCache.current.set(userId, { reviews: safeReviews, timestamp: now });
-      console.log(`🚀 [Cache] Cached ${safeReviews.length} user reviews`);
+      if (__DEV__) {
+        console.log(`🚀 [Cache] Cached ${safeReviews.length} user reviews`);
+      }
       return safeReviews;
     } catch (error) {
-      console.error('🚀 [Cache] ERROR - Failed to fetch user reviews:', error);
+      if (__DEV__) {
+        console.error('🚀 [Cache] ERROR - Failed to fetch user reviews:', error);
+      }
       
       // Fallback 1: Try to use stale cache if available (better than nothing)
       if (cached) {
-        console.log('🚀 [Cache] FALLBACK - Using stale cached reviews due to fetch error');
+        if (__DEV__) {
+          console.log('🚀 [Cache] FALLBACK - Using stale cached reviews due to fetch error');
+        }
         return cached.reviews;
       }
       
       // Fallback 2: Return empty array and let the calling functions handle gracefully
-      console.log('🚀 [Cache] FALLBACK - Returning empty reviews array due to fetch error and no cache');
+      if (__DEV__) {
+        console.log('🚀 [Cache] FALLBACK - Returning empty reviews array due to fetch error and no cache');
+      }
       return [];
     }
   }, [USER_REVIEWS_CACHE_TTL]);
@@ -154,12 +171,16 @@ export const ReviewProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   // 🚀 QUICK WIN 1: Helper to invalidate reviews cache after new review submission
   const invalidateUserReviewsCache = useCallback((userId: string) => {
     if (!userId || typeof userId !== 'string') {
-      console.warn('🚀 [Cache] WARNING - Invalid userId provided for cache invalidation:', userId);
+      if (__DEV__) {
+        console.warn('🚀 [Cache] WARNING - Invalid userId provided for cache invalidation:', userId);
+      }
       return;
     }
     
     const wasDeleted = userReviewsCache.current.delete(userId);
-    console.log(`🚀 [Cache] Invalidated user reviews cache ${wasDeleted ? 'successfully' : '(cache was empty)'} after new review submission`);
+    if (__DEV__) {
+      console.log(`🚀 [Cache] Invalidated user reviews cache ${wasDeleted ? 'successfully' : '(cache was empty)'} after new review submission`);
+    }
   }, []);
 
   // 🚀 QUICK WIN 1: Updated getMedianRankedCourseInTier to use cached reviews  
@@ -199,10 +220,14 @@ export const ReviewProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       const { checkReviewLimit } = await import('../../utils/subscription');
       const limitCheck = await checkReviewLimit(user.id);
       
-      console.log('🔍 Review limit check result:', limitCheck);
+      if (__DEV__) {
+        console.log('🔍 Review limit check result:', limitCheck);
+      }
       
       if (!limitCheck.canSubmitReview) {
-        console.log('🚫 User has reached review limit, showing upgrade prompt');
+        if (__DEV__) {
+          console.log('🚫 User has reached review limit, showing upgrade prompt');
+        }
         setError(`You've reached the limit of ${limitCheck.reviewLimit} reviews. Upgrade to continue submitting unlimited reviews!`);
         
         // Navigate to subscription upgrade modal
@@ -210,31 +235,37 @@ export const ReviewProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         return;
       }
       
-      console.log(`✅ Review limit check passed: ${limitCheck.totalReviews}/${limitCheck.reviewLimit} reviews used`);
+      if (__DEV__) {
+        console.log(`✅ Review limit check passed: ${limitCheck.totalReviews}/${limitCheck.reviewLimit} reviews used`);
+      }
     } catch (limitError) {
       console.error('Error checking review limits:', limitError);
       // Continue with submission but log the error
     }
 
     const isFromOnboarding = review.fromOnboarding === true;
-    console.log('ReviewContext: Starting review submission:', {
-      userId: user.id,
-      courseId: review.course_id,
-      rating: review.rating,
-      hasNotes: !!review.notes,
-      favoriteHoles: review.favorite_holes,
-      photosCount: review.photos.length,
-      datePlayed: review.date_played,
-      tags: review.tags,
-      fromOnboarding: isFromOnboarding
-    });
+    if (__DEV__) {
+      console.log('ReviewContext: Starting review submission:', {
+        userId: user.id,
+        courseId: review.course_id,
+        rating: review.rating,
+        hasNotes: !!review.notes,
+        favoriteHoles: review.favorite_holes,
+        photosCount: review.photos.length,
+        datePlayed: review.date_played,
+        tags: review.tags,
+        fromOnboarding: isFromOnboarding
+      });
+    }
 
     setIsSubmitting(true);
     setError(null);
 
     try {
       // PHASE 1.1 OPTIMIZATION: Parallel execution of independent operations
-      console.log('🚀 [Optimization] Starting parallel database operations...');
+      if (__DEV__) {
+        console.log('🚀 [Optimization] Starting parallel database operations...');
+      }
       const startTime = Date.now();
 
       // Group 1: Core review creation and profile verification (can run in parallel)
@@ -252,16 +283,18 @@ export const ReviewProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         cachedVerifyUserProfile(user.id)
       ]);
 
-      console.log('ReviewContext: Review created successfully:', {
-        reviewId: createdReview.id,
-        courseId: createdReview.course_id,
-        rating: createdReview.rating
-      });
+      if (__DEV__) {
+        console.log('ReviewContext: Review created successfully:', {
+          reviewId: createdReview.id,
+          courseId: createdReview.course_id,
+          rating: createdReview.rating
+        });
+      }
       
       // 🚀 QUICK WIN 1: Invalidate user reviews cache immediately after successful review creation
       invalidateUserReviewsCache(user.id);
 
-      if (!profileExists) {
+      if (!profileExists && __DEV__) {
         console.log('Profile verification completed after review submission');
       }
 
@@ -277,9 +310,13 @@ export const ReviewProvider: React.FC<{ children: React.ReactNode }> = ({ childr
           })
           .then(({ error }) => {
             if (error) {
-              console.warn('Failed to remove course from bookmarks:', error);
+              if (__DEV__) {
+                console.warn('Failed to remove course from bookmarks:', error);
+              }
             } else {
-              console.log('Successfully removed reviewed course from bookmarks');
+              if (__DEV__) {
+                console.log('Successfully removed reviewed course from bookmarks');
+              }
             }
             return { success: !error, operation: 'bookmark_removal' };
           })
@@ -291,9 +328,11 @@ export const ReviewProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         // Get review count
         reviewService.getUserReviewCount(user.id)
           .then(count => {
-            console.log(`User review count after submission: ${count}`);
-            if (count === 10) {
-              console.log('🎉 User has reached 10 reviews! Score visibility is now ENABLED');
+            if (__DEV__) {
+              console.log(`User review count after submission: ${count}`);
+              if (count === 10) {
+                console.log('🎉 User has reached 10 reviews! Score visibility is now ENABLED');
+              }
             }
             return count;
           })
@@ -305,7 +344,9 @@ export const ReviewProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         // Mark played courses as needing refresh (immediate, non-async)
         Promise.resolve().then(() => {
           setNeedsRefresh();
-          console.log('ReviewContext: Marked played courses for refresh');
+          if (__DEV__) {
+            console.log('ReviewContext: Marked played courses for refresh');
+          }
           return { success: true, operation: 'refresh_marker' };
         }),
 
@@ -327,13 +368,16 @@ export const ReviewProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       const userReviews = parallelResults[3].status === 'fulfilled' ? parallelResults[3].value : [];
 
       const optimizationTime = Date.now() - startTime;
-      console.log(`🚀 [Optimization] Parallel operations completed in ${optimizationTime}ms`);
-      
-      console.log(`🔍 CRITICAL DEBUG: Review count = ${reviewCount}, isFromOnboarding = ${isFromOnboarding}`);
+      if (__DEV__) {
+        console.log(`🚀 [Optimization] Parallel operations completed in ${optimizationTime}ms`);
+        console.log(`🔍 CRITICAL DEBUG: Review count = ${reviewCount}, isFromOnboarding = ${isFromOnboarding}`);
+      }
       
       // Check if this is the user's first review - if so, skip comparisons and show first review success screen
       if (reviewCount === 1 || isFromOnboarding) {
-        console.log('🎉 This is the user\'s first review or from onboarding! Showing first review success screen.');
+        if (__DEV__) {
+          console.log('🎉 This is the user\'s first review or from onboarding! Showing first review success screen.');
+        }
         
         // Use a clear flag to manage navigation state
         let isNavigating = false;
@@ -342,7 +386,9 @@ export const ReviewProvider: React.FC<{ children: React.ReactNode }> = ({ childr
           // Group 3: First review success preparation (can run in parallel)
           const [courseDetails] = await Promise.allSettled([
             getCourse(review.course_id).catch(err => {
-              console.warn('Error pre-fetching course details, will use defaults:', err);
+              if (__DEV__) {
+                console.warn('Error pre-fetching course details, will use defaults:', err);
+              }
               return null;
             })
           ]);
@@ -353,12 +399,16 @@ export const ReviewProvider: React.FC<{ children: React.ReactNode }> = ({ childr
           if (courseDetails.status === 'fulfilled' && courseDetails.value) {
             courseName = courseDetails.value.name || 'Course';
             courseLocation = courseDetails.value.location || '';
-            console.log('Got course details for success screen:', {
-              name: courseName,
-              location: courseLocation
-            });
+            if (__DEV__) {
+              console.log('Got course details for success screen:', {
+                name: courseName,
+                location: courseLocation
+              });
+            }
           } else {
-            console.warn('getCourse returned null or failed for course ID:', review.course_id);
+            if (__DEV__) {
+              console.warn('getCourse returned null or failed for course ID:', review.course_id);
+            }
           }
           
           // Group 4: User metadata updates (can run in parallel)
@@ -372,28 +422,38 @@ export const ReviewProvider: React.FC<{ children: React.ReactNode }> = ({ childr
               }
             }).then(({ data: userUpdate, error: updateError }) => {
               if (updateError) {
-                console.error('Error updating user metadata:', updateError);
+                if (__DEV__) {
+                  console.error('Error updating user metadata:', updateError);
+                }
                 return { success: false, operation: 'metadata_update' };
               } else {
-                console.log('Successfully updated user metadata:', userUpdate?.user?.user_metadata);
+                if (__DEV__) {
+                  console.log('Successfully updated user metadata:', userUpdate?.user?.user_metadata);
+                }
                 return { success: true, operation: 'metadata_update' };
               }
             }),
 
             userService.markFirstReviewComplete(user.id)
               .then(markResult => {
-                console.log(`Marked user as having completed first review: ${markResult ? 'success' : 'failed'}`);
+                if (__DEV__) {
+                  console.log(`Marked user as having completed first review: ${markResult ? 'success' : 'failed'}`);
+                }
                 return { success: markResult, operation: 'legacy_mark' };
               })
               .catch(legacyErr => {
-                console.error('Error in legacy markFirstReviewComplete call:', legacyErr);
+                if (__DEV__) {
+                  console.error('Error in legacy markFirstReviewComplete call:', legacyErr);
+                }
                 return { success: false, operation: 'legacy_mark' };
               })
           ];
 
           // Wait for metadata updates (don't block navigation on these)
           Promise.allSettled(metadataPromises).then(results => {
-            console.log('User metadata updates completed:', results);
+            if (__DEV__) {
+              console.log('User metadata updates completed:', results);
+            }
           });
           
           // Prepare navigation parameters
@@ -405,7 +465,9 @@ export const ReviewProvider: React.FC<{ children: React.ReactNode }> = ({ childr
           };
           
           // Simplified navigation logic (removed nested timeouts)
-          console.log('🚀 Starting optimized first review success navigation');
+          if (__DEV__) {
+            console.log('🚀 Starting optimized first review success navigation');
+          }
           isNavigating = true;
           
           try {
@@ -417,17 +479,23 @@ export const ReviewProvider: React.FC<{ children: React.ReactNode }> = ({ childr
                 pathname: '/(modals)/onboarding-first-review-success',
                 params: safeNavigationParams
               });
-              console.log('🚀 Success screen navigation executed');
+              if (__DEV__) {
+                console.log('🚀 Success screen navigation executed');
+              }
             }, 100);
             
           } catch (navError) {
-            console.error('Navigation error:', navError);
+            if (__DEV__) {
+              console.error('Navigation error:', navError);
+            }
             router.replace('/(tabs)/lists');
           }
           
           return;
         } catch (err) {
-          console.error('Error in first review success flow:', err);
+          if (__DEV__) {
+            console.error('Error in first review success flow:', err);
+          }
           
           if (!isNavigating) {
             router.replace('/(tabs)/lists');
@@ -440,10 +508,12 @@ export const ReviewProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       // Continue with comparison flow for non-first reviews
       const reviewedCoursesWithSentiment = userReviews.filter(r => r.rating === review.rating);
 
-      console.log('ReviewContext: Found matching sentiment reviews:', {
-        totalMatching: reviewedCoursesWithSentiment.length,
-        sentiment: review.rating
-      });
+      if (__DEV__) {
+        console.log('ReviewContext: Found matching sentiment reviews:', {
+          totalMatching: reviewedCoursesWithSentiment.length,
+          sentiment: review.rating
+        });
+      }
 
       // Group 5: Comparison preparation (parallel ranking and course data fetch)
       const [rankingsResult] = await Promise.allSettled([
@@ -453,10 +523,12 @@ export const ReviewProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       const rankings = rankingsResult.status === 'fulfilled' ? rankingsResult.value : [];
       const existingRanking = rankings.find(r => r.course_id === review.course_id);
 
-      console.log('ReviewContext: Checking existing ranking:', {
-        hasExistingRanking: !!existingRanking,
-        totalRankings: rankings.length
-      });
+      if (__DEV__) {
+        console.log('ReviewContext: Checking existing ranking:', {
+          hasExistingRanking: !!existingRanking,
+          totalRankings: rankings.length
+        });
+      }
 
       // Filter out the current course from potential comparison courses
       const otherCoursesWithSentiment = reviewedCoursesWithSentiment.filter(
@@ -471,7 +543,9 @@ export const ReviewProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         // Calculate max comparisons dynamically based on the number of courses with the same sentiment
         const sentimentCourseCount = reviewedCoursesWithSentiment.length;
         const maxComparisons = getMaxComparisons(sentimentCourseCount);
-        console.log(`Dynamic comparison limit: ${maxComparisons} (based on ${sentimentCourseCount} courses with ${review.rating} sentiment)`);
+        if (__DEV__) {
+          console.log(`Dynamic comparison limit: ${maxComparisons} (based on ${sentimentCourseCount} courses with ${review.rating} sentiment)`);
+        }
         
         // Set comparisons remaining to either maxComparisons or the number of available courses
         const totalComparisons = Math.min(otherCoursesWithSentiment.length, maxComparisons);
@@ -483,18 +557,26 @@ export const ReviewProvider: React.FC<{ children: React.ReactNode }> = ({ childr
           const availableCourseIds = reviewedCoursesWithSentiment.map(r => r.course_id);
           const strategic = await prepareStrategicData(user.id, review.rating, availableCourseIds);
           setStrategicData(strategic);
-          console.log(`[Strategic] Prepared strategic data for ${strategic.tierSize} courses in ${review.rating} tier`);
+          if (__DEV__) {
+            console.log(`[Strategic] Prepared strategic data for ${strategic.tierSize} courses in ${review.rating} tier`);
+          }
         } catch (err) {
-          console.warn('Failed to prepare strategic data, will use fallback logic:', err);
+          if (__DEV__) {
+            console.warn('Failed to prepare strategic data, will use fallback logic:', err);
+          }
           setStrategicData(null);
         }
 
-        console.log(`Setting up comparison flow with ${totalComparisons} total comparisons out of ${otherCoursesWithSentiment.length} available courses`);
-        console.log(`Will compare the just-reviewed course (${review.course_id}) with other courses in the same sentiment tier`);
+        if (__DEV__) {
+          console.log(`Setting up comparison flow with ${totalComparisons} total comparisons out of ${otherCoursesWithSentiment.length} available courses`);
+          console.log(`Will compare the just-reviewed course (${review.course_id}) with other courses in the same sentiment tier`);
+        }
 
         // Find the median-ranked course for the first comparison
         const medianCourse = await getMedianRankedCourseInTier(user.id, review.rating);
-        console.log(`Using median-ranked course for initial comparison: ${medianCourse?.course_id}`);
+        if (__DEV__) {
+          console.log(`Using median-ranked course for initial comparison: ${medianCourse?.course_id}`);
+        }
         
         // If median course is null or same as the reviewed course, fall back to a random course
         let comparisonCourseId: string;
@@ -502,7 +584,9 @@ export const ReviewProvider: React.FC<{ children: React.ReactNode }> = ({ childr
           // Fall back to random selection
           const shuffledCourses = [...otherCoursesWithSentiment].sort(() => Math.random() - 0.5);
           comparisonCourseId = shuffledCourses[0].course_id;
-          console.log(`No suitable median course found, using random course: ${comparisonCourseId}`);
+          if (__DEV__) {
+            console.log(`No suitable median course found, using random course: ${comparisonCourseId}`);
+          }
         } else {
           comparisonCourseId = medianCourse.course_id;
         }
@@ -512,7 +596,9 @@ export const ReviewProvider: React.FC<{ children: React.ReactNode }> = ({ childr
           getCourse(review.course_id),
           getCourse(comparisonCourseId)
         ]).catch(err => {
-          console.warn('Failed to preload courses, will load on demand:', err);
+          if (__DEV__) {
+            console.warn('Failed to preload courses, will load on demand:', err);
+          }
         });
 
         // Now close the review modal before opening the comparison modal
@@ -535,7 +621,9 @@ export const ReviewProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         });
       } else {
         // No other courses with same sentiment, end the flow by showing success screen
-        console.log(`No other courses with '${review.rating}' sentiment for comparison, going to success screen`);
+        if (__DEV__) {
+          console.log(`No other courses with '${review.rating}' sentiment for comparison, going to success screen`);
+        }
         router.back(); // Close review modal
         await new Promise(resolve => setTimeout(resolve, 100));
         router.push({
@@ -547,7 +635,9 @@ export const ReviewProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         });
       }
     } catch (err) {
-      console.error('Detailed submission error:', err);
+      if (__DEV__) {
+        console.error('Detailed submission error:', err);
+      }
       setError(err instanceof Error ? err.message : 'Failed to submit review');
     } finally {
       setIsSubmitting(false);
@@ -568,13 +658,17 @@ export const ReviewProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       if (reviewedCoursesWithSentiment.length >= 2) {
         // Get the latest rankings in this sentiment category
         const rankings = await rankingService.getUserRankings(user.id, rating);
-        console.log(`Found ${rankings.length} ranked courses in the '${rating}' category`);
+        if (__DEV__) {
+          console.log(`Found ${rankings.length} ranked courses in the '${rating}' category`);
+        }
         
         let courseA, courseB;
         
         // Always try to find the median-ranked course for the initial comparison
         const medianCourse = await getMedianRankedCourseInTier(user.id, rating);
-        console.log(`Using median-ranked course for initial comparison: ${medianCourse?.course_id}`);
+        if (__DEV__) {
+          console.log(`Using median-ranked course for initial comparison: ${medianCourse?.course_id}`);
+        }
         
         if (medianCourse && rankings.length >= 2) {
           // We have a valid median course and enough rankings
@@ -584,7 +678,9 @@ export const ReviewProvider: React.FC<{ children: React.ReactNode }> = ({ childr
           );
           
           if (otherCourses.length === 0) {
-            console.log('No other courses found for comparison after filtering out median course');
+            if (__DEV__) {
+              console.log('No other courses found for comparison after filtering out median course');
+            }
             // Fall back to random selection from all courses
             const shuffledCourses = [...reviewedCoursesWithSentiment].sort(() => Math.random() - 0.5);
             courseA = shuffledCourses[0];
@@ -598,10 +694,14 @@ export const ReviewProvider: React.FC<{ children: React.ReactNode }> = ({ childr
             courseB = shuffledOtherCourses[0];
           }
           
-          console.log(`Initial comparison set up: Median course ${courseA.course_id} vs Random course ${courseB.course_id}`);
+          if (__DEV__) {
+            console.log(`Initial comparison set up: Median course ${courseA.course_id} vs Random course ${courseB.course_id}`);
+          }
         } else {
           // If no median or not enough rankings, fall back to random selection
-          console.log(`No median course found in '${rating}' category. Falling back to random selection.`);
+          if (__DEV__) {
+            console.log(`No median course found in '${rating}' category. Falling back to random selection.`);
+          }
           
           // Implement proper randomization with shuffle
           const shuffledCourses = [...reviewedCoursesWithSentiment].sort(() => Math.random() - 0.5);
@@ -610,7 +710,9 @@ export const ReviewProvider: React.FC<{ children: React.ReactNode }> = ({ childr
           courseA = shuffledCourses[0];
           courseB = shuffledCourses[1];
           
-          console.log(`Random selection: ${courseA.course_id} vs ${courseB.course_id}`);
+          if (__DEV__) {
+            console.log(`Random selection: ${courseA.course_id} vs ${courseB.course_id}`);
+          }
         }
         
         // VALIDATION: Ensure we don't compare a course against itself
@@ -1216,13 +1318,17 @@ export const ReviewProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     const now = Date.now();
     
     if (cached && (now - cached.timestamp) < PROFILE_CACHE_TTL) {
-      console.log('🚀 [Cache] Using cached profile verification');
+      if (__DEV__) {
+        console.log('🚀 [Cache] Using cached profile verification');
+      }
       return cached.verified;
     }
     
     const verified = await verifyUserProfile(userId);
     profileCache.current.set(userId, { verified, timestamp: now });
-    console.log('🚀 [Cache] Cached profile verification result');
+    if (__DEV__) {
+      console.log('🚀 [Cache] Cached profile verification result');
+    }
     return verified;
   }, [verifyUserProfile, profileCache, PROFILE_CACHE_TTL]);
 
