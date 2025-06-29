@@ -473,6 +473,44 @@ export interface Database {
           created_at?: string
         }
       }
+      course_rankings: {
+        Row: {
+          id: string
+          user_id: string
+          course_id: string
+          sentiment_category: 'liked' | 'fine' | 'didnt_like'
+          relative_score: number
+          rank_position: number
+          comparison_count: number
+          created_at: string
+          updated_at: string
+          last_compared_at: string | null
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          course_id: string
+          sentiment_category: 'liked' | 'fine' | 'didnt_like'
+          relative_score: number
+          rank_position: number
+          comparison_count?: number
+          created_at?: string
+          updated_at?: string
+          last_compared_at?: string | null
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          course_id?: string
+          sentiment_category?: 'liked' | 'fine' | 'didnt_like'
+          relative_score?: number
+          rank_position?: number
+          comparison_count?: number
+          created_at?: string
+          updated_at?: string
+          last_compared_at?: string | null
+        }
+      }
     }
     Views: {
       [_ in never]: never
