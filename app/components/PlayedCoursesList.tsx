@@ -28,10 +28,11 @@ export const PlayedCoursesList = React.memo(({
   const theme = useEdenTheme();
   const scrollViewRef = useRef<ScrollView>(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
-  // Get the global course state
-  const { playedCourses: globalPlayedCourses } = usePlayedCourses();
   
-  // Add internal state to persist the courses data
+  // Phase 2: Use context dataFingerprint for efficient change detection
+  const { playedCourses: globalPlayedCourses, dataFingerprint } = usePlayedCourses();
+  
+  // Phase 2: Simplified internal state - no more complex throttling logic
   const [internalCourses, setInternalCourses] = useState<Course[]>(
     // Initialize with data from props or context to avoid empty initial render
     courses && courses.length > 0 ? courses : 
@@ -39,47 +40,28 @@ export const PlayedCoursesList = React.memo(({
     []
   );
   
-  // Prevent too many state updates with this ref
-  const lastUpdateRef = useRef<number>(0);
-  const UPDATE_THROTTLE_MS = 300;
+  // Phase 2: Remove unnecessary throttling since context now has fingerprint-based updates
   
   // Add component lifecycle logging - minimal to reduce overhead
   useEffect(() => {
-    setTimeout(() => {
-      console.log('📌 PlayedCoursesList Mounted');
-    }, 0);
+    console.log('📌 PlayedCoursesList Mounted');
     
     return () => {
-      setTimeout(() => {
-        console.log('📌 PlayedCoursesList Unmounted');
-      }, 0);
+      console.log('📌 PlayedCoursesList Unmounted');
     };
   }, []);
   
-  // Update internal state only when we get non-empty courses data - with throttling
+  // Phase 2: Optimized state update logic using context fingerprint
   useEffect(() => {
-    // Skip frequent updates to reduce render cycles
-    const now = Date.now();
-    if (now - lastUpdateRef.current < UPDATE_THROTTLE_MS) {
-      return;
-    }
-    
-    // Only log course count, not full objects to reduce log overhead
-    const courseCount = courses?.length || 0;
-    
     // Only update if we receive valid, non-empty data
     if (courses && Array.isArray(courses) && courses.length > 0) {
-      lastUpdateRef.current = now;
       setInternalCourses(courses);
-    } else {
+    } else if (globalPlayedCourses && globalPlayedCourses.length > 0) {
       // Check if we have data in the global context
-      if (globalPlayedCourses && globalPlayedCourses.length > 0) {
-        lastUpdateRef.current = now;
-        setInternalCourses(globalPlayedCourses);
-      }
-      // If both are empty, preserve existing internal data
+      setInternalCourses(globalPlayedCourses);
     }
-  }, [courses, globalPlayedCourses]);
+    // If both are empty, preserve existing internal data
+  }, [courses, dataFingerprint]); // Use dataFingerprint instead of globalPlayedCourses directly
   
   // Reset scroll position when component remounts, but keep it less frequent
   const resetScroll = useCallback(() => {
@@ -93,24 +75,26 @@ export const PlayedCoursesList = React.memo(({
     resetScroll();
   }, [resetScroll]);
 
-  // Helper function to display price level
+  // Phase 2: Memoized helper functions for better performance
   const getPriceLevel = useCallback((level: number) => {
     return '$'.repeat(Math.min(level, 5));
   }, []);
   
-  // Helper function to get score color
   const getScoreColor = useCallback((score: number) => {
     if (score >= 7.0) return theme.colors.success; // Green for good scores (7.0-10.0)
     if (score >= 3.0) return theme.colors.warning; // Yellow for average scores (3.0-6.9)
     return theme.colors.error; // Red for poor scores (0.0-2.9)
-  }, [theme]);
+  }, [theme.colors]);
 
-  // IMPORTANT: Memoize coursesToRender calculation but initialize with valid data
+  // Phase 2: Enhanced memoized coursesToRender calculation
   const coursesToRender = useMemo(() => {
     // Immediately use whatever data is available (props > internal state > context)
-    return (courses && courses.length > 0) ? courses : 
+    const result = (courses && courses.length > 0) ? courses : 
       (internalCourses && internalCourses.length > 0) ? internalCourses :
       (globalPlayedCourses && globalPlayedCourses.length > 0) ? globalPlayedCourses : [];
+    
+    // Phase 2: Add validation to ensure data quality
+    return result.filter(course => course && course.id && course.name);
   }, [courses, internalCourses, globalPlayedCourses]);
 
   // Handle course click
@@ -127,25 +111,36 @@ export const PlayedCoursesList = React.memo(({
     }
   }, [handleCoursePress]);
 
+  // Phase 2: Memoized empty state component
+  const emptyState = useMemo(() => (
+    <EmptyTabState
+      message="You haven't played any courses yet. Start by searching for a course to review."
+      icon="Golf"
+    />
+  ), []);
+
   // Render empty state
   if (coursesToRender.length === 0) {
-    return (
-      <EmptyTabState
-        message="You haven't played any courses yet. Start by searching for a course to review."
-        icon="Golf"
-      />
-    );
+    return emptyState;
   }
 
+  // Phase 2: Memoized styles to prevent recreation on every render
+  const containerStyle = useMemo(() => ({
+    flex: 1,
+    backgroundColor: theme.colors.background
+  }), [theme.colors.background]);
+
+  const scrollContentStyle = useMemo(() => ({
+    flexGrow: 1,
+    padding: theme.spacing.md,
+    paddingBottom: Platform.OS === 'ios' ? 100 : 90, // Extra padding for tab bar
+  }), [theme.spacing.md]);
+
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: theme.colors.background }}>
+    <SafeAreaView style={containerStyle}>
       <ScrollView 
         ref={scrollViewRef}
-        contentContainerStyle={{
-          flexGrow: 1,
-          padding: theme.spacing.md,
-          paddingBottom: Platform.OS === 'ios' ? 100 : 90, // Extra padding for tab bar
-        }}
+        contentContainerStyle={scrollContentStyle}
         showsVerticalScrollIndicator={true}
       >
         {coursesToRender.map((course, index) => {

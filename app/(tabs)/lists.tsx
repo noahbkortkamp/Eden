@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useCallback, useRef, useMemo } from 'react';
-import { View, StyleSheet, ActivityIndicator, Text, TouchableOpacity, ScrollView, Dimensions, Platform, FlatList } from 'react-native';
+import { View, StyleSheet, ActivityIndicator, Text, TouchableOpacity, ScrollView, Dimensions, Platform, FlatList, AppState } from 'react-native';
 import { useTheme } from '../theme/ThemeProvider';
 import { Tabs, TabRoute } from '../components/eden/Tabs';
 import { Course } from '../types/review';
@@ -20,6 +20,7 @@ import { LazyTabWrapper } from '../components/LazyTabWrapper';
 import { useTabLazyLoadingContext } from '../context/TabLazyLoadingContext';
 import { useSmartTabFocus } from '../hooks/useSmartTabFocus';
 import { playedCoursesService, EnhancedCourse } from '../services/playedCoursesService';
+import { ListSkeleton } from '../components/eden/SkeletonLoader';
 
 // Define the SentimentRating type directly
 type SentimentRating = 'liked' | 'fine' | 'didnt_like';
@@ -35,245 +36,179 @@ interface EnhancedCourse extends Course {
 function ListsScreenContent() {
   const theme = useTheme();
   const { user } = useAuth();
-  const { initialTab } = useLocalSearchParams<{ initialTab?: 'played' | 'want-to-play' }>();
-  const [courseType, setCourseType] = useState<'played' | 'recommended' | 'want-to-play'>(
-    initialTab || 'played'
-  );
-  const [loading, setLoading] = useState(true);
-  const { 
-    playedCourses, setPlayedCourses,
-    wantToPlayCourses, setWantToPlayCourses,
-    recommendedCourses, setRecommendedCourses,
-    isCoursesLoading, setCoursesLoading,
-    hasLoadedCourses, setHasLoadedCourses,
+  const {
+    playedCourses,
+    setPlayedCourses,
+    wantToPlayCourses,
+    setWantToPlayCourses,
+    recommendedCourses,
+    setRecommendedCourses,
+    isCoursesLoading,
+    setCoursesLoading,
+    hasLoadedCourses,
+    setHasLoadedCourses,
     lastUpdateTimestamp,
-    setNeedsRefresh
+    setNeedsRefresh,
+    refreshLists,
+    dataFingerprint // Phase 2: Use new dataFingerprint from context
   } = usePlayedCourses();
-  
+
   const [error, setError] = useState<string | null>(null);
-  
-  // Add random key to force refresh when coming back to this tab
-  // This will ensure the TabView resets properly
-  const [refreshKey, setRefreshKey] = useState(Date.now());
-
-  // Add a new state to track when we're using test data
-  const [usingTestData, setUsingTestData] = useState(false);
-  
-  // Add a state to control the visibility of the debug panel
-  const [showDebugPanel, setShowDebugPanel] = useState(false);
-
-  // Track the last time we refreshed to prevent too many reloads
-  const lastRefreshTime = useRef(0);
-  // Minimum time between refreshes (2 seconds)
-  const REFRESH_THROTTLE_MS = 2000;
-
   const [userReviewCount, setUserReviewCount] = useState<number | null>(null);
-  const [isReviewCountLoading, setIsReviewCountLoading] = useState(true);
+  const [refreshKey, setRefreshKey] = useState(0);
   
-  // Add a ref to track the last update timestamp
-  const currentTimestampRef = useRef(lastUpdateTimestamp);
+  // Phase 2: Smart state management
+  const [lastFetchTimestamp, setLastFetchTimestamp] = useState(0);
+  const [appStateVisible, setAppStateVisible] = useState(AppState.currentState);
+  const isMountedRef = useRef(true);
+  const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes cache
+  const BACKGROUND_REFRESH_THRESHOLD = 30 * 1000; // 30 seconds
 
-  // Add a ref to hold the fetchWantToPlayCourses function
-  const fetchWantToPlayCoursesRef = useRef<(() => Promise<void>) | null>(null);
+  // Phase 2: Memoized styles
+  const containerStyle = useMemo(() => ({
+    flex: 1,
+    backgroundColor: theme.colors.background,
+  }), [theme.colors.background]);
 
-  // Enhanced debug - log when component mounts or remounts
-  useEffect(() => {
-    console.log('📌 ListsScreen Mounted - STARTING REVIEW COUNT CHECK');
-    // Immediately check review count on startup
-    if (user) {
-      console.log('🚀 STARTUP CHECK: Immediately checking review count for user', user.id);
-      setIsReviewCountLoading(true);
-      reviewService.getUserReviewCount(user.id)
-        .then(count => {
-          console.log(`🚨 INITIAL LOAD: User has ${count} reviews. Score visibility ${count >= 10 ? 'SHOULD BE ENABLED' : 'DISABLED'}`);
-          setUserReviewCount(count);
-          
-          // Immediately update course scores when we get the count on startup
-          if (count >= 10 && playedCourses.length > 0) {
-            console.log('🚨 IMMEDIATE UPDATE: Updating course scores on startup because count >= 10');
-            const updatedPlayedCourses = playedCourses.map(course => ({
-              ...course,
-              showScores: true // Explicitly set to true for 10+ reviews
-            }));
-            setPlayedCourses(updatedPlayedCourses);
-            setRefreshKey(Date.now());
-          }
-          setIsReviewCountLoading(false);
-        })
-        .catch(err => {
-          console.error('Error fetching user review count on startup:', err);
-          setIsReviewCountLoading(false);
-        });
-    } else {
-      setIsReviewCountLoading(false);
-    }
+  const errorStyle = useMemo(() => ({
+    backgroundColor: theme.colors.error,
+    padding: theme.spacing.md,
+    margin: theme.spacing.md,
+    borderRadius: theme.borderRadius.md,
+  }), [theme.colors.error, theme.spacing.md, theme.borderRadius.md]);
+
+  // Phase 2: Smart refresh logic - only refresh when needed
+  const shouldRefreshData = useCallback(() => {
+    const now = Date.now();
+    const timeSinceLastFetch = now - lastFetchTimestamp;
     
-    return () => console.log('📌 ListsScreen Unmounted');
-  }, []);
+    // Refresh if:
+    // 1. Never loaded before
+    // 2. Data is stale (older than cache duration)
+    // 3. Context indicates refresh needed (lastUpdateTimestamp changed)
+    // 4. App became active after being in background
+    
+    return !hasLoadedCourses || 
+           timeSinceLastFetch > CACHE_DURATION ||
+           lastUpdateTimestamp > lastFetchTimestamp ||
+           (appStateVisible === 'active' && timeSinceLastFetch > BACKGROUND_REFRESH_THRESHOLD);
+  }, [hasLoadedCourses, lastFetchTimestamp, lastUpdateTimestamp, appStateVisible]);
 
-  // Load user review count on initial render
+  // Phase 2: Background app state monitoring for smart refresh
   useEffect(() => {
-    async function loadUserReviewCount() {
-      if (user) {
-        try {
-          setIsReviewCountLoading(true);
-          const count = await reviewService.getUserReviewCount(user.id);
-          console.log(`🔢 User has ${count} reviews. Score visibility: ${count >= 10 ? 'ENABLED' : 'DISABLED'}`);
-          const previousCount = userReviewCount;
-          setUserReviewCount(count);
-          
-          // If user has crossed the 10 review threshold, force refresh the data
-          if (previousCount !== null && previousCount < 10 && count >= 10) {
-            console.log('🎉 User just crossed 10 review threshold! Forcing data refresh');
-            loadData();
-          }
-          setIsReviewCountLoading(false);
-        } catch (err) {
-          console.error('Error fetching user review count:', err);
-          setIsReviewCountLoading(false);
+    const handleAppStateChange = (nextAppState: any) => {
+      if (appStateVisible.match(/inactive|background/) && nextAppState === 'active') {
+        console.log('📱 [LISTS] App became active - checking if refresh needed');
+        if (shouldRefreshData()) {
+          console.log('📱 [LISTS] Triggering background refresh');
+          loadData();
         }
-      } else {
-        setIsReviewCountLoading(false);
       }
-    }
-    
-    loadUserReviewCount();
-  }, [user]);
+      setAppStateVisible(nextAppState);
+    };
 
-  // Add lifecycle logging to track component mounting and unmounting
+    const subscription = AppState.addEventListener('change', handleAppStateChange);
+    return () => subscription?.remove();
+  }, [appStateVisible, shouldRefreshData]);
+
+  // Cleanup on unmount
   useEffect(() => {
-    console.log('📌 ListsScreen Mounted');
-    return () => console.log('📌 ListsScreen Unmounted');
+    return () => {
+      isMountedRef.current = false;
+    };
   }, []);
 
-  // Initial data load when component mounts
-  useEffect(() => {
-    if (!user) {
-      router.push('/auth/login');
-      return;
+  const params = useLocalSearchParams();
+  const tab = params.tab as string;
+
+  const initialTab = useMemo(() => {
+    switch (tab) {
+      case 'want-to-play':
+        return 1;
+      case 'recommended':
+        return 2;
+      default:
+        return 0;
     }
+  }, [tab]);
 
-    // Only load data if we haven't loaded it before or if explicitly requested
-    if (!hasLoadedCourses && !isCoursesLoading) {
-      console.log('📌 ListsScreen: Initial data load');
-      loadData();
-    } else {
-      console.log('📌 ListsScreen: Skipping initial load - data already loaded:', 
-        { hasLoadedCourses, playedCount: playedCourses.length });
-      setLoading(false);
-    }
-  }, [user, hasLoadedCourses, isCoursesLoading]);
+  // Define tabs using useMemo for performance
+  const tabs: TabRoute[] = useMemo(() => [
+    { key: 'played', title: 'Played', icon: 'List' },
+    { key: 'wantToPlay', title: 'Want to Play', icon: 'BookOpen' },
+    { key: 'recommended', title: 'Recommended', icon: 'Lightbulb' },
+  ], []);
 
-  // Optimized useFocusEffect with simple debouncing instead of complex smart caching for now
-  useFocusEffect(
-    useCallback(() => {
-      console.log('📱 Lists tab focused - simple optimization');
-      
-      const now = Date.now();
-      const timeSinceLastRefresh = now - lastRefreshTime.current;
-      
-      // Only reload if enough time has passed (simple throttling)
-      if (timeSinceLastRefresh < REFRESH_THROTTLE_MS) {
-        console.log(`⏭️ Lists: Skipping refresh - too soon (${timeSinceLastRefresh}ms since last)`);
-        return;
-      }
-      
-      // Only reload if not using test data and don't have courses loaded
-      if (!usingTestData && !hasLoadedCourses) {
-        console.log('🚀 Lists: Loading data on focus');
-        lastRefreshTime.current = now;
-        loadData();
-      } else {
-        console.log('💾 Lists: Skipping reload - data already loaded or using test data');
-      }
-      
-      return () => {
-        console.log('📱 Lists tab lost focus');
-      };
-    }, [usingTestData, hasLoadedCourses, loadData])
-  );
+  const [courseType, setCourseType] = useState<'played' | 'recommended' | 'want-to-play'>('played');
 
-  // Watch for changes in userReviewCount and update showScores property for all courses
-  useEffect(() => {
-    // Skip on initial render when userReviewCount is still 0
-    if (playedCourses.length > 0) {
-      console.log(`🔄 Updating showScores flag for all courses. Review count: ${userReviewCount}`);
-      
-      // Update played courses with correct showScores flag
-      const updatedPlayedCourses = playedCourses.map(course => ({
-        ...course,
-        showScores: userReviewCount !== null && userReviewCount >= 10
-      }));
-      
-      // Update want to play courses
-      const updatedWantToPlayCourses = wantToPlayCourses.map(course => ({
-        ...course,
-        showScores: userReviewCount !== null && userReviewCount >= 10
-      }));
-      
-      // Update recommended courses
-      const updatedRecommendedCourses = recommendedCourses.map(course => ({
-        ...course,
-        showScores: userReviewCount !== null && userReviewCount >= 10
-      }));
-      
-      // Update all course lists
-      setPlayedCourses(updatedPlayedCourses);
-      setWantToPlayCourses(updatedWantToPlayCourses);
-      setRecommendedCourses(updatedRecommendedCourses);
-      
-      // Force a UI refresh
-      setRefreshKey(Date.now());
-    }
-  }, [userReviewCount]);
+  // Track tab focus for smart loading
+  const { isActiveTab, handleTabActivation } = useSmartTabFocus('lists');
 
-  // Centralized data loading function
-  const loadData = async () => {
-    if (!user) {
-      console.log('ListsScreen: User not found, aborting data load');
-      return;
-    }
-
-    setError(null);
-    setLoading(true);
-    setCoursesLoading(true); // Update context loading state
+  // Load user review count for score visibility
+  async function loadUserReviewCount() {
+    if (!user) return;
 
     try {
-      console.log('ListsScreen: Starting data load...');
-      
-      // Load user review count first
-      if (user) {
-        try {
-          setIsReviewCountLoading(true);
-          const count = await reviewService.getUserReviewCount(user.id);
-          console.log(`🔢 User has ${count} reviews. Score visibility: ${count >= 10 ? 'ENABLED' : 'DISABLED'}`);
-          setUserReviewCount(count);
-          setIsReviewCountLoading(false);
-        } catch (err) {
-          console.error('Error fetching user review count:', err);
-          setIsReviewCountLoading(false);
-        }
+      const { data, error } = await supabase
+        .from('reviews')
+        .select('id', { count: 'exact' })
+        .eq('user_id', user.id);
+
+      if (error) {
+        console.error('Error loading user review count:', error);
+        return;
       }
+
+      const count = data?.length || 0;
+      setUserReviewCount(count);
+      console.log(`✅ [LISTS] User has ${count} reviews`);
+    } catch (error) {
+      console.error('Error in loadUserReviewCount:', error);
+    }
+  }
+
+  // Phase 2: Optimized data loading with smart refresh logic
+  const loadData = useCallback(async () => {
+    if (!user) {
+      console.log('🔍 [LISTS] No user found, skipping data load');
+      return;
+    }
+
+    // Phase 2: Check if refresh is actually needed
+    if (!shouldRefreshData() && hasLoadedCourses) {
+      console.log('🔍 [LISTS] Data is still fresh, skipping refresh');
+      return;
+    }
+
+    console.log('🔍 [LISTS] Starting data load...');
+    setCoursesLoading(true);
+    setError(null);
+
+    try {
+      const timestamp = Date.now();
       
-      // Then load course data
+      // Load review count and courses in parallel
       await Promise.all([
+        loadUserReviewCount(),
         fetchPlayedCourses(),
         fetchWantToPlayCourses(),
         fetchRecommendedCourses()
       ]);
-      
-      // Mark courses as loaded
+
+      setLastFetchTimestamp(timestamp);
       setHasLoadedCourses(true);
+      console.log('✅ [LISTS] Data load completed successfully');
       
-      console.log('ListsScreen: Data load completed successfully');
     } catch (error) {
-      console.error('Error loading Lists data:', error);
-      setError('Failed to load data. Please try again.');
+      console.error('🚨 [LISTS] Error in loadData:', error);
+      setError(`Failed to load data: ${error}`);
     } finally {
-      setLoading(false);
-      setCoursesLoading(false); // Update context loading state
+      // Only update loading state if component is still mounted
+      if (isMountedRef.current) {
+        setCoursesLoading(false);
+      }
     }
-  };
+  }, [user, shouldRefreshData, hasLoadedCourses]);
 
   const fetchPlayedCourses = async () => {
     if (!user) {
@@ -297,14 +232,18 @@ function ListsScreenContent() {
       
       console.log(`✅ [LISTS] Successfully fetched ${courses.length} played courses`);
       
-      // Update the context state
-      setPlayedCourses(courses);
+      // Phase 2: Only update state if component is still mounted
+      if (isMountedRef.current) {
+        setPlayedCourses(courses);
+      }
       return courses;
       
     } catch (error) {
       console.error('🚨 [LISTS] Error in fetchPlayedCourses:', error);
-      setError(`Failed to load played courses: ${error}`);
-      setPlayedCourses([]);
+      if (isMountedRef.current) {
+        setError(`Failed to load played courses: ${error}`);
+        setPlayedCourses([]);
+      }
       return [];
     }
   };
@@ -419,24 +358,27 @@ function ListsScreenContent() {
         }).filter(course => course !== null);
         
         console.log(`Processed ${sortedWantToPlayCourses.length} want to play courses for display`);
-        setWantToPlayCourses(sortedWantToPlayCourses);
+        
+        // Phase 2: Only update state if component is still mounted
+        if (isMountedRef.current) {
+          setWantToPlayCourses(sortedWantToPlayCourses);
+        }
       } else {
         console.log('No want_to_play_courses records found, returning empty array');
-        setWantToPlayCourses([]);
+        if (isMountedRef.current) {
+          setWantToPlayCourses([]);
+        }
       }
       
       // Force refresh the UI
       setRefreshKey(Date.now());
     } catch (err) {
       console.error('Error in fetchWantToPlayCourses:', err);
-      setWantToPlayCourses([]);
+      if (isMountedRef.current) {
+        setWantToPlayCourses([]);
+      }
     }
   };
-
-  // Update the ref after fetchWantToPlayCourses is defined
-  useEffect(() => {
-    fetchWantToPlayCoursesRef.current = fetchWantToPlayCourses;
-  }, []);
 
   const fetchRecommendedCourses = async () => {
     try {
@@ -552,13 +494,6 @@ function ListsScreenContent() {
     }
   }, [courseType]);
 
-  // Define the tab routes
-  const tabRoutes: TabRoute[] = [
-    { key: 'played', title: 'Played' },
-    { key: 'wantToPlay', title: 'Want to Play' },
-    { key: 'recommended', title: 'Recommended' },
-  ];
-
   // Handle tab change
   const handleTabChange = (index: number) => {
     let newType: 'played' | 'recommended' | 'want-to-play';
@@ -578,20 +513,34 @@ function ListsScreenContent() {
     setCourseType(newType);
   };
 
-  // Render tab content
+  // Phase 2: Enhanced tab content rendering with skeleton loading states
   const renderTabContent = useCallback((route: TabRoute) => {
+    // Phase 2: Show skeleton loaders during loading for better UX
     if (isCoursesLoading) {
-      return (
-        <View style={edenStyles.loadingContainer}>
-          <ActivityIndicator size="large" color={theme.colors.primary} />
-        </View>
-      );
+      const showScores = userReviewCount !== null && userReviewCount >= 10;
+      
+      switch (route.key) {
+        case 'played':
+          return <ListSkeleton itemCount={4} showScores={showScores} itemType="course" />;
+        case 'wantToPlay':
+          return <ListSkeleton itemCount={3} showScores={false} itemType="simple" />;
+        case 'recommended':
+          return <ListSkeleton itemCount={3} showScores={showScores} itemType="course" />;
+        default:
+          return <ListSkeleton itemCount={3} showScores={false} itemType="course" />;
+      }
     }
 
     if (error) {
       return (
         <View style={edenStyles.errorContainer}>
           <BodyText color={theme.colors.error}>{error}</BodyText>
+          <TouchableOpacity 
+            style={edenStyles.retryButton}
+            onPress={loadData}
+          >
+            <BodyText color={theme.colors.primary}>Retry</BodyText>
+          </TouchableOpacity>
         </View>
       );
     }
@@ -600,7 +549,7 @@ function ListsScreenContent() {
       case 'played':
         return (
           <View style={edenStyles.tabContent}>
-            {!isReviewCountLoading && userReviewCount !== null && userReviewCount < 10 && (
+            {!isCoursesLoading && userReviewCount !== null && userReviewCount < 10 && (
               <TouchableOpacity 
                 style={edenStyles.notificationBanner}
                 onPress={() => router.push('/(tabs)/search')}
@@ -648,21 +597,42 @@ function ListsScreenContent() {
       default:
         return null;
     }
-  }, [playedCourses, wantToPlayCourses, recommendedCourses, isCoursesLoading, error, userReviewCount, isReviewCountLoading, handleCoursePress]);
+  }, [playedCourses, wantToPlayCourses, recommendedCourses, isCoursesLoading, error, userReviewCount, handleCoursePress, loadData]);
 
-  // Handle initial tab selection and data loading
-  useEffect(() => {
-    if (initialTab) {
-      console.log('Setting initial tab to:', initialTab);
-      setCourseType(initialTab);
+  // Phase 2: Smart initial data loading with focus effect
+  useFocusEffect(
+    useCallback(() => {
+      console.log('📱 [LISTS] Tab focused - checking if data load needed');
       
-      // Force a data refresh when navigating from profile
-      if (!isCoursesLoading && user) {
-        console.log('Loading data for initial tab:', initialTab);
+      if (!user) {
+        console.log('📱 [LISTS] No user, skipping load');
+        return;
+      }
+
+      // Use smart refresh logic
+      if (shouldRefreshData()) {
+        console.log('📱 [LISTS] Triggering data load on focus');
         loadData();
+      } else {
+        console.log('📱 [LISTS] Data is fresh, skipping load');
+      }
+      
+      return () => {
+        console.log('📱 [LISTS] Tab lost focus');
+      };
+    }, [user, shouldRefreshData, loadData])
+  );
+
+  // Handle initial tab selection
+  useEffect(() => {
+    if (tab) {
+      console.log('🔍 [LISTS] Setting initial tab to:', tab);
+      const newIndex = tabs.findIndex(route => route.key === tab);
+      if (newIndex !== -1) {
+        handleTabChange(newIndex);
       }
     }
-  }, [initialTab, user]);
+  }, [tab]);
 
   if (!user) {
     return null;
@@ -671,7 +641,7 @@ function ListsScreenContent() {
   return (
     <View style={edenStyles.container}>
       <Tabs
-        routes={tabRoutes}
+        routes={tabs}
         selectedIndex={tabIndex}
         onIndexChange={handleTabChange}
         renderScene={renderTabContent}
@@ -761,6 +731,15 @@ const edenStyles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     marginLeft: 14,
+  },
+  retryButton: {
+    marginTop: 16,
+    paddingVertical: 12,
+    paddingHorizontal: 24,
+    backgroundColor: 'rgba(35, 77, 44, 0.1)',
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#234D2C',
   },
 });
 

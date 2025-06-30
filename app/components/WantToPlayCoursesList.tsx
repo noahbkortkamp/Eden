@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useState, useRef, useMemo, useCallback } from 'react';
 import { View, FlatList, ActivityIndicator, StyleSheet, TouchableOpacity } from 'react-native';
 import { Course } from '../types/review';
 import { useEdenTheme } from '../theme/ThemeProvider';
@@ -10,7 +10,6 @@ import { Heading3, BodyText, SmallText } from './eden/Typography';
 import { Button } from './eden/Button';
 import { EmptyTabState } from './eden/Tabs';
 import { Icon } from './eden/Icon';
-import { useCallback } from 'react';
 
 interface WantToPlayCoursesListProps {
   courses: Course[];
@@ -25,60 +24,51 @@ export const WantToPlayCoursesList = React.memo(({
 }: WantToPlayCoursesListProps) => {
   const theme = useEdenTheme();
   const { user } = useAuth();
-  const { wantToPlayCourses: globalWantToPlayCourses, setNeedsRefresh } = usePlayedCourses();
+  
+  // Phase 2: Use context dataFingerprint for efficient change detection
+  const { wantToPlayCourses: globalWantToPlayCourses, setNeedsRefresh, dataFingerprint } = usePlayedCourses();
   const [removingId, setRemovingId] = React.useState<string | null>(null);
   
-  // Match the PlayedCoursesList pattern with internal state
+  // Phase 2: Simplified internal state management
   const [internalCourses, setInternalCourses] = useState<Course[]>(
     courses && courses.length > 0 ? courses : 
     globalWantToPlayCourses && globalWantToPlayCourses.length > 0 ? globalWantToPlayCourses : 
     []
   );
 
-  // Throttle updates like the PlayedCoursesList does
-  const lastUpdateRef = useRef<number>(0);
-  const UPDATE_THROTTLE_MS = 300;
+  // Phase 2: Remove unnecessary throttling since context now has fingerprint-based updates
   
   // Add component lifecycle logging
   useEffect(() => {
-    setTimeout(() => {
-      console.log('📌 WantToPlayCoursesList Mounted');
-    }, 0);
+    console.log('📌 WantToPlayCoursesList Mounted');
     
     return () => {
-      setTimeout(() => {
-        console.log('📌 WantToPlayCoursesList Unmounted');
-      }, 0);
+      console.log('📌 WantToPlayCoursesList Unmounted');
     };
   }, []);
   
-  // Update internal state only when we get non-empty courses data - with throttling
+  // Phase 2: Optimized state update logic using context fingerprint
   useEffect(() => {
-    // Skip frequent updates to reduce render cycles
-    const now = Date.now();
-    if (now - lastUpdateRef.current < UPDATE_THROTTLE_MS) {
-      return;
-    }
-    
-    // Only log course count to reduce log overhead
-    const courseCount = courses?.length || 0;
-    console.log(`WantToPlayCoursesList updating with ${courseCount} courses from props`);
-    
-    // Only update if we receive valid, non-empty data
     if (courses && Array.isArray(courses) && courses.length > 0) {
-      lastUpdateRef.current = now;
       setInternalCourses(courses);
     } else if (globalWantToPlayCourses && globalWantToPlayCourses.length > 0) {
-      // Check if we have data in the global context
-      lastUpdateRef.current = now;
       setInternalCourses(globalWantToPlayCourses);
-      console.log(`WantToPlayCoursesList falling back to ${globalWantToPlayCourses.length} global courses`);
     }
     // If both are empty, preserve existing internal data
-  }, [courses, globalWantToPlayCourses]);
-  
-  // Function to remove a course from bookmarks
-  const removeBookmark = async (courseId: string) => {
+  }, [courses, dataFingerprint]); // Use dataFingerprint instead of globalWantToPlayCourses directly
+
+  // Phase 2: Enhanced memoized coursesToRender calculation
+  const coursesToRender = useMemo(() => {
+    const result = (courses && courses.length > 0) ? courses : 
+      (internalCourses && internalCourses.length > 0) ? internalCourses :
+      (globalWantToPlayCourses && globalWantToPlayCourses.length > 0) ? globalWantToPlayCourses : [];
+    
+    // Add validation to ensure data quality
+    return result.filter(course => course && course.id && course.name);
+  }, [courses, internalCourses, globalWantToPlayCourses]);
+
+  // Phase 2: Memoized remove course function
+  const removeCourse = useCallback(async (courseId: string) => {
     if (!user) return;
     
     setRemovingId(courseId);
@@ -87,106 +77,106 @@ export const WantToPlayCoursesList = React.memo(({
       const { error } = await supabase
         .from('want_to_play_courses')
         .delete()
-        .match({ 
-          user_id: user.id, 
-          course_id: courseId
-        });
-
+        .eq('user_id', user.id)
+        .eq('course_id', courseId);
+        
       if (error) {
-        console.error('Error removing bookmark:', error);
-        throw error;
+        console.error('Error removing course from want to play list:', error);
+        // You could show a toast notification here
+      } else {
+        // Optimistically update the UI
+        setInternalCourses(prev => prev.filter(course => course.id !== courseId));
+        // Trigger a refresh of the lists
+        setNeedsRefresh();
       }
-
-      console.log(`Successfully removed bookmark for course ${courseId}`);
-      
-      // Update internal state immediately
-      setInternalCourses(prev => prev.filter(course => course.id !== courseId));
-      
-      // Trigger global refresh
-      setNeedsRefresh();
     } catch (error) {
-      console.error('Error in removeBookmark:', error);
+      console.error('Error removing course:', error);
     } finally {
       setRemovingId(null);
     }
-  };
-  
-  // If there are no courses to display
-  if (internalCourses.length === 0) {
-    console.log('WantToPlayCoursesList - No courses to display, showing empty state');
-    return (
-      <EmptyTabState
-        message="You haven't bookmarked any courses yet. Bookmark courses from the search page."
-        icon="Bookmark"
-      />
-    );
-  }
-  
-  console.log(`WantToPlayCoursesList rendering ${internalCourses.length} courses`);
-  
-  // Render the courses list using Eden design system
-  return (
-    <View style={{ flex: 1, backgroundColor: theme.colors.background }}>
-      <View style={{ paddingHorizontal: theme.spacing.lg, paddingVertical: theme.spacing.sm }}>
-        <SmallText color={theme.colors.textSecondary}>
-          {internalCourses.length} Bookmarked {internalCourses.length === 1 ? 'Course' : 'Courses'}
-        </SmallText>
-      </View>
-      
-      <FlatList
-        data={internalCourses}
-        keyExtractor={(item) => item.id.toString()}
-        renderItem={({ item }) => (
-          <View style={{
-            flexDirection: 'row',
-            alignItems: 'center',
-            paddingVertical: theme.spacing.md,
-            borderBottomWidth: 1,
-            borderBottomColor: theme.colors.border,
-            width: '100%',
-          }}>
-            <TouchableOpacity
-              style={{ flex: 1, paddingRight: theme.spacing.xs }}
-              onPress={() => handleCoursePress(item)}
-              activeOpacity={0.7}
+  }, [user, setNeedsRefresh]);
+
+  // Phase 2: Memoized empty state component
+  const emptyState = useMemo(() => (
+    <EmptyTabState
+      message="No courses in your want to play list yet. Search for courses and add them to this list."
+      icon="BookOpen"
+    />
+  ), []);
+
+  // Phase 2: Memoized container style
+  const containerStyle = useMemo(() => ({
+    flex: 1,
+    backgroundColor: theme.colors.background,
+    padding: theme.spacing.md,
+  }), [theme.colors.background, theme.spacing.md]);
+
+  // Phase 2: Memoized renderCourse function for FlatList performance
+  const renderCourse = useCallback(({ item: course }: { item: Course }) => (
+    <View style={{
+      backgroundColor: theme.colors.surface,
+      borderRadius: theme.borderRadius.md,
+      padding: theme.spacing.sm, // Reduced from md to sm for smaller boxes
+      marginBottom: theme.spacing.sm, // Reduced from md to sm for tighter spacing
+      borderWidth: 1,
+      borderColor: theme.colors.border,
+    }}>
+      <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+        <TouchableOpacity 
+          style={{ flex: 1 }} 
+          onPress={() => handleCoursePress(course)}
+        >
+          <Heading3 numberOfLines={2} style={{ marginBottom: theme.spacing.xs, paddingRight: theme.spacing.sm }}>
+            {course.name}
+          </Heading3>
+          
+          <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+            <MapPin size={16} color={theme.colors.textSecondary} />
+            <SmallText 
+              style={{ marginLeft: theme.spacing.sm, color: theme.colors.textSecondary, flex: 1 }} 
+              numberOfLines={2}
             >
-              <BodyText 
-                style={{ 
-                  fontSize: 17, 
-                  fontWeight: '600', 
-                  marginBottom: 4, 
-                  color: theme.colors.text 
-                }} 
-                numberOfLines={1}
-              >
-                {item.name}
-              </BodyText>
-              <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                <MapPin size={14} color={theme.colors.textSecondary} />
-                <SmallText 
-                  style={{ marginLeft: 4, color: theme.colors.textSecondary }} 
-                  numberOfLines={1}
-                >
-                  {item.location || 'No location data'}
-                </SmallText>
-              </View>
-            </TouchableOpacity>
-            
-            <TouchableOpacity
-              style={{ padding: theme.spacing.sm, marginLeft: theme.spacing.xs }}
-              onPress={() => removeBookmark(item.id)}
-              disabled={removingId === item.id}
-            >
-              {removingId === item.id ? (
-                <ActivityIndicator size="small" color={theme.colors.textSecondary} />
-              ) : (
-                <X size={20} color={theme.colors.textSecondary} />
-              )}
-            </TouchableOpacity>
+              {course.location || 'Unknown location'}
+            </SmallText>
           </View>
-        )}
-        contentContainerStyle={{ paddingHorizontal: theme.spacing.md, paddingBottom: 120 }}
+        </TouchableOpacity>
+        
+        <TouchableOpacity 
+          onPress={() => removeCourse(course.id)}
+          disabled={removingId === course.id}
+          style={{
+            padding: theme.spacing.sm,
+            borderRadius: theme.borderRadius.full,
+            backgroundColor: removingId === course.id ? theme.colors.backgroundSecondary : 'transparent',
+          }}
+        >
+          {removingId === course.id ? (
+            <ActivityIndicator size="small" color={theme.colors.textSecondary} />
+          ) : (
+            <X size={20} color={theme.colors.textSecondary} />
+          )}
+        </TouchableOpacity>
+      </View>
+    </View>
+  ), [theme, handleCoursePress, removeCourse, removingId]);
+
+  // Phase 2: Memoized keyExtractor for FlatList performance
+  const keyExtractor = useCallback((item: Course) => item.id, []);
+
+  if (coursesToRender.length === 0) {
+    return emptyState;
+  }
+
+  return (
+    <View style={containerStyle}>
+      <FlatList
+        data={coursesToRender}
+        renderItem={renderCourse}
+        keyExtractor={keyExtractor}
         showsVerticalScrollIndicator={true}
+        removeClippedSubviews={true} // Phase 2: Add performance optimization for long lists
+        maxToRenderPerBatch={10} // Phase 2: Optimize rendering batch size
+        windowSize={10} // Phase 2: Optimize memory usage
       />
     </View>
   );
