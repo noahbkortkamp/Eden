@@ -16,8 +16,8 @@
       "**/*"
     ],
     "ios": {
-      "supportsTablet": true,
-      "buildNumber": "67",
+      "supportsTablet": false,
+      "buildNumber": "73",
       "capabilities": {
         "inAppPurchase": true
       },
@@ -150,7 +150,7 @@
       }
     },
     "android": {
-      "versionCode": 66,
+      "versionCode": 73,
       "permissions": [
         "android.permission.CAMERA",
         "android.permission.READ_EXTERNAL_STORAGE",
