@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { View, StyleSheet, FlatList, Text, TextInput, TouchableOpacity, ActivityIndicator, KeyboardAvoidingView, Platform, StatusBar, SafeAreaView } from 'react-native';
+import { View, StyleSheet, FlatList, Text, TextInput, TouchableOpacity, ActivityIndicator, KeyboardAvoidingView, Platform, StatusBar, SafeAreaView, Alert } from 'react-native';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
-import { ArrowLeft, Send, MapPin, Calendar, Heart, MessageCircle } from 'lucide-react-native';
+import { ArrowLeft, Send, MapPin, Calendar, Heart, MessageCircle, MoreHorizontal, Shield } from 'lucide-react-native';
 import { useTheme } from '../theme/ThemeProvider';
 import { useAuth } from '../context/AuthContext';
 import { Image } from 'expo-image';
@@ -11,6 +11,8 @@ import { supabase } from '../utils/supabase';
 import { reviewService } from '../services/reviewService';
 import { LikeButton } from '../components/LikeButton';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { userSafetyService } from '../services/userSafetyService';
+import { ReportReason } from '../types/userSafety';
 
 export default function CommentsScreen() {
   const insets = useSafeAreaInsets();
@@ -131,6 +133,81 @@ export default function CommentsScreen() {
       setSubmitting(false);
     }
   };
+
+  // Handle reporting comment
+  const handleReportComment = (commentId: string) => {
+    Alert.alert(
+      'Report Comment',
+      'Why are you reporting this comment?',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Inappropriate Content', onPress: () => reportComment(commentId, 'inappropriate') },
+        { text: 'Spam', onPress: () => reportComment(commentId, 'spam') },
+        { text: 'Harassment', onPress: () => reportComment(commentId, 'harassment') },
+        { text: 'Hate Speech', onPress: () => reportComment(commentId, 'hate_speech') },
+        { text: 'Other', onPress: () => reportComment(commentId, 'other') },
+      ]
+    );
+  };
+
+  const reportComment = async (commentId: string, reason: ReportReason) => {
+    try {
+      await userSafetyService.reportContent('comment', commentId, reason);
+      Alert.alert(
+        'Report Submitted',
+        'Thank you for helping keep Eden safe. We\'ll review this report.',
+        [{ text: 'OK' }]
+      );
+    } catch (error) {
+      console.error('Error reporting comment:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Failed to submit report';
+      Alert.alert('Error', errorMessage);
+    }
+  };
+
+  // Handle blocking user
+  const handleBlockUser = (userId: string, userName: string) => {
+    Alert.alert(
+      'Block User',
+      `Are you sure you want to block ${userName}? You won't see their comments or be able to interact with them.`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { 
+          text: 'Block', 
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await userSafetyService.blockUser(userId);
+              Alert.alert(
+                'User Blocked',
+                `${userName} has been blocked.`,
+                [{ text: 'OK' }]
+              );
+              // Refresh comments to filter out blocked user's content
+              loadComments();
+            } catch (error) {
+              console.error('Error blocking user:', error);
+              Alert.alert('Error', 'Failed to block user. Please try again.');
+            }
+          }
+        }
+      ]
+    );
+  };
+
+  const handleCommentActions = (comment: any) => {
+    const userName = comment.users?.full_name || 'this user';
+    
+    Alert.alert(
+      'Actions',
+      'What would you like to do?',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Report Comment', onPress: () => handleReportComment(comment.id) },
+        { text: 'Block User', onPress: () => handleBlockUser(comment.user_id, userName), style: 'destructive' },
+      ]
+    );
+  };
   
   const renderCommentItem = ({ item }: { item: any }) => {
     const isCurrentUser = item.user_id === user?.id;
@@ -167,12 +244,24 @@ export default function CommentsScreen() {
           { backgroundColor: isCurrentUser ? theme.colors.primary + '20' : theme.colors.surface }
         ]}>
           <View style={styles.commentHeader}>
-            <Text style={[styles.userName, { color: theme.colors.text }]}>
-              {isCurrentUser ? 'You' : userName}
-            </Text>
-            <Text style={[styles.timestamp, { color: theme.colors.textSecondary }]}>
-              {formattedDate}
-            </Text>
+            <View style={styles.commentHeaderLeft}>
+              <Text style={[styles.userName, { color: theme.colors.text }]}>
+                {isCurrentUser ? 'You' : userName}
+              </Text>
+              <Text style={[styles.timestamp, { color: theme.colors.textSecondary }]}>
+                {formattedDate}
+              </Text>
+            </View>
+            {/* Show menu for other users' comments */}
+            {!isCurrentUser && (
+              <TouchableOpacity 
+                onPress={() => handleCommentActions(item)}
+                style={styles.commentMenuButton}
+                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+              >
+                <MoreHorizontal size={16} color={theme.colors.textSecondary} />
+              </TouchableOpacity>
+            )}
           </View>
           
           <Text style={[styles.commentText, { color: theme.colors.text }]}>
@@ -458,7 +547,15 @@ const styles = StyleSheet.create({
   commentHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
+    alignItems: 'flex-start',
     marginBottom: 4,
+  },
+  commentHeaderLeft: {
+    flex: 1,
+  },
+  commentMenuButton: {
+    padding: 4,
+    marginLeft: 8,
   },
   userName: {
     fontSize: 14,

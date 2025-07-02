@@ -7,6 +7,7 @@ import { useEdenTheme } from '../theme';
 import { EDEN_COLORS } from '../theme/edenColors';
 import { IAP_PRODUCT_IDS } from '../config/iap';
 import { useIAP } from '../hooks/useIAP';
+import { openTermsOfUse, openPrivacyPolicy } from '../utils/legalLinks';
 
 export default function FreeTrialUpsellModal() {
   const router = useRouter();
@@ -141,6 +142,25 @@ export default function FreeTrialUpsellModal() {
               <Text style={[theme.typography.body, styles.pricingSubtitle]}>
                 $30/year after trial
               </Text>
+              
+              {/* Subscription Terms */}
+              <View style={styles.subscriptionTerms}>
+                <Text style={[theme.typography.bodySmall, styles.subscriptionInfo]}>
+                  <Text style={styles.bold}>Founders Membership</Text> • $29.99/year • Auto-renews annually
+                </Text>
+                <Text style={[theme.typography.bodySmall, styles.subscriptionInfo]}>
+                  Cancel anytime in settings. No charges during trial.
+                </Text>
+                <View style={styles.legalLinks}>
+                  <TouchableOpacity onPress={() => openTermsOfUse()}>
+                    <Text style={[theme.typography.bodySmall, styles.linkText]}>Terms of Use</Text>
+                  </TouchableOpacity>
+                  <Text style={[theme.typography.bodySmall, styles.separator]}> • </Text>
+                  <TouchableOpacity onPress={() => openPrivacyPolicy()}>
+                    <Text style={[theme.typography.bodySmall, styles.linkText]}>Privacy Policy</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
             </View>
 
 
@@ -284,6 +304,35 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   pricingSubtitle: {
+    color: EDEN_COLORS.TEXT_SECONDARY,
+  },
+  subscriptionTerms: {
+    marginTop: 16,
+    paddingTop: 16,
+    borderTopWidth: 1,
+    borderTopColor: EDEN_COLORS.BORDER,
+  },
+  subscriptionInfo: {
+    textAlign: 'center',
+    color: EDEN_COLORS.TEXT_SECONDARY,
+    marginBottom: 6,
+    lineHeight: 16,
+  },
+  bold: {
+    fontWeight: '600',
+    color: EDEN_COLORS.TEXT,
+  },
+  legalLinks: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginTop: 8,
+  },
+  linkText: {
+    color: EDEN_COLORS.PRIMARY,
+    textDecorationLine: 'underline',
+  },
+  separator: {
     color: EDEN_COLORS.TEXT_SECONDARY,
   },
   buttonSection: {

@@ -5,6 +5,7 @@ import { useRouter } from 'expo-router';
 import { useAuth } from '../context/AuthContext';
 import { edenTheme } from '../theme/edenTheme';
 import { Ionicons } from '@expo/vector-icons';
+import { openTermsOfUse, openPrivacyPolicy } from '../utils/legalLinks';
 
 const isValidEmail = (email: string) => {
   const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -255,9 +256,9 @@ export default function OnboardingSignupScreen() {
               
               <Text style={styles.termsText}>
                 By continuing, you are agreeing to our{' '}
-                <Text style={styles.linkText} onPress={() => { /* TODO: link to Terms */ }}>Terms of Service</Text>
+                <Text style={styles.linkText} onPress={() => openTermsOfUse()}>Terms of Service</Text>
                 {' '}and{' '}
-                <Text style={styles.linkText} onPress={() => { /* TODO: link to Privacy */ }}>Privacy Policy</Text>.
+                <Text style={styles.linkText} onPress={() => openPrivacyPolicy()}>Privacy Policy</Text>.
               </Text>
             </View>
           </TouchableWithoutFeedback>

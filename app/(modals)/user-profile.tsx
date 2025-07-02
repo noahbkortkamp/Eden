@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { View, StyleSheet, ScrollView, RefreshControl, TouchableOpacity, SafeAreaView, Platform } from 'react-native';
+import { View, StyleSheet, ScrollView, RefreshControl, TouchableOpacity, SafeAreaView, Platform, Alert } from 'react-native';
 import { Text, Button, Avatar, Card, Divider } from 'react-native-paper';
 import { useAuth } from '../context/AuthContext';
 import { useLocalSearchParams, Stack, useRouter } from 'expo-router';
@@ -9,9 +9,11 @@ import { getCourse } from '../utils/courses';
 import { getFollowCounts, isFollowing, followUser, unfollowUser } from '../utils/friends';
 import { bookmarkService } from '../services/bookmarkService';
 import { supabase } from '../utils/supabase';
-import { ThumbsUp, ArrowLeft, User as UserIcon, UserPlus, UserCheck } from 'lucide-react-native';
+import { ThumbsUp, ArrowLeft, User as UserIcon, UserPlus, UserCheck, Shield, ShieldOff, Flag, MoreHorizontal } from 'lucide-react-native';
 import { useTheme } from '../theme/ThemeProvider';
 import { formatScoreForDisplay } from '@/app/utils/scoreDisplay';
+import { userSafetyService } from '../services/userSafetyService';
+import { REPORT_REASON_LABELS, ReportReason } from '../types/userSafety';
 
 // Get badge color based on rating
 const getBadgeColor = (score: number): string => {
@@ -81,6 +83,9 @@ export default function UserProfileScreen() {
   const [profileData, setProfileData] = useState<any>(null);
   const [isCurrentUserFollowing, setIsCurrentUserFollowing] = useState(false);
   const [followLoading, setFollowLoading] = useState(false);
+  const [isUserBlocked, setIsUserBlocked] = useState(false);
+  const [blockLoading, setBlockLoading] = useState(false);
+  const [showMoreActions, setShowMoreActions] = useState(false);
 
   // Load user profile data
   const loadUserProfile = async () => {
@@ -113,6 +118,18 @@ export default function UserProfileScreen() {
       setIsCurrentUserFollowing(following);
     } catch (error) {
       console.error('Error checking follow status:', error);
+    }
+  };
+
+  // Check if user is blocked
+  const checkBlockStatus = async () => {
+    if (!user || !userId || user.id === userId) return;
+    
+    try {
+      const blocked = await userSafetyService.isUserBlocked(userId);
+      setIsUserBlocked(blocked);
+    } catch (error) {
+      console.error('Error checking block status:', error);
     }
   };
 
@@ -196,6 +213,7 @@ export default function UserProfileScreen() {
     loadUserProfile();
     loadReviews();
     checkFollowStatus();
+    checkBlockStatus();
   }, [userId]);
 
   const handleFollowToggle = async () => {
@@ -219,6 +237,119 @@ export default function UserProfileScreen() {
     } finally {
       setFollowLoading(false);
     }
+  };
+
+  const handleBlockToggle = async () => {
+    if (!user || !userId || user.id === userId) return;
+    
+    const userName = getDisplayName();
+    
+    if (isUserBlocked) {
+      // Unblock user
+      Alert.alert(
+        'Unblock User',
+        `Are you sure you want to unblock ${userName}? You will see their content again.`,
+        [
+          { text: 'Cancel', style: 'cancel' },
+          { 
+            text: 'Unblock', 
+            onPress: async () => {
+              setBlockLoading(true);
+              try {
+                await userSafetyService.unblockUser(userId);
+                setIsUserBlocked(false);
+                Alert.alert('Success', `${userName} has been unblocked.`);
+              } catch (error) {
+                console.error('Error unblocking user:', error);
+                Alert.alert('Error', 'Failed to unblock user. Please try again.');
+              } finally {
+                setBlockLoading(false);
+              }
+            }
+          }
+        ]
+      );
+    } else {
+      // Block user
+      Alert.alert(
+        'Block User',
+        `Are you sure you want to block ${userName}? You won't see their reviews or be able to interact with them.`,
+        [
+          { text: 'Cancel', style: 'cancel' },
+          { 
+            text: 'Block', 
+            style: 'destructive',
+            onPress: async () => {
+              setBlockLoading(true);
+              try {
+                await userSafetyService.blockUser(userId);
+                setIsUserBlocked(true);
+                // Also unfollow if currently following
+                if (isCurrentUserFollowing) {
+                  await unfollowUser(user.id, userId);
+                  setIsCurrentUserFollowing(false);
+                  setFollowStats(prev => ({ ...prev, followers: Math.max(0, prev.followers - 1) }));
+                }
+                Alert.alert('Success', `${userName} has been blocked.`);
+              } catch (error) {
+                console.error('Error blocking user:', error);
+                Alert.alert('Error', 'Failed to block user. Please try again.');
+              } finally {
+                setBlockLoading(false);
+              }
+            }
+          }
+        ]
+      );
+    }
+  };
+
+  const handleReportUser = () => {
+    Alert.alert(
+      'Report User',
+      'Why are you reporting this user?',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Inappropriate Profile', onPress: () => reportUser('inappropriate') },
+        { text: 'Spam', onPress: () => reportUser('spam') },
+        { text: 'Harassment', onPress: () => reportUser('harassment') },
+        { text: 'Fake Account', onPress: () => reportUser('fake') },
+        { text: 'Other', onPress: () => reportUser('other') },
+      ]
+    );
+  };
+
+  const reportUser = async (reason: ReportReason) => {
+    if (!userId) return;
+    
+    try {
+      await userSafetyService.reportContent('user_profile', userId, reason);
+      Alert.alert(
+        'Report Submitted',
+        'Thank you for helping keep Eden safe. We\'ll review this report.',
+        [{ text: 'OK' }]
+      );
+    } catch (error) {
+      console.error('Error reporting user:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Failed to submit report';
+      Alert.alert('Error', errorMessage);
+    }
+  };
+
+  const handleMoreActions = () => {
+    Alert.alert(
+      'Actions',
+      'What would you like to do?',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Report User', onPress: handleReportUser },
+        { 
+          text: isUserBlocked ? 'Unblock User' : 'Block User', 
+          onPress: handleBlockToggle, 
+          style: 'destructive' 
+        },
+      ]
+    );
   };
 
   const getDisplayName = () => {
@@ -246,6 +377,12 @@ export default function UserProfileScreen() {
           <ArrowLeft size={24} color={theme.colors.text} />
         </TouchableOpacity>
         <Text style={[styles.headerTitle, { color: theme.colors.text }]}>Profile</Text>
+        {/* Show more actions menu if viewing another user's profile */}
+        {user && userId !== user.id && (
+          <TouchableOpacity onPress={handleMoreActions} style={styles.moreButton}>
+            <MoreHorizontal size={24} color={theme.colors.text} />
+          </TouchableOpacity>
+        )}
       </View>
       
       <ScrollView
@@ -327,7 +464,7 @@ export default function UserProfileScreen() {
               mode={isCurrentUserFollowing ? "outlined" : "contained"}
               onPress={handleFollowToggle}
               loading={followLoading}
-              disabled={followLoading}
+              disabled={followLoading || isUserBlocked}
               style={styles.actionButton}
               icon={({ size, color }) => 
                 isCurrentUserFollowing ? 
@@ -415,6 +552,7 @@ const styles = StyleSheet.create({
   header: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'space-between',
     paddingVertical: 16,
     paddingHorizontal: 16,
     paddingTop: Platform.OS === 'ios' ? 8 : 16,
@@ -427,6 +565,13 @@ const styles = StyleSheet.create({
   headerTitle: {
     fontSize: 18,
     fontWeight: '600',
+    flex: 1,
+  },
+  moreButton: {
+    width: 44,
+    height: 44,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   scrollView: {
     flex: 1,
@@ -463,8 +608,8 @@ const styles = StyleSheet.create({
     fontSize: 12,
   },
   actionButton: {
-    marginTop: 24,
-    paddingHorizontal: 16,
+    marginTop: 20,
+    width: '80%',
   },
   divider: {
     marginVertical: 8,

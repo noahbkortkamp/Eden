@@ -5,6 +5,7 @@ import { Link, useRouter } from 'expo-router';
 import { useAuth } from '../context/AuthContext';
 import { MaterialIcons } from '@expo/vector-icons';
 import { edenTheme } from '../theme/edenTheme';
+import { openTermsOfUse, openPrivacyPolicy } from '../utils/legalLinks';
 
 const isValidEmail = (email: string) => {
   const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -262,7 +263,14 @@ export default function SignUpScreen() {
               </Button>
               
               <Text style={[styles.terms, { color: edenTheme.colors.textSecondary }]}>
-                By signing up, you agree to the Terms and Privacy Policy
+                By signing up, you agree to the{' '}
+                <Text style={[styles.link, { color: edenTheme.colors.primary }]} onPress={() => openTermsOfUse()}>
+                  Terms of Use
+                </Text>
+                {' '}and{' '}
+                <Text style={[styles.link, { color: edenTheme.colors.primary }]} onPress={() => openPrivacyPolicy()}>
+                  Privacy Policy
+                </Text>
               </Text>
 
               <View style={styles.footer}>

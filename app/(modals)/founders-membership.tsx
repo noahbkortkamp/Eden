@@ -8,6 +8,7 @@ import { EDEN_COLORS } from '../theme/edenColors';
 import { IAP_PRODUCT_IDS } from '../config/iap';
 import { useIAP } from '../hooks/useIAP';
 import { useSubscription } from '../hooks/useSubscription';
+import { openTermsOfUse, openPrivacyPolicy } from '../utils/legalLinks';
 
 export default function FoundersMembershipModal() {
   const router = useRouter();
@@ -226,6 +227,25 @@ export default function FoundersMembershipModal() {
               <Text style={[theme.typography.body, styles.closingText]}>
                 Your membership supports ongoing development of the app and allows us to build the best possible experience for golf sickos just like you.
               </Text>
+
+              {/* Subscription Terms */}
+              <View style={styles.subscriptionTerms}>
+                <Text style={[theme.typography.bodySmall, styles.subscriptionInfo]}>
+                  <Text style={styles.bold}>Founders Membership</Text> • $29.99/year • 7-day free trial
+                </Text>
+                <Text style={[theme.typography.bodySmall, styles.subscriptionInfo]}>
+                  Auto-renews annually. Cancel anytime in settings.
+                </Text>
+                <View style={styles.legalLinks}>
+                  <TouchableOpacity onPress={() => openTermsOfUse()}>
+                    <Text style={[theme.typography.bodySmall, styles.linkText]}>Terms of Use</Text>
+                  </TouchableOpacity>
+                  <Text style={[theme.typography.bodySmall, styles.separator]}> • </Text>
+                  <TouchableOpacity onPress={() => openPrivacyPolicy()}>
+                    <Text style={[theme.typography.bodySmall, styles.linkText]}>Privacy Policy</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
             </View>
           </View>
         </ScrollView>
@@ -364,6 +384,35 @@ const styles = StyleSheet.create({
     textAlign: 'left',
     lineHeight: 24,
     color: EDEN_COLORS.TEXT,
+  },
+  subscriptionTerms: {
+    marginTop: 24,
+    paddingTop: 20,
+    borderTopWidth: 1,
+    borderTopColor: EDEN_COLORS.BORDER,
+  },
+  subscriptionInfo: {
+    textAlign: 'center',
+    color: EDEN_COLORS.TEXT_SECONDARY,
+    marginBottom: 8,
+    lineHeight: 18,
+  },
+  bold: {
+    fontWeight: '600',
+    color: EDEN_COLORS.TEXT,
+  },
+  legalLinks: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginTop: 8,
+  },
+  linkText: {
+    color: EDEN_COLORS.PRIMARY,
+    textDecorationLine: 'underline',
+  },
+  separator: {
+    color: EDEN_COLORS.TEXT_SECONDARY,
   },
   buttonSection: {
     paddingHorizontal: 24,

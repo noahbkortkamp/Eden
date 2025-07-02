@@ -6,7 +6,8 @@ import {
   ScrollView, 
   TouchableOpacity, 
   SafeAreaView,
-  Platform
+  Platform,
+  Alert
 } from 'react-native';
 import { Image } from 'expo-image';
 import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
@@ -25,8 +26,12 @@ import {
   Tag,
   Users,
   Flag,
-  Camera
+  Camera,
+  MoreHorizontal,
+  Shield
 } from 'lucide-react-native';
+import { userSafetyService } from '../services/userSafetyService';
+import { ReportReason } from '../types/userSafety';
 
 // Eden components
 import { Heading2, Heading3, BodyText, SmallText, Caption } from '../components/eden/Typography';
@@ -131,6 +136,88 @@ export default function ReviewSummaryScreen() {
     });
   };
 
+  // Handle reporting review
+  const handleReportReview = () => {
+    Alert.alert(
+      'Report Review',
+      'Why are you reporting this review?',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Inappropriate Content', onPress: () => reportReview('inappropriate') },
+        { text: 'Spam', onPress: () => reportReview('spam') },
+        { text: 'Harassment', onPress: () => reportReview('harassment') },
+        { text: 'Fake Information', onPress: () => reportReview('fake') },
+        { text: 'Other', onPress: () => reportReview('other') },
+      ]
+    );
+  };
+
+  const reportReview = async (reason: ReportReason) => {
+    if (!review?.id) return;
+    
+    try {
+      await userSafetyService.reportContent('review', review.id, reason);
+      Alert.alert(
+        'Report Submitted',
+        'Thank you for helping keep Eden safe. We\'ll review this report.',
+        [{ text: 'OK' }]
+      );
+    } catch (error) {
+      console.error('Error reporting review:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Failed to submit report';
+      Alert.alert('Error', errorMessage);
+    }
+  };
+
+  // Handle blocking user
+  const handleBlockUser = () => {
+    if (!review?.user_id) return;
+    
+    const userName = review.user?.full_name || 'this user';
+    
+    Alert.alert(
+      'Block User',
+      `Are you sure you want to block ${userName}? You won't see their reviews or be able to interact with them.`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { 
+          text: 'Block', 
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await userSafetyService.blockUser(review.user_id);
+              Alert.alert(
+                'User Blocked',
+                `${userName} has been blocked.`,
+                [
+                  { 
+                    text: 'OK', 
+                    onPress: () => router.back() // Go back since this content is now blocked
+                  }
+                ]
+              );
+            } catch (error) {
+              console.error('Error blocking user:', error);
+              Alert.alert('Error', 'Failed to block user. Please try again.');
+            }
+          }
+        }
+      ]
+    );
+  };
+
+  const handleMoreActions = () => {
+    Alert.alert(
+      'Actions',
+      'What would you like to do?',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Report Review', onPress: handleReportReview },
+        { text: 'Block User', onPress: handleBlockUser, style: 'destructive' },
+      ]
+    );
+  };
+
   // Render loading state
   if (loading) {
     return (
@@ -215,6 +302,12 @@ export default function ReviewSummaryScreen() {
           <ArrowLeft size={24} color={theme.colors.text} />
         </TouchableOpacity>
         <Heading3>{isCurrentUserReview ? 'Your Review' : 'Review Details'}</Heading3>
+        {/* Show more actions menu if viewing someone else's review */}
+        {!isCurrentUserReview && review?.user_id && (
+          <TouchableOpacity onPress={handleMoreActions} style={styles.moreButton}>
+            <MoreHorizontal size={24} color={theme.colors.text} />
+          </TouchableOpacity>
+        )}
       </View>
 
       <ScrollView style={styles.scrollContainer} contentContainerStyle={styles.contentContainer}>
@@ -374,6 +467,7 @@ const styles = StyleSheet.create({
   header: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'space-between',
     padding: 16,
     paddingTop: Platform.OS === 'ios' ? 8 : 16,
   },
@@ -382,6 +476,12 @@ const styles = StyleSheet.create({
     height: 40,
     width: 40,
     borderRadius: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  moreButton: {
+    width: 44,
+    height: 44,
     alignItems: 'center',
     justifyContent: 'center',
   },
