@@ -546,19 +546,24 @@ function processReviewsWithInteractions(
  */
 export async function getSuggestedUsers(userId: string, limit: number = 5): Promise<User[]> {
   try {
-    // Get users except self using a simple query first
-    const { data: users, error: usersError } = await supabase
-      .from('users')
-      .select('id, full_name, avatar_url, username')
-      .neq('id', userId)
-      .limit(limit * 2);  // Get more than we need so we can filter
+    console.log(`🔍 getSuggestedUsers: Starting search for user ${userId}, limit: ${limit}`);
     
-    if (usersError || !users || users.length === 0) {
-      console.error("Error getting users:", usersError);
-      return [];
-    }
+    // Use the fallback method directly since the optimized query has issues with review counting
+    return await getSuggestedUsersFallback(userId, limit);
+  } catch (error) {
+    console.error("Unexpected error in getSuggestedUsers:", error);
+    return [];
+  }
+}
+
+/**
+ * Fallback method for getSuggestedUsers if the optimized query fails
+ */
+async function getSuggestedUsersFallback(userId: string, limit: number): Promise<User[]> {
+  try {
+    console.log("🔄 Using fallback method for getSuggestedUsers");
     
-    // Now get users the current user is already following to filter them out
+    // Get users the current user is already following to filter them out
     const { data: followingData, error: followingError } = await supabase
       .from('follows')
       .select('following_id')
@@ -566,29 +571,46 @@ export async function getSuggestedUsers(userId: string, limit: number = 5): Prom
     
     const followingIds = followingError ? [] : (followingData || []).map(f => f.following_id);
     const followingSet = new Set(followingIds);
+    console.log(`🔄 Fallback: User is following ${followingSet.size} users:`, Array.from(followingSet));
     
-    // Filter out users the current user already follows
-    const filteredUsers = users.filter(user => !followingSet.has(user.id));
+    // Get ALL users except self (remove any limit)
+    const { data: users, error: usersError } = await supabase
+      .from('users')
+      .select('id, full_name, avatar_url, username')
+      .neq('id', userId);
     
-    if (filteredUsers.length === 0) {
+    if (usersError || !users || users.length === 0) {
+      console.error("Error getting users in fallback:", usersError);
       return [];
     }
     
-    // Get review counts for each user individually
-    // This is less efficient but more compatible
-    const processedUsersPromises = filteredUsers.map(async (user) => {
+    console.log(`🔄 Fallback: Found ${users.length} total users`);
+    
+    // Get review counts for ALL users in parallel
+    const processedUsersPromises = users.map(async (user) => {
       try {
         const { count, error: countError } = await supabase
           .from('reviews')
           .select('*', { count: 'exact', head: true })
           .eq('user_id', user.id);
         
+        if (countError) {
+          console.error(`Error getting review count for user ${user.full_name || user.username} (${user.id}):`, countError);
+        }
+        
+        const reviewCount = countError ? 0 : (count || 0);
+        
+        // Log users with more than 1 review for debugging
+        if (reviewCount > 1) {
+          console.log(`🔄 Found user with ${reviewCount} reviews: ${user.full_name || user.username} (${user.id})`);
+        }
+        
         return {
           ...user,
-          review_count: countError ? 0 : (count || 0)
+          review_count: reviewCount
         };
       } catch (e) {
-        console.error(`Error getting review count for user ${user.id}:`, e);
+        console.error(`Exception getting review count for user ${user.id}:`, e);
         return {
           ...user,
           review_count: 0
@@ -596,42 +618,36 @@ export async function getSuggestedUsers(userId: string, limit: number = 5): Prom
       }
     });
     
-    try {
-      // Wait for all the review count queries to complete
-      const processedUsers = await Promise.all(processedUsersPromises);
-      
-      // Sort by review count (most reviews first)
-      const sortedUsers = processedUsers.sort((a, b) => (b.review_count || 0) - (a.review_count || 0));
-      
-      // Return up to the requested limit
-      return sortedUsers.slice(0, limit);
-    } catch (e) {
-      console.error("Error processing users:", e);
-      // Return filtered users without review counts as fallback
-      return filteredUsers.slice(0, limit).map(user => ({
-        ...user,
-        review_count: 0
-      }));
-    }
-  } catch (error) {
-    console.error("Unexpected error in getSuggestedUsers:", error);
+    const processedUsers = await Promise.all(processedUsersPromises);
     
-    // Basic fallback - just get any users
-    try {
-      const { data } = await supabase
-        .from('users')
-        .select('id, full_name, avatar_url, username')
-        .neq('id', userId)
-        .limit(limit);
-      
-      return (data || []).map(user => ({
-        ...user,
-        review_count: 0
-      }));
-    } catch (e) {
-      console.error("Failed even with basic fallback:", e);
-      return [];
-    }
+    // Sort by review count (most reviews first)
+    const sortedUsers = processedUsers.sort((a, b) => (b.review_count || 0) - (a.review_count || 0));
+    
+    console.log(`🔄 Fallback: Top 20 users by review count:`);
+    sortedUsers.slice(0, 20).forEach((user, index) => {
+      console.log(`  ${index + 1}. ${user.full_name || user.username}: ${user.review_count} reviews (ID: ${user.id})`);
+    });
+    
+    // Filter out users the current user already follows
+    const unfollowedUsers = sortedUsers.filter(user => !followingSet.has(user.id));
+    
+    console.log(`🔄 Fallback: After filtering followed users: ${unfollowedUsers.length} remaining`);
+    console.log(`🔄 Fallback: Top 10 unfollowed users:`);
+    unfollowedUsers.slice(0, 10).forEach((user, index) => {
+      console.log(`  ${index + 1}. ${user.full_name || user.username}: ${user.review_count} reviews (ID: ${user.id})`);
+    });
+    
+    // Return up to the requested limit
+    const result = unfollowedUsers.slice(0, limit);
+    console.log(`🔄 Fallback: Final result - returning ${result.length} users:`);
+    result.forEach((user, index) => {
+      console.log(`  ${index + 1}. ${user.full_name || user.username}: ${user.review_count} reviews`);
+    });
+    
+    return result;
+  } catch (error) {
+    console.error("Fallback method also failed:", error);
+    return [];
   }
 }
 
