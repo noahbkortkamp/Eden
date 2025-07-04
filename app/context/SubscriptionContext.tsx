@@ -3,6 +3,12 @@ import { useAuth } from './AuthContext';
 import { iapService } from '../services/iapService';
 import { SubscriptionStatus, FeatureAccess, Product } from '../types/iap';
 
+// Import new Supabase-based subscription service
+import { 
+  subscriptionStatusService, 
+  SubscriptionStatus as SupabaseSubscriptionStatus 
+} from '../services/subscriptionStatusService';
+
 interface SubscriptionState {
   hasActiveSubscription: boolean;
   subscriptionStatus: SubscriptionStatus;
@@ -50,6 +56,17 @@ export function SubscriptionProvider({ children }: SubscriptionProviderProps) {
 
     initializationAttempted.current = true;
 
+    // Skip IAP initialization in Expo Go (where it will always fail)
+    const isExpoGo = typeof expo !== 'undefined' && expo?.modules;
+    if (isExpoGo) {
+      console.log('⚠️ SubscriptionContext: Skipping IAP initialization in Expo Go');
+      if (isMountedRef.current) {
+        setProducts([]); // Empty products array
+        setLoading(false);
+      }
+      return;
+    }
+
     try {
       console.log('🚀 SubscriptionContext: Initializing IAP...');
       setLoading(true);
@@ -79,7 +96,7 @@ export function SubscriptionProvider({ children }: SubscriptionProviderProps) {
     }
   };
 
-  // Fetch subscription status
+  // UPDATED: Fetch subscription status using new Supabase-based service
   const fetchSubscriptionStatus = async () => {
     if (!user?.id) {
       setSubscription(null);
@@ -87,19 +104,33 @@ export function SubscriptionProvider({ children }: SubscriptionProviderProps) {
     }
 
     try {
-      console.log('🔍 SubscriptionContext: Fetching subscription status for user:', user.id);
+      console.log('🔍 SubscriptionContext: Fetching subscription status from Supabase for user:', user.id);
       
-      const status = await iapService.getSubscriptionStatus(user.id);
+      // Use our new Supabase-based service (source of truth)
+      const supabaseStatus = await subscriptionStatusService.getSubscriptionStatus(user.id);
+      
+      // Convert Supabase status to our SubscriptionState format
+      const subscriptionState: SubscriptionState = {
+        hasActiveSubscription: supabaseStatus.hasActiveSubscription,
+        subscriptionStatus: mapSupabaseStatusToSubscriptionStatus(supabaseStatus.subscriptionStatus),
+        expirationDate: supabaseStatus.expirationDate ? new Date(supabaseStatus.expirationDate) : undefined,
+        isTrialPeriod: supabaseStatus.isTrialPeriod || false,
+        productId: supabaseStatus.productId
+      };
       
       if (isMountedRef.current) {
-        setSubscription(status);
-        console.log('✅ SubscriptionContext: Subscription status updated:', status);
+        setSubscription(subscriptionState);
+        console.log('✅ SubscriptionContext: Supabase subscription status updated:', {
+          hasActive: subscriptionState.hasActiveSubscription,
+          status: subscriptionState.subscriptionStatus,
+          product: subscriptionState.productId
+        });
       }
       
     } catch (err) {
       if (isMountedRef.current) {
-        const errorMessage = err instanceof Error ? err.message : 'Failed to fetch subscription status';
-        console.error('❌ SubscriptionContext: Error fetching subscription status:', err);
+        const errorMessage = err instanceof Error ? err.message : 'Failed to fetch subscription status from Supabase';
+        console.error('❌ SubscriptionContext: Error fetching Supabase subscription status:', err);
         // Don't set error for subscription status fetch to avoid blocking UI
         
         // Set default inactive state on error
@@ -112,10 +143,37 @@ export function SubscriptionProvider({ children }: SubscriptionProviderProps) {
     }
   };
 
+  // Helper function to map Supabase status to our enum
+  const mapSupabaseStatusToSubscriptionStatus = (supabaseStatus: SupabaseSubscriptionStatus['subscriptionStatus']): SubscriptionStatus => {
+    switch (supabaseStatus) {
+      case 'active':
+        return 'active';
+      case 'trial':
+        return 'active'; // Treat trial as active
+      case 'grace_period':
+        return 'active'; // Treat grace period as active
+      case 'expired':
+        return 'inactive';
+      case 'inactive':
+        return 'inactive';
+      case 'unknown':
+        return 'inactive'; // Treat unknown as inactive for safety
+      default:
+        return 'inactive';
+    }
+  };
+
   // Purchase subscription
   const purchaseSubscription = async (productId: string): Promise<boolean> => {
     if (!user?.id) {
       throw new Error('User must be logged in to purchase subscription');
+    }
+
+    // Handle Expo Go gracefully
+    const isExpoGo = typeof expo !== 'undefined' && expo?.modules;
+    if (isExpoGo) {
+      console.log('⚠️ SubscriptionContext: Purchase not available in Expo Go');
+      throw new Error('Purchases not available in Expo Go. Please use a development build or TestFlight.');
     }
 
     try {
@@ -127,7 +185,7 @@ export function SubscriptionProvider({ children }: SubscriptionProviderProps) {
       const success = await iapService.purchaseSubscription(productId);
       
       if (success) {
-        // Refresh subscription status after successful purchase
+        // Refresh subscription status after successful purchase with Supabase check
         await fetchSubscriptionStatus();
         console.log('✅ SubscriptionContext: Purchase completed successfully');
       }
@@ -154,6 +212,13 @@ export function SubscriptionProvider({ children }: SubscriptionProviderProps) {
       throw new Error('User must be logged in to restore purchases');
     }
 
+    // Handle Expo Go gracefully
+    const isExpoGo = typeof expo !== 'undefined' && expo?.modules;
+    if (isExpoGo) {
+      console.log('⚠️ SubscriptionContext: Restore not available in Expo Go');
+      throw new Error('Restore not available in Expo Go. Please use a development build or TestFlight.');
+    }
+
     try {
       setError(null);
       setLoading(true);
@@ -163,7 +228,7 @@ export function SubscriptionProvider({ children }: SubscriptionProviderProps) {
       const restored = await iapService.restorePurchases();
       
       if (restored) {
-        // Refresh subscription status after restoration
+        // Refresh subscription status after restoration with Supabase check
         await fetchSubscriptionStatus();
         console.log('✅ SubscriptionContext: Purchases restored successfully');
       }
@@ -184,7 +249,7 @@ export function SubscriptionProvider({ children }: SubscriptionProviderProps) {
     }
   };
 
-  // Check feature access
+  // UPDATED: Check feature access using Supabase-based subscription service
   const checkFeatureAccess = async (feature: string): Promise<FeatureAccess> => {
     if (!user?.id) {
       return {
@@ -196,7 +261,20 @@ export function SubscriptionProvider({ children }: SubscriptionProviderProps) {
     }
 
     try {
-      console.log(`🔍 SubscriptionContext: Checking feature access for: ${feature}`);
+      console.log(`🔍 SubscriptionContext: Checking feature access with Supabase service for: ${feature}`);
+      
+      // For premium features like unlimited reviews, check Supabase subscription status
+      if (feature === 'unlimited_reviews') {
+        const status = await subscriptionStatusService.getSubscriptionStatus(user.id);
+        return {
+          hasAccess: status.hasActiveSubscription,
+          isPremiumFeature: true,
+          usageCount: 0, // Usage tracked separately in database
+          limitReached: !status.hasActiveSubscription
+        };
+      }
+      
+      // For other features, fall back to the original IAP service method
       const access = await iapService.checkFeatureAccess(user.id, feature);
       console.log(`✅ SubscriptionContext: Feature access result for ${feature}:`, access);
       return access;
@@ -273,7 +351,7 @@ export function SubscriptionProvider({ children }: SubscriptionProviderProps) {
           await initializeIAP();
         }
         
-        // Fetch subscription status
+        // Fetch subscription status using Supabase-based method
         await fetchSubscriptionStatus();
         
       } catch (err) {
@@ -342,12 +420,12 @@ export function useSubscriptionContext(): SubscriptionContextType {
   return context;
 }
 
-// Convenience hook that combines subscription context with additional helpers
+// UPDATED: Convenience hook that combines subscription context with additional helpers using Apple-direct checking
 export function useSubscriptionWithHelpers() {
   const subscription = useSubscriptionContext();
   const { user } = useAuth();
 
-  // Check if user has access to premium features
+  // Use Apple-direct subscription status for premium access check
   const hasPremiumAccess = subscription.subscription?.hasActiveSubscription || false;
   
   // Check if user is in trial period
@@ -360,6 +438,7 @@ export function useSubscriptionWithHelpers() {
     : null;
 
   // Check if subscription is expiring soon (within 7 days)
+  // Note: Apple doesn't provide expiration info in getAvailablePurchases, so this may always be false
   const isExpiringSoon = daysUntilExpiration !== null && daysUntilExpiration <= 7 && daysUntilExpiration > 0;
 
   return {

@@ -17,7 +17,7 @@
     ],
     "ios": {
       "supportsTablet": false,
-      "buildNumber": "73",
+      "buildNumber": "83",
       "capabilities": {
         "inAppPurchase": true
       },
@@ -150,7 +150,7 @@
       }
     },
     "android": {
-      "versionCode": 73,
+      "versionCode": 83,
       "permissions": [
         "android.permission.CAMERA",
         "android.permission.READ_EXTERNAL_STORAGE",
