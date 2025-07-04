@@ -1,5 +1,6 @@
 import { supabase } from './supabase';
 import { Database } from './database.types';
+import { uploadReviewPhotos } from './storage';
 
 type Review = Database['public']['Tables']['reviews']['Row'];
 type Tag = Database['public']['Tables']['tags']['Row'];
@@ -162,6 +163,23 @@ export async function createReview(
       }
     }
 
+    // Upload photos to Supabase Storage first if there are any
+    let uploadedPhotoUrls: string[] = [];
+    if (photos && photos.length > 0) {
+      try {
+        console.log('🖼️ Uploading photos before creating review...');
+        // Generate a temporary review ID for the upload (React Native compatible)
+        const tempReviewId = `temp-${Date.now()}-${Math.floor(Math.random() * 10000)}`;
+        uploadedPhotoUrls = await uploadReviewPhotos(userId, tempReviewId, photos);
+        console.log('🖼️ Photos uploaded successfully, using remote URLs:', uploadedPhotoUrls.length);
+      } catch (photoError) {
+        console.error('🖼️ Photo upload failed:', photoError);
+        // Continue without photos rather than failing the entire review
+        console.warn('Continuing review creation without photos due to upload failure');
+        uploadedPhotoUrls = [];
+      }
+    }
+
     // Create the review with all supported fields
     const reviewData = {
       user_id: userId,
@@ -170,7 +188,7 @@ export async function createReview(
       sentiment, // Add mapped sentiment value
       notes,
       favorite_holes: formattedFavoriteHoles,
-      photos,
+      photos: uploadedPhotoUrls, // Use uploaded URLs instead of local paths
       date_played: datePlayed,
       price_paid: 0, // Default value, can be updated later
       playing_partners: playingPartners, // Add playing partners
@@ -314,6 +332,38 @@ export async function updateReview(
 ): Promise<Review> {
   const { rating, notes, favoriteHoles, photos, datePlayed, tagIds, playingPartners } = updates;
 
+  // Upload photos to Supabase Storage first if there are any new ones
+  let uploadedPhotoUrls: string[] | undefined = photos;
+  if (photos && photos.length > 0) {
+    // Check if any of the photos are local file paths (need uploading)
+    const localPhotos = photos.filter(photo => 
+      photo.startsWith('file://') || 
+      photo.includes('ImagePicker') || 
+      !photo.startsWith('http')
+    );
+    
+    if (localPhotos.length > 0) {
+      try {
+        console.log('🖼️ Uploading updated photos...');
+        const newUploadedUrls = await uploadReviewPhotos(userId, reviewId, localPhotos);
+        
+        // Replace local paths with uploaded URLs
+        uploadedPhotoUrls = photos.map(photo => {
+          const localIndex = localPhotos.indexOf(photo);
+          return localIndex >= 0 ? newUploadedUrls[localIndex] : photo;
+        });
+        
+        console.log('🖼️ Updated photos uploaded successfully');
+      } catch (photoError) {
+        console.error('🖼️ Photo upload failed during update:', photoError);
+        // Keep original photos array if upload fails
+        uploadedPhotoUrls = photos.filter(photo => 
+          photo.startsWith('http') || photo.startsWith('https')
+        );
+      }
+    }
+  }
+
   // If rating is updated, map it to the corresponding sentiment
   let sentiment;
   if (rating) {
@@ -340,7 +390,7 @@ export async function updateReview(
       sentiment, // Add mapped sentiment value
       notes,
       favorite_holes: favoriteHoles,
-      photos,
+      photos: uploadedPhotoUrls, // Use uploaded URLs
       date_played: datePlayed,
       playing_partners: playingPartners,
       updated_at: new Date().toISOString(),
